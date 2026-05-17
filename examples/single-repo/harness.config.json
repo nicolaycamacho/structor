@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schemas/harness-config.schema.json",
+  "project": {
+    "name": "Single Repo Product",
+    "slug": "single-repo-product",
+    "harnessRepoName": "single-repo-product-harness"
+  },
+  "output": {
+    "path": "../../generated/single-repo-product-harness"
+  },
+  "models": {
+    "openai": true,
+    "anthropic": false
+  },
+  "consumers": [
+    {
+      "name": "single-repo-app",
+      "path": "../../../single-repo-app",
+      "purpose": "Application repository",
+      "validation": {
+        "lint": "npm run lint",
+        "test": "npm test"
+      }
+    }
+  ]
+}

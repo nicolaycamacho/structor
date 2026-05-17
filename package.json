@@ -1,0 +1,20 @@
+{
+  "name": "ai-engineering-harness-template",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "check:config": "node scripts/check-config.mjs",
+    "check:placeholders": "node scripts/check-placeholders.mjs",
+    "check:templates": "node scripts/check-template-files.mjs",
+    "check:task-template": "node scripts/check-task-template.mjs",
+    "check:contracts": "node scripts/check-contract-manifests.mjs",
+    "check:model-overlays": "node scripts/check-model-overlays.mjs",
+    "validate": "node scripts/validate-template.mjs",
+    "validate:governance": "node scripts/validate-governance.mjs",
+    "init": "node scripts/init-harness.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

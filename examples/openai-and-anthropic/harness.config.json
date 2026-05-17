@@ -1,0 +1,28 @@
+{
+  "$schema": "../../schemas/harness-config.schema.json",
+  "project": {
+    "name": "Multi Model Product",
+    "slug": "multi-model-product",
+    "harnessRepoName": "multi-model-product-harness"
+  },
+  "output": {
+    "path": "../../generated/multi-model-product-harness"
+  },
+  "models": {
+    "openai": true,
+    "anthropic": true
+  },
+  "consumers": [
+    {
+      "name": "multi-model-app",
+      "path": "../../../multi-model-app",
+      "purpose": "Application repository used by both OpenAI and Anthropic agents",
+      "validation": {
+        "install": "npm install",
+        "lint": "npm run lint",
+        "test": "npm test",
+        "build": "npm run build"
+      }
+    }
+  ]
+}

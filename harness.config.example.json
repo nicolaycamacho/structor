@@ -1,0 +1,28 @@
+{
+  "$schema": "./schemas/harness-config.schema.json",
+  "project": {
+    "name": "Example Project",
+    "slug": "example-project",
+    "harnessRepoName": "example-engineering-harness"
+  },
+  "output": {
+    "path": "./generated/example-engineering-harness"
+  },
+  "models": {
+    "openai": true,
+    "anthropic": true
+  },
+  "consumers": [
+    {
+      "name": "example-app",
+      "path": "../example-app",
+      "purpose": "Primary application repository",
+      "validation": {
+        "install": "npm install",
+        "lint": "npm run lint",
+        "test": "npm test",
+        "build": "npm run build"
+      }
+    }
+  ]
+}
