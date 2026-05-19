@@ -10,5 +10,13 @@ Canonical policy belongs in generated `ai/*` docs. Overlay files should only:
 - avoid duplicating policy
 - stay short enough to review manually
 
-The template supports OpenAI/Codex and Anthropic/Claude overlay files by
+The template supports OpenAI/Codex and Anthropic/Claude Code overlay files by
 default.
+
+- OpenAI/Codex uses `AGENTS.md` entrypoints.
+- Anthropic/Claude Code uses `CLAUDE.md` and `.claude/CLAUDE.md` project
+  memory entrypoints.
+
+`models.openai` and `models.anthropic` in `harness.config.json` control which
+entrypoints and overlays are generated. The example config enables both model
+families.

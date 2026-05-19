@@ -10,3 +10,4 @@ them when validation or policy changes.
 | Contracts | B | `ai/contracts/*` | `scripts/check-contract-manifests.mjs` | Replace starter contracts with project contracts |
 | Review skills | B | `ai/skills/*` | `scripts/check-review-skills.mjs` | Customize review inputs |
 | Runner boundary | A | `ai/RUNNER-SAFETY.md` | Manual review | Keep runtime out of harness |
+| Workspace bootstrap | B | `scripts/bootstrap-workspace.mjs`, `scripts/check-workspace.mjs` | `node scripts/check-workspace.mjs` | Run after consumer repos are cloned |

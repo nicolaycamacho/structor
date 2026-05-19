@@ -12,6 +12,12 @@ Always read:
 
 ## Routing
 
+- Product, user journeys, or business context:
+  `./ai/PRODUCT-SUMMARY.md`, `./ai/PRODUCT.md`
+- Architecture, repo boundaries, or module design:
+  `./ai/ARCHITECTURE.md`
+- UI or design direction:
+  `./ai/DESIGN.md`
 - Harness policy, bootstrap, validation, or model overlay changes:
   `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`
 - Runner or automation questions:
@@ -21,6 +27,8 @@ Always read:
   `./ai/contracts/README.md` and the matching contract doc
 - Task template changes:
   `./ai/templates/README.md` and the matching template
+- Shared specs:
+  `./ai/specs/README.md` and the matching spec
 - Review requests:
   `./ai/skills/README.md` and the matching review skill
 - Repeated agent mistakes:

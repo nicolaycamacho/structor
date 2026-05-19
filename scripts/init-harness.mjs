@@ -48,6 +48,39 @@ function validationList(validation) {
   return entries.map(([name, command]) => `- ${name}: \`${command}\``).join("\n");
 }
 
+function consumerNames(consumers) {
+  return JSON.stringify(consumers.map((consumer) => consumer.name));
+}
+
+function consumerConfig(consumers, configDir, outputRoot) {
+  const workspaceRoot = path.dirname(outputRoot);
+  const normalizedConsumers = consumers.map((consumer) => {
+    const consumerRoot = path.resolve(configDir, consumer.path);
+    return {
+      ...consumer,
+      workspacePath: path.relative(workspaceRoot, consumerRoot).replaceAll(path.sep, "/") || ".",
+    };
+  });
+  return JSON.stringify(normalizedConsumers, null, 2);
+}
+
+function booleanLiteral(value) {
+  return value ? "true" : "false";
+}
+
+function shouldRenderTemplate(sourceRelative, config) {
+  if (sourceRelative.startsWith("consumer/")) return false;
+  if (!config.models.anthropic && sourceRelative.startsWith(".claude/")) return false;
+  if (!config.models.openai && sourceRelative === "workspace/AGENTS.md.tpl") return false;
+  if (!config.models.anthropic && sourceRelative.startsWith("workspace/CLAUDE.md")) return false;
+  if (!config.models.anthropic && sourceRelative.startsWith("workspace/.claude/")) return false;
+  if (!config.models.openai && sourceRelative === "AGENTS.md.tpl") return false;
+  if (!config.models.anthropic && sourceRelative === "CLAUDE.md.tpl") return false;
+  if (!config.models.openai && sourceRelative.startsWith("ai/model-overlays/openai/")) return false;
+  if (!config.models.anthropic && sourceRelative.startsWith("ai/model-overlays/anthropic/")) return false;
+  return true;
+}
+
 async function collectTemplateFiles() {
   const basePath = path.join(repoRoot, "template");
   const files = [];
@@ -58,7 +91,6 @@ async function collectTemplateFiles() {
       const absolute = path.join(currentPath, entry.name);
       const relative = path.relative(basePath, absolute).replaceAll(path.sep, "/");
       if (entry.isDirectory()) {
-        if (relative === "consumer") continue;
         await walk(absolute);
       } else if (entry.isFile() && entry.name.endsWith(".tpl")) {
         files.push(relative);
@@ -86,9 +118,10 @@ async function writeRenderedFile(sourceRelative, targetRoot, values, options) {
     return;
   }
 
+  const existed = await exists(targetPath);
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content);
-  console.log(`${(await exists(targetPath)) ? "wrote" : "created"} ${targetPath}`);
+  console.log(`${existed ? "wrote" : "created"} ${targetPath}`);
 }
 
 async function installConsumerEntrypoints(config, harnessRoot, options) {
@@ -107,9 +140,16 @@ async function installConsumerEntrypoints(config, harnessRoot, options) {
       HARNESS_RELATIVE_PATH: harnessRelativePath,
     };
 
-    for (const fileName of ["AGENTS.md", "CLAUDE.md"]) {
-      const sourcePath = path.join(repoRoot, "template", "consumer", `${fileName}.tpl`);
-      const targetPath = path.join(consumerRoot, fileName);
+    const entrypoints = [];
+    if (config.models.openai) entrypoints.push(["AGENTS.md", "AGENTS.md.tpl"]);
+    if (config.models.anthropic) {
+      entrypoints.push(["CLAUDE.md", "CLAUDE.md.tpl"]);
+      entrypoints.push([path.join(".claude", "CLAUDE.md"), path.join(".claude", "CLAUDE.md.tpl")]);
+    }
+
+    for (const [targetRelative, sourceRelative] of entrypoints) {
+      const sourcePath = path.join(repoRoot, "template", "consumer", sourceRelative);
+      const targetPath = path.join(consumerRoot, targetRelative);
       const content = render(await readFile(sourcePath, "utf8"), values);
 
       if (options.dryRun) {
@@ -121,6 +161,7 @@ async function installConsumerEntrypoints(config, harnessRoot, options) {
         continue;
       }
 
+      await mkdir(path.dirname(targetPath), { recursive: true });
       await writeFile(targetPath, content);
       console.log(`wrote consumer entrypoint ${targetPath}`);
     }
@@ -136,16 +177,22 @@ async function main() {
     throw new Error(errors.join("\n"));
   }
 
-  const outputRoot = path.resolve(path.dirname(configPath), options.output ?? config.output.path);
+  const configDir = path.dirname(configPath);
+  const outputRoot = path.resolve(configDir, options.output ?? config.output.path);
   const values = {
     PROJECT_NAME: config.project.name,
     PROJECT_SLUG: config.project.slug,
     HARNESS_REPO_NAME: config.project.harnessRepoName,
     CONSUMER_REPOS_LIST: consumerList(config.consumers),
+    CONSUMER_REPO_NAMES_JSON: consumerNames(config.consumers),
+    CONSUMER_CONFIG_JSON: consumerConfig(config.consumers, configDir, outputRoot),
     PRIMARY_CONSUMER_NAME: config.consumers[0].name,
+    MODEL_OPENAI_ENABLED: booleanLiteral(config.models.openai),
+    MODEL_ANTHROPIC_ENABLED: booleanLiteral(config.models.anthropic),
   };
 
   for (const sourceRelative of await collectTemplateFiles()) {
+    if (!shouldRenderTemplate(sourceRelative, config)) continue;
     await writeRenderedFile(sourceRelative, outputRoot, values, options);
   }
 

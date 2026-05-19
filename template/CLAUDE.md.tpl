@@ -10,4 +10,8 @@ Canonical policy lives in `ai/*`. Read:
 3. `./ai/HUB.md`
 4. `./ai/context.md`
 
+@ai/context.md
+
 Claude-specific notes must stay thin and route back into canonical policy.
+Use `.claude/CLAUDE.md` for Claude Code project memory and keep it aligned with
+this file.

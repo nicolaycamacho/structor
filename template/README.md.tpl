@@ -18,6 +18,13 @@ Run:
 node scripts/validate-governance.mjs
 ```
 
+To install workspace-level pointer files and verify consumer entrypoints:
+
+```sh
+node scripts/bootstrap-workspace.mjs --dry-run
+node scripts/bootstrap-workspace.mjs
+```
+
 Consumer repos should expose local install, lint, test, build, and health
 commands. The harness documents expected contracts and validation evidence, but
 consumer repos own implementation and runtime checks.

@@ -10,6 +10,7 @@
     "check:task-template": "node scripts/check-task-template.mjs",
     "check:contracts": "node scripts/check-contract-manifests.mjs",
     "check:model-overlays": "node scripts/check-model-overlays.mjs",
+    "check:smoke": "node scripts/smoke-template.mjs",
     "validate": "node scripts/validate-template.mjs",
     "validate:governance": "node scripts/validate-governance.mjs",
     "init": "node scripts/init-harness.mjs"

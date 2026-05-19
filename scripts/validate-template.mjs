@@ -11,6 +11,7 @@ const checks = [
   "scripts/check-contract-manifests.mjs",
   "scripts/check-model-overlays.mjs",
   "scripts/check-placeholders.mjs",
+  "scripts/smoke-template.mjs",
 ];
 
 for (const check of checks) {

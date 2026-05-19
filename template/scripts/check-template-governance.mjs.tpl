@@ -6,9 +6,11 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const models = {
+  openai: {{MODEL_OPENAI_ENABLED}},
+  anthropic: {{MODEL_ANTHROPIC_ENABLED}},
+};
 const requiredFiles = [
-  "AGENTS.md",
-  "CLAUDE.md",
   "README.md",
   "ai/AGENTS.md",
   "ai/HUB.md",
@@ -17,6 +19,10 @@ const requiredFiles = [
   "ai/HARNESS-ENGINEERING.md",
   "ai/QUALITY.md",
   "ai/DECISIONS.md",
+  "ai/PRODUCT-SUMMARY.md",
+  "ai/PRODUCT.md",
+  "ai/ARCHITECTURE.md",
+  "ai/DESIGN.md",
   "ai/WORKFLOW.md",
   "ai/RUNNER-SAFETY.md",
   "ai/RUNNER-READINESS.md",
@@ -35,9 +41,28 @@ const requiredFiles = [
   "ai/skills/review-governance-drift.md",
   "ai/plans/README.md",
   "ai/plans/tech-debt.md",
+  "ai/specs/README.md",
+  "scripts/bootstrap-workspace.mjs",
+  "scripts/check-workspace.mjs",
   "scripts/validate-governance.mjs",
   "scripts/check-template-governance.mjs",
 ];
+
+if (models.openai) {
+  requiredFiles.push("AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "workspace/AGENTS.md");
+}
+
+if (models.anthropic) {
+  requiredFiles.push(
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    ".claude/settings.json",
+    "ai/model-overlays/anthropic/CLAUDE.md",
+    "workspace/CLAUDE.md",
+    "workspace/.claude/CLAUDE.md",
+    "workspace/.claude/settings.json",
+  );
+}
 
 async function exists(relativePath) {
   try {
