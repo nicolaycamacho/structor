@@ -84,6 +84,26 @@ local, deterministic, bounded to short timeouts, and validated to avoid network
 calls, external writes, and runtime-state mutation. They are harness policy
 guardrails, not a runner.
 
+## Deferred Or Missing Surfaces
+
+These boundaries are intentional in the current template:
+
+- Claude hooks are deferred. Keep `clientSupport.claude.hooks` false or omit it
+  until hook templates and fixture-backed validators are added.
+- Claude skills are deferred. Keep `clientSupport.claude.skills` false or omit
+  it until committed `.claude/skills/*/SKILL.md` templates and validation are
+  added.
+- The initializer creates a repo-shaped harness folder, but it does not run
+  `git init`, create remotes, install dependencies, publish branches, or modify
+  external services.
+- Consumer repo entrypoints are installed during
+  `npm run init -- --install-consumer-entrypoints`. The generated workspace
+  bootstrap script installs workspace-level pointers and verifies consumer
+  routing; it does not repair missing consumer pointers after initialization.
+- Runner behavior remains out of scope. Polling, PR automation, dashboards,
+  auto-merge, repair loops, and CI shepherding belong in a separate runner or
+  orchestration layer.
+
 ## Out-of-the-Box Flow
 
 The supported happy path is:

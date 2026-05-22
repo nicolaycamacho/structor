@@ -58,63 +58,86 @@ export function failIfErrors(title, errors) {
   process.exit(1);
 }
 
-export function validateConfigShape(config, label) {
-  const errors = [];
+function isPlainObject(value) {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-  if (!config.project?.name) errors.push(`${label}: project.name is required.`);
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(config.project?.slug ?? "")) {
-    errors.push(`${label}: project.slug must be kebab-case.`);
-  }
-  if (!/^[a-z0-9][a-z0-9-]*$/.test(config.project?.harnessRepoName ?? "")) {
-    errors.push(`${label}: project.harnessRepoName must be kebab-case.`);
-  }
-  if (!config.output?.path) errors.push(`${label}: output.path is required.`);
-  if (typeof config.models?.openai !== "boolean") errors.push(`${label}: models.openai must be boolean.`);
-  if (typeof config.models?.anthropic !== "boolean") errors.push(`${label}: models.anthropic must be boolean.`);
-  if (config.clientSupport !== undefined && typeof config.clientSupport !== "object") {
-    errors.push(`${label}: clientSupport must be an object when provided.`);
-  }
-  if (config.clientSupport?.codex !== undefined && typeof config.clientSupport.codex !== "object") {
-    errors.push(`${label}: clientSupport.codex must be an object when provided.`);
-  }
-  if (
-    config.clientSupport?.codex?.hooks !== undefined &&
-    typeof config.clientSupport.codex.hooks !== "boolean"
-  ) {
-    errors.push(`${label}: clientSupport.codex.hooks must be boolean when provided.`);
-  }
-  if (config.clientSupport?.claude !== undefined && typeof config.clientSupport.claude !== "object") {
-    errors.push(`${label}: clientSupport.claude must be an object when provided.`);
-  }
-  for (const key of ["rules", "hooks", "skills"]) {
-    if (
-      config.clientSupport?.claude?.[key] !== undefined &&
-      typeof config.clientSupport.claude[key] !== "boolean"
-    ) {
-      errors.push(`${label}: clientSupport.claude.${key} must be boolean when provided.`);
+function typeName(value) {
+  if (Array.isArray(value)) return "array";
+  if (value === null) return "null";
+  return typeof value;
+}
+
+function validateJsonSchema(value, schema, label, errors) {
+  const expectedType = schema.type;
+  if (expectedType) {
+    const validType =
+      expectedType === "object" ? isPlainObject(value) :
+      expectedType === "array" ? Array.isArray(value) :
+      typeof value === expectedType;
+    if (!validType) {
+      errors.push(`${label} must be ${expectedType}; got ${typeName(value)}.`);
+      return;
     }
   }
-  for (const key of ["hooks", "skills"]) {
-    if (config.clientSupport?.claude?.[key] === true) {
-      errors.push(`${label}: clientSupport.claude.${key} is reserved for future support and must be false or omitted.`);
+
+  if (Object.hasOwn(schema, "const") && value !== schema.const) {
+    errors.push(`${label} must be ${JSON.stringify(schema.const)}.`);
+  }
+
+  if (typeof value === "string") {
+    if (schema.minLength !== undefined && value.length < schema.minLength) {
+      errors.push(`${label} must be at least ${schema.minLength} character(s).`);
+    }
+    if (schema.pattern !== undefined && !new RegExp(schema.pattern).test(value)) {
+      errors.push(`${label} must match pattern ${schema.pattern}.`);
     }
   }
-  if (!Array.isArray(config.consumers) || config.consumers.length === 0) {
-    errors.push(`${label}: consumers must contain at least one repo.`);
+
+  if (Array.isArray(value)) {
+    if (schema.minItems !== undefined && value.length < schema.minItems) {
+      errors.push(`${label} must contain at least ${schema.minItems} item(s).`);
+    }
+    if (schema.items) {
+      for (const [index, item] of value.entries()) {
+        validateJsonSchema(item, schema.items, `${label}[${index}]`, errors);
+      }
+    }
   }
+
+  if (isPlainObject(value)) {
+    const properties = schema.properties ?? {};
+    for (const requiredKey of schema.required ?? []) {
+      if (!Object.hasOwn(value, requiredKey)) {
+        errors.push(`${label}.${requiredKey} is required.`);
+      }
+    }
+    if (schema.additionalProperties === false) {
+      for (const key of Object.keys(value)) {
+        if (!Object.hasOwn(properties, key)) {
+          errors.push(`${label}.${key} is not allowed.`);
+        }
+      }
+    }
+    for (const [key, propertySchema] of Object.entries(properties)) {
+      if (Object.hasOwn(value, key)) {
+        validateJsonSchema(value[key], propertySchema, `${label}.${key}`, errors);
+      }
+    }
+  }
+}
+
+export async function validateConfigShape(config, label) {
+  const errors = [];
+  const schema = await readJson("schemas/harness-config.schema.json");
+  validateJsonSchema(config, schema, label, errors);
 
   const names = new Set();
-  for (const [index, consumer] of (config.consumers ?? []).entries()) {
-    const prefix = `${label}: consumers[${index}]`;
-    if (!/^[a-z0-9][a-z0-9-]*$/.test(consumer.name ?? "")) {
-      errors.push(`${prefix}.name must be kebab-case.`);
-    }
-    if (names.has(consumer.name)) errors.push(`${prefix}.name is duplicated.`);
-    names.add(consumer.name);
-    if (!consumer.path) errors.push(`${prefix}.path is required.`);
-    if (!consumer.purpose) errors.push(`${prefix}.purpose is required.`);
-    if (!consumer.validation || typeof consumer.validation !== "object") {
-      errors.push(`${prefix}.validation is required.`);
+  if (Array.isArray(config.consumers)) {
+    for (const [index, consumer] of config.consumers.entries()) {
+      const prefix = `${label}.consumers[${index}]`;
+      if (names.has(consumer.name)) errors.push(`${prefix}.name is duplicated.`);
+      names.add(consumer.name);
     }
   }
 

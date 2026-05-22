@@ -192,7 +192,7 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const configPath = path.resolve(options.config);
   const config = JSON.parse(await readFile(configPath, "utf8"));
-  const errors = validateConfigShape(config, options.config);
+  const errors = await validateConfigShape(config, options.config);
   if (errors.length > 0) {
     throw new Error(errors.join("\n"));
   }

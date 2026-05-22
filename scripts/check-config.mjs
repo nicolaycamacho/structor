@@ -18,21 +18,23 @@ for (const configPath of configFiles) {
   const config = checkingExamples
     ? await readJson(configPath)
     : JSON.parse(await readFile(configPath, "utf8"));
-  errors.push(...validateConfigShape(config, label));
+  errors.push(...(await validateConfigShape(config, label)));
 
   if (checkingExamples && path.isAbsolute(config.output?.path ?? "")) {
     errors.push(`${label}: output.path must be relative for examples.`);
   }
 
-  for (const consumer of config.consumers ?? []) {
-    if (checkingExamples && path.isAbsolute(consumer.path)) {
-      errors.push(`${label}: consumer path for ${consumer.name} must be relative in checked-in examples.`);
-    }
-    if (requireExistingConsumers) {
-      const configDir = checkingExamples ? path.dirname(path.join(repoRoot, configPath)) : path.dirname(configPath);
-      const consumerPath = path.resolve(configDir, consumer.path);
-      if (!(await exists(consumerPath))) {
-        errors.push(`${label}: consumer path for ${consumer.name} does not exist: ${consumerPath}`);
+  if (Array.isArray(config.consumers)) {
+    for (const consumer of config.consumers) {
+      if (checkingExamples && path.isAbsolute(consumer.path)) {
+        errors.push(`${label}: consumer path for ${consumer.name} must be relative in checked-in examples.`);
+      }
+      if (requireExistingConsumers) {
+        const configDir = checkingExamples ? path.dirname(path.join(repoRoot, configPath)) : path.dirname(configPath);
+        const consumerPath = path.resolve(configDir, consumer.path);
+        if (!(await exists(consumerPath))) {
+          errors.push(`${label}: consumer path for ${consumer.name} does not exist: ${consumerPath}`);
+        }
       }
     }
   }
