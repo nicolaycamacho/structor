@@ -9,6 +9,12 @@ Contracts define cross-repo invariants. They do not implement behavior.
   from consumer repos
 - `api-boundary.md`: API ownership and compatibility expectations
 - `security-boundary.md`: protected surfaces and human approval gates
+- `codex-hooks.md`: local hook behavior and safety limits
+- `release-flow.md`: release and external mutation safety
+- `github-safety.md`: remote repository mutation guardrails
+
+Contract JSON manifests use the `*.contract.json` suffix and are checked by
+`node scripts/check-contract-manifests.mjs`.
 
 ## Rule
 

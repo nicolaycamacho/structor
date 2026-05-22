@@ -19,14 +19,26 @@ Always read:
 - UI or design direction:
   `./ai/DESIGN.md`
 - Harness policy, bootstrap, validation, or model overlay changes:
-  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`
+  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`,
+  `./ai/DECISIONS.md`, `./ai/knowledge-manifest.json`
+- Codex/Claude client surfaces, `.codex/**`, `.claude/**`, or overlay drift:
+  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`,
+  `./ai/CODEX-HOOKS.md`,
+  and the matching generated client validator
+- Workspace, repo ownership, local stack, session bootstrap, or validation
+  ownership:
+  `./ai/workspace/REPOS.md`, `./ai/workspace/SYSTEM-MAP.md`,
+  `./ai/workspace/SESSION-BOOTSTRAP.md`, `./ai/workspace/LOCAL-STACK.md`,
+  `./ai/workspace/TEST-STRATEGY.md`
 - Runner or automation questions:
   `./ai/WORKFLOW.md`, `./ai/RUNNER-SAFETY.md`,
-  `./ai/RUNNER-READINESS.md`
+  `./ai/RUNNER-READINESS.md`, `./ai/VERSIONING.md`
 - Contracts or repo boundaries:
   `./ai/contracts/README.md` and the matching contract doc
 - Task template changes:
   `./ai/templates/README.md` and the matching template
+- Generated HTML review views:
+  `./ai/views/index.html` plus canonical Markdown, JSON, and YAML sources
 - Shared specs:
   `./ai/specs/README.md` and the matching spec
 - Review requests:

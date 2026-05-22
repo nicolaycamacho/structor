@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { exists, validateConfigShape } from "./lib.mjs";
@@ -68,12 +69,31 @@ function booleanLiteral(value) {
   return value ? "true" : "false";
 }
 
+function clientSupport(config) {
+  return {
+    codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
+    claudeRules: config.models.anthropic && (config.clientSupport?.claude?.rules ?? true),
+    claudeHooks: config.models.anthropic && (config.clientSupport?.claude?.hooks ?? false),
+    claudeSkills: config.models.anthropic && (config.clientSupport?.claude?.skills ?? false),
+  };
+}
+
 function shouldRenderTemplate(sourceRelative, config) {
+  const support = clientSupport(config);
   if (sourceRelative.startsWith("consumer/")) return false;
   if (!config.models.anthropic && sourceRelative.startsWith(".claude/")) return false;
+  if (!support.claudeRules && sourceRelative.startsWith(".claude/rules/")) return false;
+  if (!support.claudeHooks && sourceRelative.startsWith(".claude/hooks/")) return false;
+  if (!support.claudeSkills && sourceRelative.startsWith(".claude/skills/")) return false;
+  if (!support.codexHooks && sourceRelative.startsWith(".codex/")) return false;
+  if (!support.codexHooks && sourceRelative.startsWith("scripts/hooks/")) return false;
+  if (!support.codexHooks && sourceRelative === "scripts/check-codex-hooks.mjs.tpl") return false;
+  if (!support.codexHooks && sourceRelative === "ai/contracts/codex-hooks.contract.json.tpl") return false;
+  if (!config.models.anthropic && sourceRelative === "scripts/check-claude-compatibility.mjs.tpl") return false;
   if (!config.models.openai && sourceRelative === "workspace/AGENTS.md.tpl") return false;
   if (!config.models.anthropic && sourceRelative.startsWith("workspace/CLAUDE.md")) return false;
   if (!config.models.anthropic && sourceRelative.startsWith("workspace/.claude/")) return false;
+  if (!support.claudeRules && sourceRelative.startsWith("workspace/.claude/rules/")) return false;
   if (!config.models.openai && sourceRelative === "AGENTS.md.tpl") return false;
   if (!config.models.anthropic && sourceRelative === "CLAUDE.md.tpl") return false;
   if (!config.models.openai && sourceRelative.startsWith("ai/model-overlays/openai/")) return false;
@@ -179,6 +199,7 @@ async function main() {
 
   const configDir = path.dirname(configPath);
   const outputRoot = path.resolve(configDir, options.output ?? config.output.path);
+  const support = clientSupport(config);
   const values = {
     PROJECT_NAME: config.project.name,
     PROJECT_SLUG: config.project.slug,
@@ -189,11 +210,22 @@ async function main() {
     PRIMARY_CONSUMER_NAME: config.consumers[0].name,
     MODEL_OPENAI_ENABLED: booleanLiteral(config.models.openai),
     MODEL_ANTHROPIC_ENABLED: booleanLiteral(config.models.anthropic),
+    CLIENT_CODEX_HOOKS_ENABLED: booleanLiteral(support.codexHooks),
+    CLIENT_CLAUDE_RULES_ENABLED: booleanLiteral(support.claudeRules),
+    CLIENT_CLAUDE_HOOKS_ENABLED: booleanLiteral(support.claudeHooks),
+    CLIENT_CLAUDE_SKILLS_ENABLED: booleanLiteral(support.claudeSkills),
   };
 
   for (const sourceRelative of await collectTemplateFiles()) {
     if (!shouldRenderTemplate(sourceRelative, config)) continue;
     await writeRenderedFile(sourceRelative, outputRoot, values, options);
+  }
+
+  if (!options.dryRun) {
+    execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
+      cwd: outputRoot,
+      stdio: "inherit",
+    });
   }
 
   if (options.installConsumerEntrypoints) {

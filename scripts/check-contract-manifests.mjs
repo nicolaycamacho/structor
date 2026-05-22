@@ -13,7 +13,15 @@ for (const field of ["id", "name", "version", "owners", "affectedRepos", "requir
 }
 
 const readme = await readFile(path.join(repoRoot, "template/ai/contracts/README.md.tpl"), "utf8");
-for (const contract of ["repo-boundaries.md", "app-legibility.md", "api-boundary.md", "security-boundary.md"]) {
+for (const contract of [
+  "repo-boundaries.md",
+  "app-legibility.md",
+  "api-boundary.md",
+  "security-boundary.md",
+  "codex-hooks.md",
+  "release-flow.md",
+  "github-safety.md",
+]) {
   if (!readme.includes(contract)) {
     errors.push(`contracts README does not link ${contract}`);
   }

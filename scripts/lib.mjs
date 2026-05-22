@@ -71,6 +71,34 @@ export function validateConfigShape(config, label) {
   if (!config.output?.path) errors.push(`${label}: output.path is required.`);
   if (typeof config.models?.openai !== "boolean") errors.push(`${label}: models.openai must be boolean.`);
   if (typeof config.models?.anthropic !== "boolean") errors.push(`${label}: models.anthropic must be boolean.`);
+  if (config.clientSupport !== undefined && typeof config.clientSupport !== "object") {
+    errors.push(`${label}: clientSupport must be an object when provided.`);
+  }
+  if (config.clientSupport?.codex !== undefined && typeof config.clientSupport.codex !== "object") {
+    errors.push(`${label}: clientSupport.codex must be an object when provided.`);
+  }
+  if (
+    config.clientSupport?.codex?.hooks !== undefined &&
+    typeof config.clientSupport.codex.hooks !== "boolean"
+  ) {
+    errors.push(`${label}: clientSupport.codex.hooks must be boolean when provided.`);
+  }
+  if (config.clientSupport?.claude !== undefined && typeof config.clientSupport.claude !== "object") {
+    errors.push(`${label}: clientSupport.claude must be an object when provided.`);
+  }
+  for (const key of ["rules", "hooks", "skills"]) {
+    if (
+      config.clientSupport?.claude?.[key] !== undefined &&
+      typeof config.clientSupport.claude[key] !== "boolean"
+    ) {
+      errors.push(`${label}: clientSupport.claude.${key} must be boolean when provided.`);
+    }
+  }
+  for (const key of ["hooks", "skills"]) {
+    if (config.clientSupport?.claude?.[key] === true) {
+      errors.push(`${label}: clientSupport.claude.${key} is reserved for future support and must be false or omitted.`);
+    }
+  }
   if (!Array.isArray(config.consumers) || config.consumers.length === 0) {
     errors.push(`${label}: consumers must contain at least one repo.`);
   }

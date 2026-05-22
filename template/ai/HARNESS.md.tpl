@@ -15,6 +15,7 @@ It does not implement product behavior and it is not a runner.
 - review procedures
 - validation scripts
 - workspace bootstrap checks and consumer entrypoint routing
+- model/client startup surfaces and local compatibility validators
 - quality tracking
 - repeated-mistake capture
 
@@ -28,6 +29,7 @@ It does not implement product behavior and it is not a runner.
 - production autonomous execution
 - runtime state stores
 - repair-loop daemons
+- external client automation that is not validated as a local harness guardrail
 
 ## Harness vs Runner
 

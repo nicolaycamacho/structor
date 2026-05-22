@@ -5,10 +5,9 @@ harness.
 
 Canonical policy lives in `ai/*`. Read:
 
-1. `./AGENTS.md`
-2. `./ai/AGENTS.md`
-3. `./ai/HUB.md`
-4. `./ai/context.md`
+1. `./ai/AGENTS.md`
+2. `./ai/HUB.md`
+3. `./ai/context.md`
 
 @ai/context.md
 

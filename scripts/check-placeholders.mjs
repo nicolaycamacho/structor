@@ -11,12 +11,29 @@ const activeFiles = await collectFiles(".", (file) => {
   return [".md", ".json", ".mjs"].some((suffix) => file.endsWith(suffix));
 });
 
-const forbiddenProjectTerms = [
-  /\bAI Front Desk\b/i,
-  /\bFlowdesk\b/i,
-  /\bai-front-desk-api\b/i,
-  /\bai-front-desk-platform\b/i,
+const defaultForbiddenProjectTerms = [
+  "AI Front Desk",
+  "Flowdesk",
+  "ai-front-desk-api",
+  "ai-front-desk-platform",
 ];
+
+const configuredForbiddenProjectTerms = (process.env.HARNESS_FORBIDDEN_PROJECT_TERMS ?? "")
+  .split(",")
+  .map((term) => term.trim())
+  .filter(Boolean);
+
+const forbiddenProjectTermValues = [
+  ...(process.env.HARNESS_FORBIDDEN_PROJECT_TERMS_MODE === "override" ? [] : defaultForbiddenProjectTerms),
+  ...configuredForbiddenProjectTerms,
+];
+
+const forbiddenProjectTerms = [...new Set(forbiddenProjectTermValues)]
+  .map((term) => new RegExp(`\\b${escapeRegExp(term)}\\b`, "i"));
+
+function escapeRegExp(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
 
 for (const relativePath of activeFiles) {
   const content = await readFile(path.join(repoRoot, relativePath), "utf8");
@@ -26,6 +43,7 @@ for (const relativePath of activeFiles) {
   if (relativePath !== "scripts/check-placeholders.mjs" && /TODO|TBD|fixme/i.test(content)) {
     errors.push(`${relativePath} contains TODO/TBD/fixme placeholder text.`);
   }
+  if (relativePath === "scripts/check-placeholders.mjs") continue;
   for (const pattern of forbiddenProjectTerms) {
     if (pattern.test(content)) {
       errors.push(`${relativePath} contains project-specific source content.`);

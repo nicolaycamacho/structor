@@ -13,6 +13,9 @@ const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
 };
+const clientSupport = {
+  claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
+};
 
 function parseArgs(argv) {
   return {
@@ -71,6 +74,13 @@ async function main() {
     await copyIfAllowed("workspace/CLAUDE.md", "CLAUDE.md", options);
     await copyIfAllowed("workspace/.claude/CLAUDE.md", ".claude/CLAUDE.md", options);
     await copyIfAllowed("workspace/.claude/settings.json", ".claude/settings.json", options);
+    if (clientSupport.claudeRules) {
+      await copyIfAllowed(
+        "workspace/.claude/rules/harness-client-surfaces.md",
+        ".claude/rules/harness-client-surfaces.md",
+        options,
+      );
+    }
   }
 
   if (!options.dryRun) {

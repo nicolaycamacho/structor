@@ -61,6 +61,10 @@ async function writeConfig(workspaceRoot, smokeCase) {
       path: `./smoke-${smokeCase.name}-harness`,
     },
     models: smokeCase.models,
+    clientSupport: {
+      codex: { hooks: smokeCase.models.openai },
+      claude: { rules: smokeCase.models.anthropic, hooks: false, skills: false },
+    },
     consumers: smokeCase.consumers.map((consumer) => ({
       name: consumer.name,
       path: `./${consumer.name}`,
@@ -89,29 +93,40 @@ async function validateCase(smokeCase) {
     repoRoot,
   );
   run(process.execPath, ["scripts/validate-governance.mjs"], harnessRoot);
+  assertExists(path.join(harnessRoot, "ai/views/index.html"), `${smokeCase.name} generated HTML view`);
   run(process.execPath, ["scripts/bootstrap-workspace.mjs", "--dry-run"], harnessRoot);
   run(process.execPath, ["scripts/bootstrap-workspace.mjs"], harnessRoot);
   run(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot);
 
   if (smokeCase.models.openai) {
     assertExists(path.join(harnessRoot, "AGENTS.md"), `${smokeCase.name} OpenAI root entrypoint`);
+    assertExists(path.join(harnessRoot, ".codex/hooks.json"), `${smokeCase.name} Codex hook config`);
+    assertExists(path.join(harnessRoot, "scripts/check-codex-hooks.mjs"), `${smokeCase.name} Codex hook validator`);
+    assertExists(path.join(harnessRoot, "scripts/hooks/codex-hook.mjs"), `${smokeCase.name} Codex hook script`);
     assertExists(
       path.join(harnessRoot, "ai/model-overlays/openai/AGENTS.md"),
       `${smokeCase.name} OpenAI overlay`,
     );
   } else {
     assertMissing(path.join(harnessRoot, "AGENTS.md"), `${smokeCase.name} OpenAI root entrypoint`);
+    assertMissing(path.join(harnessRoot, ".codex/hooks.json"), `${smokeCase.name} Codex hook config`);
   }
 
   if (smokeCase.models.anthropic) {
     assertExists(path.join(harnessRoot, "CLAUDE.md"), `${smokeCase.name} Claude root entrypoint`);
     assertExists(path.join(harnessRoot, ".claude/CLAUDE.md"), `${smokeCase.name} Claude memory`);
+    assertExists(path.join(harnessRoot, ".claude/rules/harness-client-surfaces.md"), `${smokeCase.name} Claude rule`);
+    assertExists(
+      path.join(harnessRoot, "scripts/check-claude-compatibility.mjs"),
+      `${smokeCase.name} Claude compatibility validator`,
+    );
     assertExists(
       path.join(harnessRoot, "ai/model-overlays/anthropic/CLAUDE.md"),
       `${smokeCase.name} Claude overlay`,
     );
   } else {
     assertMissing(path.join(harnessRoot, "CLAUDE.md"), `${smokeCase.name} Claude root entrypoint`);
+    assertMissing(path.join(harnessRoot, ".claude/rules/harness-client-surfaces.md"), `${smokeCase.name} Claude rule`);
   }
 
   for (const consumer of smokeCase.consumers) {

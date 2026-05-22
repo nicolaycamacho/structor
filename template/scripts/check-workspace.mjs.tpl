@@ -13,6 +13,10 @@ const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
 };
+const clientSupport = {
+  codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
+  claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
+};
 
 const repoRequiredFiles = [
   "README.md",
@@ -28,9 +32,17 @@ const repoRequiredFiles = [
   "ai/ARCHITECTURE.md",
   "ai/DESIGN.md",
   "ai/WORKFLOW.md",
+  "ai/VERSIONING.md",
+  "ai/CODEX-HOOKS.md",
   "ai/RUNNER-SAFETY.md",
   "ai/RUNNER-READINESS.md",
   "ai/AGENT-GARBAGE-COLLECTION.md",
+  "ai/knowledge-manifest.json",
+  "ai/workspace/REPOS.md",
+  "ai/workspace/SYSTEM-MAP.md",
+  "ai/workspace/SESSION-BOOTSTRAP.md",
+  "ai/workspace/LOCAL-STACK.md",
+  "ai/workspace/TEST-STRATEGY.md",
   "ai/contracts/README.md",
   "ai/templates/README.md",
   "ai/skills/README.md",
@@ -38,19 +50,47 @@ const repoRequiredFiles = [
   "scripts/bootstrap-workspace.mjs",
   "scripts/check-workspace.mjs",
   "scripts/validate-governance.mjs",
+  "scripts/check-task-template.mjs",
+  "scripts/check-issue-template.mjs",
+  "scripts/check-knowledge-manifest.mjs",
+  "scripts/check-plans.mjs",
+  "scripts/check-review-skills.mjs",
+  "scripts/check-garbage-collection.mjs",
+  "scripts/check-contract-manifests.mjs",
+  "scripts/generate-html-views.mjs",
+  "scripts/check-html-views.mjs",
+  "scripts/bootstrap-codex-worktree.mjs",
+  "scripts/check-worktrees.mjs",
+  "scripts/check-worktree-bootstrap-fixtures.mjs",
 ];
 
 if (models.openai) {
-  repoRequiredFiles.push("AGENTS.md", "ai/model-overlays/openai/AGENTS.md");
+  repoRequiredFiles.push("AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "scripts/check-overlay-drift.mjs");
 }
 
 if (models.anthropic) {
-  repoRequiredFiles.push("CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json", "ai/model-overlays/anthropic/CLAUDE.md");
+  repoRequiredFiles.push(
+    "CLAUDE.md",
+    ".claude/CLAUDE.md",
+    ".claude/settings.json",
+    "ai/model-overlays/anthropic/CLAUDE.md",
+    "scripts/check-claude-compatibility.mjs",
+    "scripts/check-overlay-drift.mjs",
+  );
+}
+
+if (clientSupport.codexHooks) {
+  repoRequiredFiles.push(".codex/hooks.json", "scripts/check-codex-hooks.mjs", "scripts/hooks/codex-hook.mjs");
+}
+
+if (clientSupport.claudeRules) {
+  repoRequiredFiles.push(".claude/rules/harness-client-surfaces.md");
 }
 
 const workspaceRequiredFiles = [];
 if (models.openai) workspaceRequiredFiles.push("AGENTS.md");
 if (models.anthropic) workspaceRequiredFiles.push("CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json");
+if (clientSupport.claudeRules) workspaceRequiredFiles.push(".claude/rules/harness-client-surfaces.md");
 
 async function exists(filePath) {
   try {

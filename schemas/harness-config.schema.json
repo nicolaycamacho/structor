@@ -34,6 +34,28 @@
         "anthropic": { "type": "boolean" }
       }
     },
+    "clientSupport": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "codex": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "hooks": { "type": "boolean" }
+          }
+        },
+        "claude": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "rules": { "type": "boolean" },
+            "hooks": { "const": false },
+            "skills": { "const": false }
+          }
+        }
+      }
+    },
     "consumers": {
       "type": "array",
       "minItems": 1,

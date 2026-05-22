@@ -10,7 +10,10 @@
     "risk",
     "autonomy",
     "model_policy",
+    "model",
     "repos",
+    "allowed_paths",
+    "forbidden_paths",
     "requires_human_approval"
   ],
   "properties": {
@@ -21,8 +24,11 @@
     },
     "risk": { "type": "string", "enum": ["low", "medium", "high"] },
     "autonomy": { "type": "string", "enum": ["report_only", "pr_ready", "auto_merge"] },
-    "model_policy": { "type": "string", "minLength": 1 },
-    "model": { "type": "string" },
+    "model_policy": {
+      "type": "string",
+      "enum": ["cheap", "standard", "reasoning", "frontier", "review_only"]
+    },
+    "model": { "type": "string", "minLength": 1 },
     "repos": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "allowed_paths": { "type": "array", "items": { "type": "string" } },
     "forbidden_paths": { "type": "array", "items": { "type": "string" } },

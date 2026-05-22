@@ -4,12 +4,11 @@ This repository is the canonical AI engineering harness for {{PROJECT_NAME}}.
 
 ## Read Order
 
-1. `./CLAUDE.md`
-2. `./README.md`
-3. `./ai/AGENTS.md`
-4. `./ai/HUB.md`
-5. `./ai/context.md`
-6. Topical docs selected by `./ai/HUB.md`
+1. `./README.md`
+2. `./ai/AGENTS.md`
+3. `./ai/HUB.md`
+4. `./ai/context.md`
+5. Topical docs selected by `./ai/HUB.md`
 
 ## Rules
 
