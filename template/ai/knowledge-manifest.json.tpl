@@ -56,6 +56,12 @@
       "linkedFrom": ["ai/HUB.md"]
     },
     {
+      "path": "ai/READINESS.md",
+      "status": "active",
+      "purpose": "Post-generation readiness verdicts, gates, and manual review domains.",
+      "linkedFrom": ["ai/HUB.md"]
+    },
+    {
       "path": "ai/QUALITY.md",
       "status": "active",
       "purpose": "Quality bar and validation evidence expectations.",

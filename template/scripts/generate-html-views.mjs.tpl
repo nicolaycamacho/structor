@@ -93,6 +93,7 @@ async function indexView() {
     <ul>
       <li><a href="plans.html">Plans</a></li>
       <li><a href="contracts.html">Contracts</a></li>
+      <li><a href="readiness.html">Readiness</a></li>
       <li><a href="quality.html">Quality</a></li>
       <li><a href="workspace.html">Workspace</a></li>
     </ul>
@@ -140,6 +141,27 @@ async function qualityView() {
 `);
 }
 
+async function readinessView() {
+  const readiness = await read("ai/READINESS.md");
+  const rows = [];
+  const lines = readiness.split(/\r?\n/);
+  const start = lines.findIndex((line) => line.startsWith("| Gate | Command | Required evidence |"));
+  if (start !== -1) {
+    for (const line of lines.slice(start + 2)) {
+      if (!line.startsWith("|")) break;
+      const cells = line
+        .split("|")
+        .slice(1, -1)
+        .map((cell) => escapeHtml(cell.trim().replaceAll("`", "")));
+      if (cells.length === 3) rows.push(cells);
+    }
+  }
+  return layout("Readiness", `
+    <p>Source: <code>ai/READINESS.md</code></p>
+    ${table(["Gate", "Command", "Required evidence"], rows)}
+`);
+}
+
 async function workspaceView() {
   const workspaceFiles = await files("ai/workspace", ".md");
   const rows = [];
@@ -154,6 +176,7 @@ const outputs = {
   "index.html": await indexView(),
   "plans.html": await plansView(),
   "contracts.html": await contractsView(),
+  "readiness.html": await readinessView(),
   "quality.html": await qualityView(),
   "workspace.html": await workspaceView(),
 };

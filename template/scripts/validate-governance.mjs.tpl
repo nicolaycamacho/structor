@@ -24,6 +24,7 @@ execFileSync(process.execPath, [path.join(repoRoot, "scripts/check-task-template
 });
 
 for (const check of [
+  "scripts/check-readiness.mjs",
   "scripts/check-issue-template.mjs",
   "scripts/check-knowledge-manifest.mjs",
   "scripts/check-plans.mjs",

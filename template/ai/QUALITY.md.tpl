@@ -10,6 +10,7 @@ them when validation or policy changes.
 | Contracts | B | `ai/contracts/*` | `scripts/check-template-governance.mjs`, manual review | Replace starter contracts with project contracts |
 | Task shape | B | `ai/templates/task-brief-template.md` | `scripts/check-task-template.mjs` | Fill concrete project issue metadata and path contracts |
 | Review skills | B | `ai/skills/*` | Manual review | Customize review inputs and evaluator routing |
+| Readiness contract | B | `ai/READINESS.md`, `scripts/check-readiness.mjs` | `scripts/check-readiness.mjs`, manual review | Run post-generation machine gates and accept manual review domains |
 | Runner boundary | A | `ai/RUNNER-SAFETY.md` | Manual review | Keep runtime out of harness |
 | Workspace bootstrap | B | `scripts/bootstrap-workspace.mjs`, `scripts/check-workspace.mjs` | `node scripts/check-workspace.mjs` | Run after consumer repos are cloned |
 
@@ -22,6 +23,7 @@ them when validation or policy changes.
 - Contracts define repository boundaries and protected surfaces.
 - Validation scripts check every invariant that can be checked cheaply and
   safely.
+- `ai/READINESS.md` distinguishes machine gates from manual review domains.
 - Validation failures include enough context for an agent to repair drift.
 - Consumer repos expose local commands and evidence hooks.
 - Repeated review feedback is captured in `ai/AGENT-GARBAGE-COLLECTION.md`.

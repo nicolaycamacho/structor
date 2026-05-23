@@ -19,8 +19,8 @@ Always read:
 - UI or design direction:
   `./ai/DESIGN.md`
 - Harness policy, bootstrap, validation, or model overlay changes:
-  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`,
-  `./ai/DECISIONS.md`, `./ai/knowledge-manifest.json`
+  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/READINESS.md`,
+  `./ai/QUALITY.md`, `./ai/DECISIONS.md`, `./ai/knowledge-manifest.json`
 - Codex/Claude client surfaces, `.codex/**`, `.claude/**`, or overlay drift:
   `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`,
   `./ai/CODEX-HOOKS.md`,
