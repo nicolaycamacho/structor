@@ -1,4 +1,4 @@
-import { access, mkdir, readFile, writeFile } from "node:fs/promises";
+import { access, mkdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import { execFile } from "node:child_process";
 import path from "node:path";
@@ -66,42 +66,151 @@ export function extractHarnessReferences(content) {
   return [...new Set((content.match(pattern) ?? []).map(cleanReference).filter(Boolean))];
 }
 
-export function resolveHarnessReference({ reference: rawReference, consumerRoot }) {
+export function resolveHarnessReferenceTarget({ reference: rawReference, consumerRoot }) {
   const reference = cleanReference(rawReference);
   const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(consumerRoot, reference);
   const parts = absoluteReference.split(path.sep);
+  if (parts.lastIndexOf("{{HARNESS_REPO_NAME}}") === -1) return null;
+  return absoluteReference;
+}
+
+export function resolveHarnessReferenceRoot({ reference: rawReference, consumerRoot }) {
+  const target = resolveHarnessReferenceTarget({ reference: rawReference, consumerRoot });
+  if (!target) return null;
+  const parts = target.split(path.sep);
   const index = parts.lastIndexOf("{{HARNESS_REPO_NAME}}");
-  if (index === -1) return null;
-  const rootParts = parts.slice(0, index + 1);
-  return rootParts.join(path.sep) || path.sep;
+  return parts.slice(0, index + 1).join(path.sep) || path.sep;
 }
 
-function referenceMatchesHarnessRoot(rawReference, targetPath, harnessRoot) {
-  const referenceRoot = resolveHarnessReference({ reference: rawReference, consumerRoot: targetPath });
-  return referenceRoot !== null && path.resolve(referenceRoot) === path.resolve(harnessRoot);
+async function isFileTarget(target) {
+  try {
+    return (await stat(target)).isFile();
+  } catch {
+    return false;
+  }
 }
 
-export function assertReferencesHarnessRoot({ pointerPath, pointerContent, consumerRoot, expectedHarnessRoot }) {
+export async function validateHarnessReferences({
+  pointerPath,
+  pointerContent,
+  consumerRoot,
+  expectedHarnessRoot,
+  fileIsFile = isFileTarget,
+  models: enabledModels = models,
+  requireHarnessReference = true,
+}) {
   const references = extractHarnessReferences(pointerContent);
   if (references.length === 0) {
-    return `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.`;
+    if (!requireHarnessReference) return null;
+    return [{ kind: "missing", message: `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.` }];
   }
-  if (references.some((reference) => referenceMatchesHarnessRoot(reference, consumerRoot, expectedHarnessRoot))) {
-    return null;
+
+  const issues = [];
+  let matchedExpectedRoot = false;
+  for (const reference of references) {
+    const target = resolveHarnessReferenceTarget({ reference, consumerRoot });
+    if (!target) {
+      issues.push({ kind: "missing", reference, message: `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.` });
+      continue;
+    }
+
+    const referenceRoot = resolveHarnessReferenceRoot({ reference, consumerRoot });
+    if (referenceRoot === null || path.resolve(referenceRoot) !== path.resolve(expectedHarnessRoot)) {
+      issues.push({
+        kind: "wrong_harness_root",
+        reference,
+        message: `${pointerPath} points at ${referenceRoot ?? reference} instead of ${expectedHarnessRoot}.`,
+      });
+      continue;
+    }
+
+    matchedExpectedRoot = true;
+    const relativeTarget = path.relative(expectedHarnessRoot, target).replaceAll(path.sep, "/");
+    if (!enabledModels.openai && relativeTarget === "AGENTS.md") {
+      issues.push({
+        kind: "disabled_entrypoint",
+        reference,
+        message: `${pointerPath} must not reference ${relativeTarget} when OpenAI support is disabled.`,
+      });
+      continue;
+    }
+    if (!enabledModels.anthropic && relativeTarget === "CLAUDE.md") {
+      issues.push({
+        kind: "disabled_entrypoint",
+        reference,
+        message: `${pointerPath} must not reference ${relativeTarget} when Anthropic support is disabled.`,
+      });
+      continue;
+    }
+    if (relativeTarget === "" || !(await fileIsFile(target))) {
+      const targetLabel = relativeTarget === "" ? "." : relativeTarget;
+      issues.push({
+        kind: "missing_target",
+        reference,
+        message: `${pointerPath} references missing generated-harness file ${targetLabel}.`,
+      });
+    }
   }
-  return `${pointerPath} points at ${references.join(", ")} instead of ${expectedHarnessRoot}.`;
+
+  if (!matchedExpectedRoot && issues.length === 0) {
+    issues.push({
+      kind: "wrong_harness_root",
+      message: `${pointerPath} points at ${references.join(", ")} instead of ${expectedHarnessRoot}.`,
+    });
+  }
+
+  return issues.length > 0 ? issues : null;
 }
 
-function classifyPointerContent({ relativePath, content, targetPath, harnessRoot }) {
+export async function assertReferencesHarnessRoot({
+  pointerPath,
+  pointerContent,
+  consumerRoot,
+  expectedHarnessRoot,
+  fileIsFile,
+  models: enabledModels,
+  requireHarnessReference,
+}) {
+  const issues = await validateHarnessReferences({
+    pointerPath,
+    pointerContent,
+    consumerRoot,
+    expectedHarnessRoot,
+    fileIsFile,
+    models: enabledModels,
+    requireHarnessReference,
+  });
+  if (!issues) return null;
+  return issues[0].message;
+}
+
+async function classifyPointerContent({ relativePath, content, targetPath, harnessRoot, fileIsFile }) {
+  const issues = await validateHarnessReferences({
+    pointerPath: relativePath,
+    pointerContent: content,
+    consumerRoot: targetPath,
+    expectedHarnessRoot: harnessRoot,
+    fileIsFile,
+  });
+  if (!issues) return null;
   const references = extractHarnessReferences(content);
-  if (references.length === 0) {
-    return { kind: "missing", relativePath, message: `${relativePath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.` };
+  const referenceKinds = new Set(issues.map((issue) => issue.kind));
+  if (referenceKinds.has("disabled_entrypoint")) {
+    return { kind: "wrong_harness_root", relativePath, references, message: issues[0].message };
   }
-  if (references.some((reference) => referenceMatchesHarnessRoot(reference, targetPath, harnessRoot))) return null;
-  if (references.some((reference) => !path.isAbsolute(reference))) {
-    return { kind: "stale_relative", relativePath, references, message: `${relativePath} uses relative harness paths that do not resolve to ${harnessRoot}.` };
+  if (referenceKinds.has("missing_target")) {
+    return { kind: "missing", relativePath, references, message: issues[0].message };
   }
-  return { kind: "wrong_harness_root", relativePath, references, message: `${relativePath} points at a different {{HARNESS_REPO_NAME}} checkout.` };
+  if (referenceKinds.has("missing")) {
+    return { kind: "missing", relativePath, references, message: issues[0].message };
+  }
+  if (referenceKinds.has("wrong_harness_root")) {
+    if (references.some((reference) => !path.isAbsolute(reference))) {
+      return { kind: "stale_relative", relativePath, references, message: issues[0].message };
+    }
+    return { kind: "wrong_harness_root", relativePath, references, message: issues[0].message };
+  }
+  return { kind: "wrong_harness_root", relativePath, references, message: issues[0].message };
 }
 
 function stateFromIssues(issues) {
@@ -110,7 +219,15 @@ function stateFromIssues(issues) {
   return "wrong_harness_root";
 }
 
-export function classifyWorktreeBootstrap({ targetPath, targetExists = true, harnessRoot, repoName, files, worktreeRecord = {} }) {
+export async function classifyWorktreeBootstrap({
+  targetPath,
+  targetExists = true,
+  harnessRoot,
+  repoName,
+  files,
+  worktreeRecord = {},
+  fileIsFile = isFileTarget,
+}) {
   const resolvedTargetPath = targetPath ? path.resolve(targetPath) : "";
   if (worktreeRecord.prunable) {
     return { state: "prunable", valid: false, repairable: false, repoName: repoName ?? "unknown", targetPath: resolvedTargetPath, issues: [{ kind: "prunable", message: worktreeRecord.prunableReason ?? "Git reports this worktree as prunable." }] };
@@ -131,13 +248,13 @@ export function classifyWorktreeBootstrap({ targetPath, targetExists = true, har
       continue;
     }
     if (repoName === "{{HARNESS_REPO_NAME}}") continue;
-    const issue = classifyPointerContent({ relativePath, content: file.content, targetPath: resolvedTargetPath, harnessRoot });
+    const issue = await classifyPointerContent({ relativePath, content: file.content, targetPath: resolvedTargetPath, harnessRoot, fileIsFile });
     if (issue) issues.push({ ...issue, required: true });
   }
   for (const relativePath of optionalPointerFiles) {
     const file = byPath.get(relativePath);
     if (!file?.exists || repoName === "{{HARNESS_REPO_NAME}}") continue;
-    const issue = classifyPointerContent({ relativePath, content: file.content, targetPath: resolvedTargetPath, harnessRoot });
+    const issue = await classifyPointerContent({ relativePath, content: file.content, targetPath: resolvedTargetPath, harnessRoot, fileIsFile });
     if (issue) issues.push({ ...issue, required: false });
   }
   if (issues.length === 0) {
@@ -176,7 +293,7 @@ export function renderPointerFile({ relativePath, harnessRoot, repoName }) {
   const bootstrapCommand = `node ${path.join(normalizedHarnessRoot, "scripts/bootstrap-codex-worktree.mjs")} <checkout-path>`;
   const title = relativePath === "CLAUDE.md" ? "Project Agent Guide" : "Agent Bootstrap";
   const guidance = [
-    ...(models.openai ? [path.join(normalizedHarnessRoot, "AGENTS.md")] : []),
+    ...(relativePath === "AGENTS.md" && models.openai ? [path.join(normalizedHarnessRoot, "AGENTS.md")] : []),
     ...(models.anthropic ? [path.join(normalizedHarnessRoot, "CLAUDE.md")] : []),
     path.join(normalizedHarnessRoot, "ai/AGENTS.md"),
     path.join(normalizedHarnessRoot, "ai/HUB.md"),

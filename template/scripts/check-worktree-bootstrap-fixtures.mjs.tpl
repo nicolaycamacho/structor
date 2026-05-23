@@ -32,6 +32,13 @@ const tempConsumerRoot = "/tmp/{{PRIMARY_CONSUMER_NAME}}";
 const testCaseTemplateConsumer = "{{PRIMARY_CONSUMER_NAME}}";
 const invalidHarnessRoot = "Read ../{{HARNESS_REPO_NAME}}/AGENTS.md before editing.";
 const wrongHarnessRootPointer = `Read /other/{{HARNESS_REPO_NAME}}/AGENTS.md before editing.`;
+const harnessFiles = new Set([
+  ...(models.openai ? ["AGENTS.md"] : []),
+  ...(models.anthropic ? ["CLAUDE.md"] : []),
+  "ai/AGENTS.md",
+  "ai/HUB.md",
+  "ai/context.md",
+]);
 
 function files(entries) {
   return [...requiredPointerFiles, workspaceCodexPath].map((relativePath) => ({
@@ -41,13 +48,29 @@ function files(entries) {
   }));
 }
 
+async function fileIsFile(filePath) {
+  const relativePath = path.relative(harnessRoot, filePath).replaceAll(path.sep, "/");
+  return harnessFiles.has(relativePath);
+}
+
 const validAgentPointer = `Read ${harnessRoot}/AGENTS.md before editing.`;
 const validClaudePointer = `Read ${harnessRoot}/CLAUDE.md before editing.`;
+const mixedAgentPointer = models.openai
+  ? `Read ${harnessRoot}/AGENTS.md and ${harnessRoot}/ai/MISSING.md before editing.`
+  : `Read ${harnessRoot}/CLAUDE.md and ${harnessRoot}/ai/MISSING.md before editing.`;
 const staleAgentPointer = invalidHarnessRoot;
 const validPointers = {
   ...(models.openai ? { [workspaceAgentsPath]: validAgentPointer } : {}),
   ...(models.anthropic ? { [workspaceClaudePath]: validClaudePointer } : {}),
 };
+const mixedPointers = models.openai
+  ? {
+      [workspaceAgentsPath]: mixedAgentPointer,
+      ...(models.anthropic ? { [workspaceClaudePath]: validClaudePointer } : {}),
+    }
+  : {
+      [workspaceClaudePath]: mixedAgentPointer,
+    };
 const stalePointers = Object.fromEntries(requiredPointerFiles.map((relativePath) => [relativePath, staleAgentPointer]));
 const wrongRootPointers = Object.fromEntries(requiredPointerFiles.map((relativePath) => [relativePath, wrongHarnessRootPointer]));
 
@@ -63,19 +86,32 @@ const cases = [
 ];
 
 for (const testCase of cases) {
-  const result = classifyWorktreeBootstrap({
+  const result = await classifyWorktreeBootstrap({
     targetPath: testCase.targetPath,
     targetExists: testCase.targetExists,
     harnessRoot,
     repoName: testCase.repoName,
     files: testCase.files,
     worktreeRecord: testCase.worktreeRecord ?? {},
+    fileIsFile,
   });
   assert.equal(result.state, testCase.expectedState, testCase.name);
   assert.equal(result.valid, testCase.expectedValid, testCase.name);
   assert.equal(result.repairable, testCase.expectedRepairable, testCase.name);
   if (result.repairable) assert.equal(buildRepairPlan({ inspection: result, harnessRoot }).writes.length > 0, true, testCase.name);
 }
+
+const mixedResult = await classifyWorktreeBootstrap({
+  targetPath: consumerRoot,
+  targetExists: true,
+  harnessRoot,
+  repoName: testCaseTemplateConsumer,
+  files: files(mixedPointers),
+  fileIsFile,
+});
+assert.equal(mixedResult.valid, false, "mixed_references");
+assert.equal(mixedResult.repairable, true, "mixed_references");
+assert.equal(mixedResult.state, stateMissing, "mixed_references");
 
 const pointerPattern = new RegExp(`{{HARNESS_REPO_NAME}}/${models.openai ? "AGENTS" : "CLAUDE"}\\.md`);
 const worktreePorcelainOutput = "worktree /repo/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /repo/detached\nHEAD def\ndetached\n";

@@ -82,9 +82,6 @@ const workspaceOpenaiFiles = ["AGENTS.md"];
 const workspaceAnthropicFiles = ["CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json"];
 const workspaceClaudeRulesFiles = [".claude/rules/harness-client-surfaces.md"];
 const CLAUDE_MD = "CLAUDE.md";
-const localClaudeEntrypoint = "../CLAUDE.md";
-const workspaceClaudeMarker = ".claude/CLAUDE.md";
-const rootClaudeMarker = ".claude/CLAUDE.md";
 
 const repoRequiredFiles = [...repoBaseFiles];
 
@@ -128,25 +125,38 @@ async function collectMissing(basePath, relativePaths, prefix) {
   return missing;
 }
 
-async function fileIncludes(filePath, needle) {
-  if (!(await exists(filePath))) return false;
-  return (await readFile(filePath, "utf8")).includes(needle);
-}
-
 async function readIfExists(filePath) {
   if (!(await exists(filePath))) return null;
   return readFile(filePath, "utf8");
 }
 
-async function collectHarnessRoutingIssue({ consumerRoot, relativePath }) {
-  const pointerPath = path.join(consumerRoot, relativePath);
+async function collectHarnessRoutingIssue({ basePath, relativePath, expectedHarnessRoot }) {
+  const pointerPath = path.join(basePath, relativePath);
   const pointerContent = await readIfExists(pointerPath);
   if (pointerContent === null) return `${relativePath} missing.`;
   return assertReferencesHarnessRoot({
     pointerPath: relativePath,
     pointerContent,
-    consumerRoot,
+    consumerRoot: basePath,
+    expectedHarnessRoot,
+    models,
+  });
+}
+
+async function collectClaudeMemoryRoutingIssue({ basePath, relativePath }) {
+  const pointerPath = path.join(basePath, relativePath);
+  const pointerContent = await readIfExists(pointerPath);
+  if (pointerContent === null) return `${relativePath} missing.`;
+  if (!pointerContent.includes("../CLAUDE.md")) {
+    return `${relativePath} must route through ../CLAUDE.md.`;
+  }
+  return assertReferencesHarnessRoot({
+    pointerPath: relativePath,
+    pointerContent,
+    consumerRoot: basePath,
     expectedHarnessRoot: repoRoot,
+    models,
+    requireHarnessReference: false,
   });
 }
 
@@ -166,15 +176,24 @@ async function main() {
       continue;
     }
     if (models.openai) {
-      const issue = await collectHarnessRoutingIssue({ consumerRoot, relativePath: "AGENTS.md" });
+      const issue = await collectHarnessRoutingIssue({ basePath: workspaceRoot, relativePath: "AGENTS.md", expectedHarnessRoot: repoRoot });
+      if (issue) missing.push(`workspace:${issue}`);
+    }
+    if (models.anthropic) {
+      const issue = await collectHarnessRoutingIssue({ basePath: workspaceRoot, relativePath: CLAUDE_MD, expectedHarnessRoot: repoRoot });
+      if (issue) missing.push(`workspace:${issue}`);
+      const memoryIssue = await collectClaudeMemoryRoutingIssue({ basePath: workspaceRoot, relativePath: ".claude/CLAUDE.md" });
+      if (memoryIssue) missing.push(`workspace:${memoryIssue}`);
+    }
+    if (models.openai) {
+      const issue = await collectHarnessRoutingIssue({ basePath: consumerRoot, relativePath: "AGENTS.md", expectedHarnessRoot: repoRoot });
       if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
     }
     if (models.anthropic) {
-      const issue = await collectHarnessRoutingIssue({ consumerRoot, relativePath: CLAUDE_MD });
+      const issue = await collectHarnessRoutingIssue({ basePath: consumerRoot, relativePath: CLAUDE_MD, expectedHarnessRoot: repoRoot });
       if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
-    }
-    if (models.anthropic && !(await fileIncludes(path.join(consumerRoot, rootClaudeMarker), localClaudeEntrypoint))) {
-      missing.push(`consumer:${consumer.name}:${workspaceClaudeMarker} missing or not routed to root ${CLAUDE_MD}`);
+      const memoryIssue = await collectClaudeMemoryRoutingIssue({ basePath: consumerRoot, relativePath: ".claude/CLAUDE.md" });
+      if (memoryIssue) missing.push(`consumer:${consumer.name}:${memoryIssue}`);
     }
   }
 

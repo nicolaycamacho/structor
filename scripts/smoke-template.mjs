@@ -127,6 +127,29 @@ async function validateCase(smokeCase) {
   run(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot);
 
   if (smokeCase.models.openai) {
+    assertExists(path.join(harnessRoot, "workspace/AGENTS.md"), `${smokeCase.name} generated workspace AGENTS`);
+    assertExists(path.join(workspaceRoot, "AGENTS.md"), `${smokeCase.name} workspace AGENTS`);
+  } else {
+    assertMissing(path.join(harnessRoot, "workspace/AGENTS.md"), `${smokeCase.name} generated workspace AGENTS`);
+    assertMissing(path.join(workspaceRoot, "AGENTS.md"), `${smokeCase.name} workspace AGENTS`);
+  }
+  if (smokeCase.models.anthropic) {
+    assertExists(path.join(harnessRoot, "workspace/CLAUDE.md"), `${smokeCase.name} generated workspace CLAUDE`);
+    assertExists(path.join(harnessRoot, "workspace/.claude/CLAUDE.md"), `${smokeCase.name} generated workspace Claude memory`);
+    assertExists(path.join(harnessRoot, "workspace/.claude/settings.json"), `${smokeCase.name} generated workspace Claude settings`);
+    assertExists(path.join(workspaceRoot, "CLAUDE.md"), `${smokeCase.name} workspace CLAUDE`);
+    assertExists(path.join(workspaceRoot, ".claude/CLAUDE.md"), `${smokeCase.name} workspace Claude memory`);
+    assertExists(path.join(workspaceRoot, ".claude/settings.json"), `${smokeCase.name} workspace Claude settings`);
+  } else {
+    assertMissing(path.join(harnessRoot, "workspace/CLAUDE.md"), `${smokeCase.name} generated workspace CLAUDE`);
+    assertMissing(path.join(harnessRoot, "workspace/.claude/CLAUDE.md"), `${smokeCase.name} generated workspace Claude memory`);
+    assertMissing(path.join(harnessRoot, "workspace/.claude/settings.json"), `${smokeCase.name} generated workspace Claude settings`);
+    assertMissing(path.join(workspaceRoot, "CLAUDE.md"), `${smokeCase.name} workspace CLAUDE`);
+    assertMissing(path.join(workspaceRoot, ".claude/CLAUDE.md"), `${smokeCase.name} workspace Claude memory`);
+    assertMissing(path.join(workspaceRoot, ".claude/settings.json"), `${smokeCase.name} workspace Claude settings`);
+  }
+
+  if (smokeCase.models.openai) {
     assertExists(path.join(harnessRoot, openaiRootEntrypoint), `${smokeCase.name} OpenAI root entrypoint`);
     assertExists(path.join(harnessRoot, openaiCodexConfig), `${smokeCase.name} Codex hook config`);
     assertExists(path.join(harnessRoot, "scripts/check-codex-hooks.mjs"), `${smokeCase.name} Codex hook validator`);
@@ -181,10 +204,22 @@ async function validateCase(smokeCase) {
   }
   if (smokeCase.models.anthropic && !smokeCase.models.openai) {
     const claudePath = path.join(firstConsumerRoot, claudeRootEntrypoint);
+    const claudeMemoryPath = path.join(firstConsumerRoot, claudeMemoryEntrypoint);
     await writeFile(claudePath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
     assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only Claude pointer`, "does not contain a resolvable");
     await writeFile(claudePath, `Read /tmp/${path.basename(harnessRoot)}/CLAUDE.md before editing.\n`);
     assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale Claude pointer`, "instead of");
+    await writeFile(
+      claudePath,
+      `Read ${path.join(harnessRoot, "CLAUDE.md")} before editing.\nRead ${path.join(harnessRoot, "ai/AGENTS.md")} before editing.\nRead ${path.join(harnessRoot, "ai/HUB.md")} before editing.\nRead ${path.join(harnessRoot, "ai/context.md")} before editing.\n`,
+    );
+    await writeFile(claudeMemoryPath, `@../CLAUDE.md\nRead ${path.join(harnessRoot, "AGENTS.md")} before editing.\n`);
+    assertFails(
+      process.execPath,
+      ["scripts/check-workspace.mjs"],
+      harnessRoot,
+      `${smokeCase.name} Claude memory stale ref`,
+    );
   }
 }
 
@@ -247,9 +282,27 @@ await validateNegativeConfigCase({
   expectedMessage: "configured consumer repo",
 });
 await validateNegativeConfigCase({
+  name: "workspace-root-output",
+  overrides: { output: { path: "." } },
+  expectedMessage: "workspace root",
+});
+await validateNegativeConfigCase({
   name: "git-segment-output",
   overrides: { output: { path: "./generated/.git/harness" } },
   expectedMessage: ".git path segment",
 });
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}check-config-`));
+  const smokeCase = { name: "check-config", models: { openai: true, anthropic: false }, consumers: [{ name: "product-app", purpose: "Application repository" }] };
+  const configPath = await writeConfig(workspaceRoot, smokeCase, { output: { path: "." } });
+  assertFails(
+    process.execPath,
+    [path.join(repoRoot, "scripts/check-config.mjs"), "--config", configPath],
+    repoRoot,
+    "check-config workspace-root-output",
+    "workspace root",
+  );
+}
 
 console.log("Template smoke check passed.");

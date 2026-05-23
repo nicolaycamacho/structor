@@ -4,7 +4,7 @@ import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { exists, validateConfigShape } from "./lib.mjs";
+import { assertSafeOutputRoot, exists, validateConfigShape } from "./lib.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -86,47 +86,6 @@ function booleanLiteral(value) {
   return value ? "true" : "false";
 }
 
-function pathContainsSegment(targetPath, segment) {
-  return path.resolve(targetPath).split(path.sep).includes(segment);
-}
-
-function isSameOrInsidePath(candidate, root) {
-  const resolvedCandidate = path.resolve(candidate);
-  const resolvedRoot = path.resolve(root);
-  const relative = path.relative(resolvedRoot, resolvedCandidate);
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
-}
-
-function assertSafeOutputRoot({
-  outputPath,
-  outputRoot,
-  repoRoot,
-  workspaceRoot,
-  consumerRepos,
-  allowAbsoluteOutput = false,
-}) {
-  const rejectedPath = path.resolve(outputRoot);
-  if (path.isAbsolute(outputPath) && !allowAbsoluteOutput) {
-    throw new Error(`Unsafe output path ${rejectedPath}: absolute output paths require ${allowAbsoluteOutputArg}.`);
-  }
-  if (isSameOrInsidePath(outputRoot, repoRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${repoRoot}.`);
-  }
-  if (path.resolve(outputRoot) === path.resolve(workspaceRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${workspaceRoot}.`);
-  }
-  for (const consumerRoot of consumerRepos) {
-    if (isSameOrInsidePath(outputRoot, consumerRoot)) {
-      throw new Error(
-        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${consumerRoot}.`,
-      );
-    }
-  }
-  if (pathContainsSegment(outputRoot, ".git")) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
-  }
-}
-
 function clientSupport(config) {
   return {
     codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
@@ -140,7 +99,7 @@ function shouldRenderTemplate(sourceRelative, config) {
   const support = clientSupport(config);
   const claudePath = "workspace/.claude/";
   const openaiWorkspacePath = "workspace/AGENTS.md.tpl";
-  const claudeWorkspacePath = "workspace/CLAUDE.md";
+  const claudeWorkspacePath = "workspace/CLAUDE.md.tpl";
 
   if (sourceRelative.startsWith(consumerPathPrefix)) return false;
   if (!config.models.anthropic && sourceRelative.startsWith(anthropicPathPrefix)) return false;
@@ -267,7 +226,7 @@ async function main() {
     outputPath,
     outputRoot,
     repoRoot,
-    workspaceRoot: path.dirname(repoRoot),
+    workspaceRoot: configDir,
     consumerRepos,
     allowAbsoluteOutput: options.allowAbsoluteOutput,
   });

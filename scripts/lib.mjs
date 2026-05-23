@@ -45,6 +45,47 @@ export async function collectFiles(baseRelativePath, predicate = () => true) {
   return files.sort();
 }
 
+export function pathContainsSegment(targetPath, segment) {
+  return path.resolve(targetPath).split(path.sep).includes(segment);
+}
+
+export function isSameOrInsidePath(candidate, root) {
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedRoot = path.resolve(root);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+export function assertSafeOutputRoot({
+  outputPath,
+  outputRoot,
+  repoRoot: templateRepoRoot,
+  workspaceRoot,
+  consumerRepos,
+  allowAbsoluteOutput = false,
+}) {
+  const rejectedPath = path.resolve(outputRoot);
+  if (path.isAbsolute(outputPath) && !allowAbsoluteOutput) {
+    throw new Error(`Unsafe output path ${rejectedPath}: absolute output paths require --allow-absolute-output.`);
+  }
+  if (isSameOrInsidePath(outputRoot, templateRepoRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${templateRepoRoot}.`);
+  }
+  if (path.resolve(outputRoot) === path.resolve(workspaceRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${workspaceRoot}.`);
+  }
+  for (const consumerRoot of consumerRepos) {
+    if (isSameOrInsidePath(outputRoot, consumerRoot)) {
+      throw new Error(
+        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${consumerRoot}.`,
+      );
+    }
+  }
+  if (pathContainsSegment(outputRoot, ".git")) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
+  }
+}
+
 export function failIfErrors(title, errors) {
   if (errors.length === 0) {
     console.log(`${title} passed.`);

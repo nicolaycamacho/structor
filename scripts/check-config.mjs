@@ -2,12 +2,21 @@
 
 import path from "node:path";
 import { readFile } from "node:fs/promises";
-import { collectFiles, exists, failIfErrors, readJson, repoRoot, validateConfigShape } from "./lib.mjs";
+import {
+  assertSafeOutputRoot,
+  collectFiles,
+  exists,
+  failIfErrors,
+  readJson,
+  repoRoot,
+  validateConfigShape,
+} from "./lib.mjs";
 
 const errors = [];
 const args = process.argv.slice(2);
 const configArgIndex = args.indexOf("--config");
 const requireExistingConsumers = args.includes("--require-existing-consumers");
+const allowAbsoluteOutput = args.includes("--allow-absolute-output");
 const checkingExamples = configArgIndex === -1;
 const configFiles = checkingExamples
   ? ["harness.config.example.json", ...(await collectFiles("examples", (file) => file.endsWith("harness.config.json")))]
@@ -22,6 +31,26 @@ for (const configPath of configFiles) {
 
   if (checkingExamples && path.isAbsolute(config.output?.path ?? "")) {
     errors.push(`${label}: output.path must be relative for examples.`);
+  }
+  if (!checkingExamples) {
+    const configDir = path.dirname(configPath);
+    const outputPath = config.output.path;
+    const outputRoot = path.resolve(configDir, outputPath);
+    const consumerRepos = Array.isArray(config.consumers)
+      ? config.consumers.map((consumer) => path.resolve(configDir, consumer.path))
+      : [];
+    try {
+      assertSafeOutputRoot({
+        outputPath,
+        outputRoot,
+        repoRoot,
+        workspaceRoot: configDir,
+        consumerRepos,
+        allowAbsoluteOutput,
+      });
+    } catch (error) {
+      errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   if (Array.isArray(config.consumers)) {
