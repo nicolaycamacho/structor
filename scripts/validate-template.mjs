@@ -2,20 +2,12 @@
 
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { repoRoot } from "./lib.mjs";
+import { fileURLToPath } from "node:url";
 
-const checks = [
-  "scripts/check-config.mjs",
-  "scripts/check-template-files.mjs",
-  "scripts/check-task-template.mjs",
-  "scripts/check-contract-manifests.mjs",
-  "scripts/check-model-overlays.mjs",
-  "scripts/check-placeholders.mjs",
-  "scripts/smoke-template.mjs",
-];
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
-for (const check of checks) {
-  execFileSync(process.execPath, [path.join(repoRoot, check)], {
+for (const command of [["npm", ["run", "check:ci"]], ["npm", ["run", "check:smoke"]]]) {
+  execFileSync(command[0], command[1], {
     cwd: repoRoot,
     stdio: "inherit",
   });

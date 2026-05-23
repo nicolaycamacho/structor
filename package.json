@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "check:ci": "node scripts/check-config.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs",
     "check:config": "node scripts/check-config.mjs",
     "check:placeholders": "node scripts/check-placeholders.mjs",
     "check:templates": "node scripts/check-template-files.mjs",
@@ -11,7 +12,7 @@
     "check:contracts": "node scripts/check-contract-manifests.mjs",
     "check:model-overlays": "node scripts/check-model-overlays.mjs",
     "check:smoke": "node scripts/smoke-template.mjs",
-    "validate": "node scripts/validate-template.mjs",
+    "validate": "npm run check:ci && npm run check:smoke",
     "validate:governance": "node scripts/validate-governance.mjs",
     "init": "node scripts/init-harness.mjs"
   },

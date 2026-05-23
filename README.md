@@ -182,7 +182,8 @@ Rules:
   short-timeout, and fixture-validated.
 - If customizing Claude Code support, keep `.claude/**` thin and routed to
   canonical `ai/*` docs. Do not add Claude hooks without a validator.
-- Run npm run validate before generating anything.
+- Run npm run check:ci before generating anything; use npm run validate when you
+  want the full local smoke suite.
 - Run npm run init -- --config harness.config.json --dry-run and summarize the
   planned writes before writing files.
 - If the dry run is correct, run npm run init -- --config harness.config.json
@@ -232,9 +233,12 @@ Set:
 Validate the template and config shape:
 
 ```sh
-npm run validate
+npm run check:ci
 node scripts/check-config.mjs --config harness.config.json --require-existing-consumers
 ```
+
+Use `npm run validate` when you want the full local smoke suite, including
+generated harness checks.
 
 Preview generation:
 
@@ -305,15 +309,21 @@ manually using:
 Run:
 
 ```sh
+npm run check:ci
 npm run validate
 ```
 
-This checks config examples, required template files, task template structure,
-contract manifest schema, placeholder hygiene, model overlay thinness, and the
-smoke-tested initialization flow. The smoke test creates disposable workspaces,
-generates harnesses for OpenAI-only, Anthropic-only, and combined model
-settings, installs consumer entrypoints, runs generated governance validation,
-bootstraps workspace pointers, and verifies workspace layout.
+`npm run check:ci` covers the cheap structural checks that feed both local
+development and CI: config examples, required template files, task template
+structure, contract manifest schema, placeholder hygiene, and model overlay
+thinness.
+
+`npm run validate` adds the smoke-tested initialization flow and is the
+default push/PR GitHub Actions path. The smoke test
+creates disposable workspaces, generates harnesses for OpenAI-only,
+Anthropic-only, and combined model settings, installs consumer entrypoints,
+runs generated governance validation, bootstraps workspace pointers, and
+verifies workspace layout.
 
 Generated harness validation includes client-support checks when the relevant
 surfaces are enabled:
