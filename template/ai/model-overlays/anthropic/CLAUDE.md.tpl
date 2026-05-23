@@ -5,10 +5,10 @@ agents.
 
 Canonical policy lives in:
 
-1. `../../CLAUDE.md`
-2. `../AGENTS.md`
-3. `../HUB.md`
-4. `../context.md`
+1. `../../../CLAUDE.md`
+2. `../../CLAUDE.md`
+3. `../../HUB.md`
+4. `../../context.md`
 
 Use Claude-specific tool conventions according to the active runtime
 environment, but do not add model-specific policy here.

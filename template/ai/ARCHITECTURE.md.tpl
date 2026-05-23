@@ -7,6 +7,7 @@ This document captures the durable architecture map for {{PROJECT_NAME}}.
 - Harness repo: `{{HARNESS_REPO_NAME}}`
 - Consumer repos:
 {{CONSUMER_REPOS_LIST}}
+- Active harness contracts and contracts views live in `ai/contracts` and `ai/views`.
 
 ## Ownership Boundaries
 
@@ -15,6 +16,8 @@ This document captures the durable architecture map for {{PROJECT_NAME}}.
 - Consumer repos own implementation, local tests, runtime behavior, and
   deployment-specific details.
 - Cross-repo invariants belong in `ai/contracts/*`.
+- Product-owned behavior contracts should be explicit and versionable through
+  `ai/contracts/*.contract.json`.
 
 ## Module Guidance
 
@@ -22,9 +25,11 @@ This document captures the durable architecture map for {{PROJECT_NAME}}.
 - Avoid scattered coordination logic across unrelated files.
 - Keep names precise enough that the domain model is obvious.
 - Reuse existing types and abstractions before creating new ones.
+- Make shared interfaces explicit; avoid moving contract-owned logic into consumer
+  overlays.
 
 ## Open Architecture Notes
 
-- Add repo-specific module maps as the consumer repos are inspected.
+- Add repo-specific module maps as you onboard each consumer repo.
 - Add ADRs only for durable trade-offs that would surprise a future reader.
-
+- Keep bootstrap and worktree contracts close to workspace entrypoints.

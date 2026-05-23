@@ -1,3 +1,23 @@
+const docsWorkflow = "ai/WORKFLOW.md";
+const docsQuality = "ai/QUALITY.md";
+const docsHub = "ai/HUB.md";
+const docsContext = "ai/context.md";
+const taskBriefTemplate = "ai/templates/task-brief-template.md";
+const eventSessionStart = "SessionStart";
+const eventUserPromptSubmit = "UserPromptSubmit";
+const eventPreToolUse = "PreToolUse";
+const eventPermissionRequest = "PermissionRequest";
+const eventPostToolUse = "PostToolUse";
+const eventStop = "Stop";
+const workflowDocs = [docsWorkflow, docsHub, docsContext];
+const taskDocs = [docsWorkflow, taskBriefTemplate];
+const postToolDocs = [docsWorkflow, docsQuality];
+const stopDocs = [docsWorkflow, docsQuality];
+const promptRequiresContextPattern = /\b(implement|fix|change|refactor|update|edit)\b/i;
+const commandFailurePattern = /fail|timeout|error/i;
+const finalMessagePattern = /commands run|validation|files changed/i;
+const allowedActionAllow = "allow";
+
 export const denyRules = [
   {
     id: "destructive-git-reset",
@@ -50,23 +70,21 @@ export function evaluate(event, input) {
   if (event === "SessionStart") {
     return context("Load the repo entrypoint, ai/AGENTS.md, ai/HUB.md, and ai/context.md before feature work.", [
       "AGENTS.md",
-      "ai/HUB.md",
-      "ai/context.md",
+      ...workflowDocs,
     ]);
   }
 
-  if (event === "UserPromptSubmit") {
+  if (event === eventUserPromptSubmit) {
     const prompt = String(input.prompt ?? "");
-    if (/\b(implement|fix|change|refactor|update|edit)\b/i.test(prompt)) {
+    if (promptRequiresContextPattern.test(prompt)) {
       return context("Before editing, identify expected files, preserved contracts, and validation commands.", [
-        "ai/WORKFLOW.md",
-        "ai/templates/task-brief-template.md",
+        ...taskDocs,
       ]);
     }
     return allow();
   }
 
-  if (event === "PreToolUse" || event === "PermissionRequest") {
+  if (event === eventPreToolUse || event === eventPermissionRequest) {
     const command = String(input.command ?? input.toolInput?.cmd ?? "");
     for (const rule of denyRules) {
       if (rule.pattern.test(command)) return deny(rule);
@@ -74,26 +92,20 @@ export function evaluate(event, input) {
     return allow();
   }
 
-  if (event === "PostToolUse") {
+  if (event === eventPostToolUse) {
     const exitCode = Number(input.exitCode ?? 0);
     const status = String(input.status ?? "");
-    if (exitCode !== 0 || /fail|timeout|error/i.test(status)) {
-      return context("A command failed or timed out. Report the exact command, failure, and next repair step.", [
-        "ai/WORKFLOW.md",
-        "ai/QUALITY.md",
-      ]);
+    if (exitCode !== 0 || commandFailurePattern.test(status)) {
+      return context("A command failed or timed out. Report the exact command, failure, and next repair step.", [...postToolDocs]);
     }
     return allow();
   }
 
-  if (event === "Stop") {
+  if (event === eventStop) {
     const changedFiles = Array.isArray(input.changedFiles) ? input.changedFiles : [];
     const finalMessage = String(input.finalMessage ?? "");
-    if (changedFiles.length > 0 && !/commands run|validation|files changed/i.test(finalMessage)) {
-      return context("Final response should include files changed and validation evidence.", [
-        "ai/WORKFLOW.md",
-        "ai/QUALITY.md",
-      ]);
+    if (changedFiles.length > 0 && !finalMessagePattern.test(finalMessage)) {
+      return context("Final response should include files changed and validation evidence.", [...stopDocs]);
     }
     return allow();
   }

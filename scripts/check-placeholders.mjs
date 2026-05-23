@@ -11,6 +11,10 @@ const activeFiles = await collectFiles(".", (file) => {
   return [".md", ".json", ".mjs"].some((suffix) => file.endsWith(suffix));
 });
 
+const defaultForbiddenProjectTermsEnvVar = "HARNESS_FORBIDDEN_PROJECT_TERMS";
+const forbiddenProjectTermsModeEnvVar = "HARNESS_FORBIDDEN_PROJECT_TERMS_MODE";
+const forbiddenProjectTermsModeOverride = "override";
+const termListSeparator = ",";
 const defaultForbiddenProjectTerms = [
   "AI Front Desk",
   "Flowdesk",
@@ -18,13 +22,13 @@ const defaultForbiddenProjectTerms = [
   "ai-front-desk-platform",
 ];
 
-const configuredForbiddenProjectTerms = (process.env.HARNESS_FORBIDDEN_PROJECT_TERMS ?? "")
-  .split(",")
+const configuredForbiddenProjectTerms = (process.env[defaultForbiddenProjectTermsEnvVar] ?? "")
+  .split(termListSeparator)
   .map((term) => term.trim())
   .filter(Boolean);
 
 const forbiddenProjectTermValues = [
-  ...(process.env.HARNESS_FORBIDDEN_PROJECT_TERMS_MODE === "override" ? [] : defaultForbiddenProjectTerms),
+  ...(process.env[forbiddenProjectTermsModeEnvVar] === forbiddenProjectTermsModeOverride ? [] : defaultForbiddenProjectTerms),
   ...configuredForbiddenProjectTerms,
 ];
 

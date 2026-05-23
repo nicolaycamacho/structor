@@ -23,7 +23,10 @@ policy. They should not become independent policy sources.
 
 Codex hook support, when enabled, is intentionally conservative: deterministic,
 local, bounded by short timeouts, and validated to avoid network calls, external
-writes, and runtime-state mutation. It is a harness guardrail, not a runner.
+writes, and runtime-state mutation. It is a harness guardrail, not a runner or a
+complete security boundary. Hooks catch common high-risk operations and provide
+contextual reminders, but they do not replace sandboxing, permission controls,
+code review, CI policy, or secret management.
 
 ## Expected Workspace Layout
 

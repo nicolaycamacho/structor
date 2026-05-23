@@ -7,8 +7,15 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 export const canonicalRepos = ["{{HARNESS_REPO_NAME}}", ...{{CONSUMER_REPO_NAMES_JSON}}];
-export const requiredPointerFiles = ["AGENTS.md", "CLAUDE.md"];
-export const optionalPointerFiles = [".codex/hooks.json"];
+export const models = {
+  openai: {{MODEL_OPENAI_ENABLED}},
+  anthropic: {{MODEL_ANTHROPIC_ENABLED}},
+};
+export const requiredPointerFiles = [
+  ...(models.openai ? ["AGENTS.md"] : []),
+  ...(models.anthropic ? ["CLAUDE.md"] : []),
+];
+export const optionalPointerFiles = [];
 
 const repairableStates = new Set(["missing", "stale_relative", "wrong_harness_root"]);
 
@@ -59,9 +66,9 @@ export function extractHarnessReferences(content) {
   return [...new Set((content.match(pattern) ?? []).map(cleanReference).filter(Boolean))];
 }
 
-function harnessRootFromReference(rawReference, targetPath) {
+export function resolveHarnessReference({ reference: rawReference, consumerRoot }) {
   const reference = cleanReference(rawReference);
-  const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(targetPath, reference);
+  const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(consumerRoot, reference);
   const parts = absoluteReference.split(path.sep);
   const index = parts.lastIndexOf("{{HARNESS_REPO_NAME}}");
   if (index === -1) return null;
@@ -70,8 +77,19 @@ function harnessRootFromReference(rawReference, targetPath) {
 }
 
 function referenceMatchesHarnessRoot(rawReference, targetPath, harnessRoot) {
-  const referenceRoot = harnessRootFromReference(rawReference, targetPath);
+  const referenceRoot = resolveHarnessReference({ reference: rawReference, consumerRoot: targetPath });
   return referenceRoot !== null && path.resolve(referenceRoot) === path.resolve(harnessRoot);
+}
+
+export function assertReferencesHarnessRoot({ pointerPath, pointerContent, consumerRoot, expectedHarnessRoot }) {
+  const references = extractHarnessReferences(pointerContent);
+  if (references.length === 0) {
+    return `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.`;
+  }
+  if (references.some((reference) => referenceMatchesHarnessRoot(reference, consumerRoot, expectedHarnessRoot))) {
+    return null;
+  }
+  return `${pointerPath} points at ${references.join(", ")} instead of ${expectedHarnessRoot}.`;
 }
 
 function classifyPointerContent({ relativePath, content, targetPath, harnessRoot }) {
@@ -157,6 +175,13 @@ export function renderPointerFile({ relativePath, harnessRoot, repoName }) {
   const normalizedHarnessRoot = path.resolve(harnessRoot);
   const bootstrapCommand = `node ${path.join(normalizedHarnessRoot, "scripts/bootstrap-codex-worktree.mjs")} <checkout-path>`;
   const title = relativePath === "CLAUDE.md" ? "Project Agent Guide" : "Agent Bootstrap";
+  const guidance = [
+    ...(models.openai ? [path.join(normalizedHarnessRoot, "AGENTS.md")] : []),
+    ...(models.anthropic ? [path.join(normalizedHarnessRoot, "CLAUDE.md")] : []),
+    path.join(normalizedHarnessRoot, "ai/AGENTS.md"),
+    path.join(normalizedHarnessRoot, "ai/HUB.md"),
+    path.join(normalizedHarnessRoot, "ai/context.md"),
+  ];
   return `# ${title}
 
 This checkout is part of the {{PROJECT_NAME}} workspace.
@@ -166,11 +191,7 @@ Canonical repo: \`${repoName}\`
 
 Read before changing files:
 
-1. \`${path.join(normalizedHarnessRoot, "AGENTS.md")}\`
-2. \`${path.join(normalizedHarnessRoot, "CLAUDE.md")}\`
-3. \`${path.join(normalizedHarnessRoot, "ai/AGENTS.md")}\`
-4. \`${path.join(normalizedHarnessRoot, "ai/HUB.md")}\`
-5. \`${path.join(normalizedHarnessRoot, "ai/context.md")}\`
+${guidance.map((entry, index) => `${index + 1}. \`${entry}\``).join("\n")}
 
 Regenerate this pointer with:
 

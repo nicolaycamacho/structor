@@ -16,6 +16,26 @@ const clientSupport = {
   claudeHooks: {{CLIENT_CLAUDE_HOOKS_ENABLED}},
   claudeSkills: {{CLIENT_CLAUDE_SKILLS_ENABLED}},
 };
+const openaiRequiredFiles = ["AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "workspace/AGENTS.md"];
+const claudeRequiredFiles = [
+  "CLAUDE.md",
+  ".claude/CLAUDE.md",
+  ".claude/settings.json",
+  "ai/model-overlays/anthropic/CLAUDE.md",
+  "workspace/CLAUDE.md",
+  "workspace/.claude/CLAUDE.md",
+  "workspace/.claude/settings.json",
+  "scripts/check-claude-compatibility.mjs",
+];
+const codexRequiredFiles = [
+  ".codex/hooks.json",
+  "ai/contracts/codex-hooks.contract.json",
+  "scripts/check-codex-hooks.mjs",
+  "scripts/hooks/codex-hook.mjs",
+  "scripts/hooks/lib/codex-hooks-core.mjs",
+];
+const claudeRulesRequiredFiles = [".claude/rules/harness-client-surfaces.md", "workspace/.claude/rules/harness-client-surfaces.md"];
+const driftFile = "scripts/check-overlay-drift.mjs";
 const requiredFiles = [
   "README.md",
   "ai/AGENTS.md",
@@ -92,38 +112,23 @@ const requiredFiles = [
 ];
 
 if (models.openai) {
-  requiredFiles.push("AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "workspace/AGENTS.md");
+  requiredFiles.push(...openaiRequiredFiles);
 }
 
 if (models.anthropic) {
-  requiredFiles.push(
-    "CLAUDE.md",
-    ".claude/CLAUDE.md",
-    ".claude/settings.json",
-    "ai/model-overlays/anthropic/CLAUDE.md",
-    "workspace/CLAUDE.md",
-    "workspace/.claude/CLAUDE.md",
-    "workspace/.claude/settings.json",
-    "scripts/check-claude-compatibility.mjs",
-  );
+  requiredFiles.push(...claudeRequiredFiles);
 }
 
 if (clientSupport.codexHooks) {
-  requiredFiles.push(
-    ".codex/hooks.json",
-    "ai/contracts/codex-hooks.contract.json",
-    "scripts/check-codex-hooks.mjs",
-    "scripts/hooks/codex-hook.mjs",
-    "scripts/hooks/lib/codex-hooks-core.mjs",
-  );
+  requiredFiles.push(...codexRequiredFiles);
 }
 
 if (clientSupport.claudeRules) {
-  requiredFiles.push(".claude/rules/harness-client-surfaces.md", "workspace/.claude/rules/harness-client-surfaces.md");
+  requiredFiles.push(...claudeRulesRequiredFiles);
 }
 
 if (models.openai || models.anthropic) {
-  requiredFiles.push("scripts/check-overlay-drift.mjs");
+  requiredFiles.push(driftFile);
 }
 
 async function exists(relativePath) {

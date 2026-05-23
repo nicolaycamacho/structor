@@ -6,6 +6,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const contractsDirectory = "ai/contracts";
+const contractsReadmePath = `${contractsDirectory}/README.md`;
+const contractFileExtension = ".contract.json";
+const readmeFileExtension = ".md";
 const requiredFields = ["id", "name", "version", "owners", "affectedRepos", "requiredFiles"];
 
 async function exists(relativePath) {
@@ -18,14 +22,16 @@ async function exists(relativePath) {
 }
 
 const errors = [];
-const entries = await readdir(path.join(repoRoot, "ai/contracts"), { withFileTypes: true });
-const readme = await readFile(path.join(repoRoot, "ai/contracts/README.md"), "utf8");
+const entries = await readdir(path.join(repoRoot, contractsDirectory), { withFileTypes: true });
+const readme = await readFile(path.join(repoRoot, contractsReadmePath), "utf8");
 
-for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(".md") && item.name !== "README.md")) {
-  if (!readme.includes(entry.name)) errors.push(`ai/contracts/${entry.name} is not linked from ai/contracts/README.md.`);
+for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(readmeFileExtension) && item.name !== "README.md")) {
+  if (!readme.includes(entry.name)) {
+    errors.push(`${contractsDirectory}/${entry.name} is not linked from ${contractsReadmePath}.`);
+  }
 }
 
-for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(".contract.json"))) {
+for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(contractFileExtension))) {
   const relativePath = `ai/contracts/${entry.name}`;
   const manifest = JSON.parse(await readFile(path.join(repoRoot, relativePath), "utf8"));
   for (const field of requiredFields) {

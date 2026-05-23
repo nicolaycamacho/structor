@@ -8,22 +8,39 @@ import { exists, validateConfigShape } from "./lib.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
+const configFileDefault = "harness.config.json";
+const configArg = "--config";
+const outputArg = "--output";
+const dryRunArg = "--dry-run";
+const forceArg = "--force";
+const installConsumerEntrypointsArg = "--install-consumer-entrypoints";
+const allowAbsoluteOutputArg = "--allow-absolute-output";
+
+const consumerPathPrefix = "consumer/";
+const anthropicPathPrefix = ".claude/";
+const codexHookPathPrefix = ".codex/";
+const scriptRulesPath = "scripts/check-claude-compatibility.mjs.tpl";
+const scriptCodexPath = "scripts/check-codex-hooks.mjs.tpl";
+const scriptHooksPath = "scripts/hooks/";
+
 function parseArgs(argv) {
   const options = {
-    config: "harness.config.json",
+    config: configFileDefault,
     output: null,
     dryRun: false,
     force: false,
     installConsumerEntrypoints: false,
+    allowAbsoluteOutput: false,
   };
 
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index];
-    if (arg === "--config") options.config = argv[++index];
-    else if (arg === "--output") options.output = argv[++index];
-    else if (arg === "--dry-run") options.dryRun = true;
-    else if (arg === "--force") options.force = true;
-    else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
+    if (arg === configArg) options.config = argv[++index];
+    else if (arg === outputArg) options.output = argv[++index];
+    else if (arg === dryRunArg) options.dryRun = true;
+    else if (arg === forceArg) options.force = true;
+    else if (arg === installConsumerEntrypointsArg) options.installConsumerEntrypoints = true;
+    else if (arg === allowAbsoluteOutputArg) options.allowAbsoluteOutput = true;
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -69,6 +86,47 @@ function booleanLiteral(value) {
   return value ? "true" : "false";
 }
 
+function pathContainsSegment(targetPath, segment) {
+  return path.resolve(targetPath).split(path.sep).includes(segment);
+}
+
+function isSameOrInsidePath(candidate, root) {
+  const resolvedCandidate = path.resolve(candidate);
+  const resolvedRoot = path.resolve(root);
+  const relative = path.relative(resolvedRoot, resolvedCandidate);
+  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
+}
+
+function assertSafeOutputRoot({
+  outputPath,
+  outputRoot,
+  repoRoot,
+  workspaceRoot,
+  consumerRepos,
+  allowAbsoluteOutput = false,
+}) {
+  const rejectedPath = path.resolve(outputRoot);
+  if (path.isAbsolute(outputPath) && !allowAbsoluteOutput) {
+    throw new Error(`Unsafe output path ${rejectedPath}: absolute output paths require ${allowAbsoluteOutputArg}.`);
+  }
+  if (isSameOrInsidePath(outputRoot, repoRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${repoRoot}.`);
+  }
+  if (path.resolve(outputRoot) === path.resolve(workspaceRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${workspaceRoot}.`);
+  }
+  for (const consumerRoot of consumerRepos) {
+    if (isSameOrInsidePath(outputRoot, consumerRoot)) {
+      throw new Error(
+        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${consumerRoot}.`,
+      );
+    }
+  }
+  if (pathContainsSegment(outputRoot, ".git")) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
+  }
+}
+
 function clientSupport(config) {
   return {
     codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
@@ -80,20 +138,24 @@ function clientSupport(config) {
 
 function shouldRenderTemplate(sourceRelative, config) {
   const support = clientSupport(config);
-  if (sourceRelative.startsWith("consumer/")) return false;
-  if (!config.models.anthropic && sourceRelative.startsWith(".claude/")) return false;
-  if (!support.claudeRules && sourceRelative.startsWith(".claude/rules/")) return false;
-  if (!support.claudeHooks && sourceRelative.startsWith(".claude/hooks/")) return false;
-  if (!support.claudeSkills && sourceRelative.startsWith(".claude/skills/")) return false;
-  if (!support.codexHooks && sourceRelative.startsWith(".codex/")) return false;
-  if (!support.codexHooks && sourceRelative.startsWith("scripts/hooks/")) return false;
-  if (!support.codexHooks && sourceRelative === "scripts/check-codex-hooks.mjs.tpl") return false;
+  const claudePath = "workspace/.claude/";
+  const openaiWorkspacePath = "workspace/AGENTS.md.tpl";
+  const claudeWorkspacePath = "workspace/CLAUDE.md";
+
+  if (sourceRelative.startsWith(consumerPathPrefix)) return false;
+  if (!config.models.anthropic && sourceRelative.startsWith(anthropicPathPrefix)) return false;
+  if (!support.claudeRules && sourceRelative.startsWith(`${anthropicPathPrefix}rules/`)) return false;
+  if (!support.claudeHooks && sourceRelative.startsWith(`${anthropicPathPrefix}hooks/`)) return false;
+  if (!support.claudeSkills && sourceRelative.startsWith(`${anthropicPathPrefix}skills/`)) return false;
+  if (!support.codexHooks && sourceRelative.startsWith(codexHookPathPrefix)) return false;
+  if (!support.codexHooks && sourceRelative.startsWith(scriptHooksPath)) return false;
+  if (!support.codexHooks && sourceRelative === scriptCodexPath) return false;
   if (!support.codexHooks && sourceRelative === "ai/contracts/codex-hooks.contract.json.tpl") return false;
-  if (!config.models.anthropic && sourceRelative === "scripts/check-claude-compatibility.mjs.tpl") return false;
-  if (!config.models.openai && sourceRelative === "workspace/AGENTS.md.tpl") return false;
-  if (!config.models.anthropic && sourceRelative.startsWith("workspace/CLAUDE.md")) return false;
-  if (!config.models.anthropic && sourceRelative.startsWith("workspace/.claude/")) return false;
-  if (!support.claudeRules && sourceRelative.startsWith("workspace/.claude/rules/")) return false;
+  if (!config.models.anthropic && sourceRelative === scriptRulesPath) return false;
+  if (!config.models.openai && sourceRelative === openaiWorkspacePath) return false;
+  if (!config.models.anthropic && sourceRelative === claudeWorkspacePath) return false;
+  if (!config.models.anthropic && sourceRelative.startsWith(claudePath)) return false;
+  if (!support.claudeRules && sourceRelative.startsWith(`${claudePath}rules/`)) return false;
   if (!config.models.openai && sourceRelative === "AGENTS.md.tpl") return false;
   if (!config.models.anthropic && sourceRelative === "CLAUDE.md.tpl") return false;
   if (!config.models.openai && sourceRelative.startsWith("ai/model-overlays/openai/")) return false;
@@ -198,7 +260,17 @@ async function main() {
   }
 
   const configDir = path.dirname(configPath);
-  const outputRoot = path.resolve(configDir, options.output ?? config.output.path);
+  const outputPath = options.output ?? config.output.path;
+  const outputRoot = path.resolve(configDir, outputPath);
+  const consumerRepos = config.consumers.map((consumer) => path.resolve(configDir, consumer.path));
+  assertSafeOutputRoot({
+    outputPath,
+    outputRoot,
+    repoRoot,
+    workspaceRoot: path.dirname(repoRoot),
+    consumerRepos,
+    allowAbsoluteOutput: options.allowAbsoluteOutput,
+  });
   const support = clientSupport(config);
   const values = {
     PROJECT_NAME: config.project.name,

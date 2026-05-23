@@ -12,15 +12,17 @@ or changing user-facing behavior.
 
 ## Users
 
-- Fill in the primary user groups.
-- Fill in the jobs those users expect the product to perform.
+- Primary users are defined as any actors that consume the product surface from
+  {{PRIMARY_CONSUMER_NAME}} or downstream consumer repos.
+- Product value is measured by how reliably each actor reaches intended outcome
+  with the fewest failure handoffs.
 
 ## Core Workflows
 
-- Fill in the main workflow from user entrypoint to successful outcome.
+- Keep a single workflow map per critical actor in the relevant task brief.
+- Track entrypoint, validation, decision points, and durable handoff/output.
 - Link detailed specs or active task briefs when they exist.
 
 ## Current Focus
 
 - Keep this section short and update it when product direction changes.
-

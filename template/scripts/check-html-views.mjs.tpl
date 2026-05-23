@@ -8,18 +8,24 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const tempRoot = await mkdtemp(path.join(os.tmpdir(), "{{PROJECT_SLUG}}-views-"));
+const tempDirectoryTemplate = "{{PROJECT_SLUG}}-views-";
+const viewsDirectory = "ai/views";
+const generateHtmlViewsScript = "scripts/generate-html-views.mjs";
+const staleGeneratedViewInstruction = `run node ${generateHtmlViewsScript}`;
+const htmlExtension = ".html";
+const expectedViewPathPrefix = `${viewsDirectory}/`;
+const tempRoot = await mkdtemp(path.join(os.tmpdir(), tempDirectoryTemplate));
 
-execFileSync(process.execPath, ["scripts/generate-html-views.mjs", "--output", tempRoot], {
+execFileSync(process.execPath, [generateHtmlViewsScript, "--output", tempRoot], {
   cwd: repoRoot,
   stdio: "pipe",
 });
 
 async function htmlFiles(baseDir) {
-  const dir = path.join(baseDir, "ai/views");
+  const dir = path.join(baseDir, viewsDirectory);
   if (!existsSync(dir)) return [];
   const entries = await readdir(dir, { withFileTypes: true });
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".html")).map((entry) => entry.name).sort();
+  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(htmlExtension)).map((entry) => entry.name).sort();
 }
 
 const expected = await htmlFiles(tempRoot);
@@ -27,19 +33,22 @@ const actual = await htmlFiles(repoRoot);
 const errors = [];
 
 for (const name of expected) {
+  const expectedViewPath = `${expectedViewPathPrefix}${name}`;
   if (!actual.includes(name)) {
-    errors.push(`missing generated view ai/views/${name}`);
+    errors.push(`missing generated view ${expectedViewPath}`);
     continue;
   }
-  const expectedContent = await readFile(path.join(tempRoot, "ai/views", name), "utf8");
-  const actualContent = await readFile(path.join(repoRoot, "ai/views", name), "utf8");
+  const expectedContent = await readFile(path.join(tempRoot, viewsDirectory, name), "utf8");
+  const actualContent = await readFile(path.join(repoRoot, viewsDirectory, name), "utf8");
   if (expectedContent !== actualContent) {
-    errors.push(`stale generated view ai/views/${name}; run node scripts/generate-html-views.mjs`);
+    errors.push(`stale generated view ${expectedViewPath}; ${staleGeneratedViewInstruction}`);
   }
 }
 
 for (const name of actual) {
-  if (!expected.includes(name)) errors.push(`unexpected generated view ai/views/${name}`);
+  if (!expected.includes(name)) {
+    errors.push(`unexpected generated view ${expectedViewPathPrefix}${name}`);
+  }
 }
 
 if (errors.length > 0) {

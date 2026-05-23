@@ -5,6 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const skillsReadmePath = "ai/skills/README.md";
+const skillsDir = "ai/skills";
+const skillFileExtension = ".md";
 const requiredSections = [
   "Purpose",
   "When to Use",
@@ -25,9 +28,9 @@ function hasHeading(content, heading) {
 }
 
 const errors = [];
-const readme = await read("ai/skills/README.md");
-const entries = await readdir(path.join(repoRoot, "ai/skills"), { withFileTypes: true });
-for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(".md") && item.name !== "README.md")) {
+const readme = await read(skillsReadmePath);
+const entries = await readdir(path.join(repoRoot, skillsDir), { withFileTypes: true });
+for (const entry of entries.filter((item) => item.isFile() && item.name.endsWith(skillFileExtension) && item.name !== "README.md")) {
   const relativePath = `ai/skills/${entry.name}`;
   const content = await read(relativePath);
   if (!readme.includes(entry.name)) errors.push(`${relativePath} is not linked from ai/skills/README.md.`);

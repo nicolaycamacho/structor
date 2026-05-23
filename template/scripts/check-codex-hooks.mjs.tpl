@@ -7,57 +7,68 @@ import { fileURLToPath } from "node:url";
 import { denyRules } from "./hooks/lib/codex-hooks-core.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+const eventSessionStart = "SessionStart";
+const eventUserPromptSubmit = "UserPromptSubmit";
+const eventPreToolUse = "PreToolUse";
+const eventPermissionRequest = "PermissionRequest";
+const eventPostToolUse = "PostToolUse";
+const eventStop = "Stop";
+const hookCommandForEvent = (event) => `node scripts/hooks/codex-hook.mjs ${event} --json`;
+const fixtureTimeoutMs = 2000;
+const defaultExitCodeSuccess = 0;
+
 const expectedEvents = [
-  "SessionStart",
-  "UserPromptSubmit",
-  "PreToolUse",
-  "PermissionRequest",
-  "PostToolUse",
-  "Stop",
+  eventSessionStart,
+  eventUserPromptSubmit,
+  eventPreToolUse,
+  eventPermissionRequest,
+  eventPostToolUse,
+  eventStop,
 ];
 
 const fixtures = [
   {
     name: "session-start-context",
-    event: "SessionStart",
+    event: eventSessionStart,
     input: { cwd: repoRoot },
     expectedAction: "context",
-    expectedExitCode: 0,
+    expectedExitCode: defaultExitCodeSuccess,
   },
   {
     name: "prompt-implementation-context",
-    event: "UserPromptSubmit",
+    event: eventUserPromptSubmit,
     input: { prompt: "implement the next task" },
     expectedAction: "context",
-    expectedExitCode: 0,
+    expectedExitCode: defaultExitCodeSuccess,
   },
   {
     name: "destructive-command-deny",
-    event: "PreToolUse",
+    event: eventPreToolUse,
     input: { toolInput: { cmd: "git reset --hard HEAD" } },
     expectedAction: "deny",
     expectedExitCode: 2,
   },
   {
     name: "failed-validation-context",
-    event: "PostToolUse",
+    event: eventPostToolUse,
     input: { command: "node scripts/validate-governance.mjs", exitCode: 1 },
     expectedAction: "context",
-    expectedExitCode: 0,
+    expectedExitCode: defaultExitCodeSuccess,
   },
   {
     name: "stop-no-change-allow",
-    event: "Stop",
+    event: eventStop,
     input: { changedFiles: [] },
     expectedAction: "allow",
-    expectedExitCode: 0,
+    expectedExitCode: defaultExitCodeSuccess,
   },
   {
     name: "malformed-input-context",
-    event: "PreToolUse",
+    event: eventPreToolUse,
     rawInput: "{not json",
     expectedAction: "context",
-    expectedExitCode: 0,
+    expectedExitCode: defaultExitCodeSuccess,
   },
 ];
 
@@ -65,8 +76,14 @@ async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(repoRoot, relativePath), "utf8"));
 }
 
+function checkTimeoutLimit(errors, event, timeoutMs) {
+  if (timeoutMs && timeoutMs > fixtureTimeoutMs) {
+    errors.push(`${event} timeoutMs must be ${fixtureTimeoutMs} or less.`);
+  }
+}
+
 function hookCommandFor(event) {
-  return `node scripts/hooks/codex-hook.mjs ${event}`;
+  return hookCommandForEvent(event);
 }
 
 async function checkConfig(errors) {
@@ -84,7 +101,7 @@ async function checkConfig(errors) {
       errors.push(`${event} must reference committed command '${expectedCommand}'.`);
     }
     for (const entry of entries) {
-      if (entry.timeoutMs && entry.timeoutMs > 2000) errors.push(`${event} timeoutMs must be 2000 or less.`);
+      checkTimeoutLimit(errors, event, entry.timeoutMs);
     }
   }
 }
@@ -129,7 +146,7 @@ function runFixture(fixture) {
     cwd: repoRoot,
     input: fixture.rawInput ?? JSON.stringify(fixture.input ?? {}),
     encoding: "utf8",
-    timeout: 2000,
+    timeout: fixtureTimeoutMs,
   });
   return child;
 }

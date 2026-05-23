@@ -132,6 +132,10 @@ export async function validateConfigShape(config, label) {
   const schema = await readJson("schemas/harness-config.schema.json");
   validateJsonSchema(config, schema, label, errors);
 
+  if (isPlainObject(config.models) && config.models.openai === false && config.models.anthropic === false) {
+    errors.push("Invalid harness config: at least one model provider must be enabled.");
+  }
+
   const names = new Set();
   if (Array.isArray(config.consumers)) {
     for (const [index, consumer] of config.consumers.entries()) {

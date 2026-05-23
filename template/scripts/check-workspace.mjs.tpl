@@ -4,6 +4,7 @@ import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertReferencesHarnessRoot } from "./lib/worktree-bootstrap.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(repoRoot, "..");
@@ -17,8 +18,9 @@ const clientSupport = {
   codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
   claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
 };
-
-const repoRequiredFiles = [
+const harnessRepoNameError = "repo folder name: expected";
+const missingEntryPrefix = "missing ";
+const repoBaseFiles = [
   "README.md",
   "ai/AGENTS.md",
   "ai/HUB.md",
@@ -65,34 +67,47 @@ const repoRequiredFiles = [
   "scripts/check-worktrees.mjs",
   "scripts/check-worktree-bootstrap-fixtures.mjs",
 ];
+const openaiRepoFiles = ["AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "scripts/check-overlay-drift.mjs"];
+const anthopicRepoFiles = [
+  "CLAUDE.md",
+  ".claude/CLAUDE.md",
+  ".claude/settings.json",
+  "ai/model-overlays/anthropic/CLAUDE.md",
+  "scripts/check-claude-compatibility.mjs",
+  "scripts/check-overlay-drift.mjs",
+];
+const codexRepoFiles = [".codex/hooks.json", "scripts/check-codex-hooks.mjs", "scripts/hooks/codex-hook.mjs"];
+const claudeRulesRepoFiles = [".claude/rules/harness-client-surfaces.md"];
+const workspaceOpenaiFiles = ["AGENTS.md"];
+const workspaceAnthropicFiles = ["CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json"];
+const workspaceClaudeRulesFiles = [".claude/rules/harness-client-surfaces.md"];
+const CLAUDE_MD = "CLAUDE.md";
+const localClaudeEntrypoint = "../CLAUDE.md";
+const workspaceClaudeMarker = ".claude/CLAUDE.md";
+const rootClaudeMarker = ".claude/CLAUDE.md";
+
+const repoRequiredFiles = [...repoBaseFiles];
 
 if (models.openai) {
-  repoRequiredFiles.push("AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "scripts/check-overlay-drift.mjs");
+  repoRequiredFiles.push(...openaiRepoFiles);
 }
 
 if (models.anthropic) {
-  repoRequiredFiles.push(
-    "CLAUDE.md",
-    ".claude/CLAUDE.md",
-    ".claude/settings.json",
-    "ai/model-overlays/anthropic/CLAUDE.md",
-    "scripts/check-claude-compatibility.mjs",
-    "scripts/check-overlay-drift.mjs",
-  );
+  repoRequiredFiles.push(...anthopicRepoFiles);
 }
 
 if (clientSupport.codexHooks) {
-  repoRequiredFiles.push(".codex/hooks.json", "scripts/check-codex-hooks.mjs", "scripts/hooks/codex-hook.mjs");
+  repoRequiredFiles.push(...codexRepoFiles);
 }
 
 if (clientSupport.claudeRules) {
-  repoRequiredFiles.push(".claude/rules/harness-client-surfaces.md");
+  repoRequiredFiles.push(...claudeRulesRepoFiles);
 }
 
 const workspaceRequiredFiles = [];
-if (models.openai) workspaceRequiredFiles.push("AGENTS.md");
-if (models.anthropic) workspaceRequiredFiles.push("CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json");
-if (clientSupport.claudeRules) workspaceRequiredFiles.push(".claude/rules/harness-client-surfaces.md");
+if (models.openai) workspaceRequiredFiles.push(...workspaceOpenaiFiles);
+if (models.anthropic) workspaceRequiredFiles.push(...workspaceAnthropicFiles);
+if (clientSupport.claudeRules) workspaceRequiredFiles.push(...workspaceClaudeRulesFiles);
 
 async function exists(filePath) {
   try {
@@ -118,10 +133,27 @@ async function fileIncludes(filePath, needle) {
   return (await readFile(filePath, "utf8")).includes(needle);
 }
 
+async function readIfExists(filePath) {
+  if (!(await exists(filePath))) return null;
+  return readFile(filePath, "utf8");
+}
+
+async function collectHarnessRoutingIssue({ consumerRoot, relativePath }) {
+  const pointerPath = path.join(consumerRoot, relativePath);
+  const pointerContent = await readIfExists(pointerPath);
+  if (pointerContent === null) return `${relativePath} missing.`;
+  return assertReferencesHarnessRoot({
+    pointerPath: relativePath,
+    pointerContent,
+    consumerRoot,
+    expectedHarnessRoot: repoRoot,
+  });
+}
+
 async function main() {
   const missing = [];
   if (path.basename(repoRoot) !== harnessRepoName) {
-    missing.push(`repo folder name: expected ${harnessRepoName}, found ${path.basename(repoRoot)}`);
+    missing.push(`${harnessRepoNameError} ${harnessRepoName}, found ${path.basename(repoRoot)}`);
   }
 
   missing.push(...(await collectMissing(repoRoot, repoRequiredFiles, "repo")));
@@ -133,14 +165,16 @@ async function main() {
       missing.push(`consumer:${consumer.name}:missing repo at ${consumerRoot}`);
       continue;
     }
-    if (models.openai && !(await fileIncludes(path.join(consumerRoot, "AGENTS.md"), harnessRepoName))) {
-      missing.push(`consumer:${consumer.name}:AGENTS.md missing or not routed to ${harnessRepoName}`);
+    if (models.openai) {
+      const issue = await collectHarnessRoutingIssue({ consumerRoot, relativePath: "AGENTS.md" });
+      if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
     }
-    if (models.anthropic && !(await fileIncludes(path.join(consumerRoot, "CLAUDE.md"), harnessRepoName))) {
-      missing.push(`consumer:${consumer.name}:CLAUDE.md missing or not routed to ${harnessRepoName}`);
+    if (models.anthropic) {
+      const issue = await collectHarnessRoutingIssue({ consumerRoot, relativePath: CLAUDE_MD });
+      if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
     }
-    if (models.anthropic && !(await fileIncludes(path.join(consumerRoot, ".claude", "CLAUDE.md"), "CLAUDE.md"))) {
-      missing.push(`consumer:${consumer.name}:.claude/CLAUDE.md missing or not routed to root CLAUDE.md`);
+    if (models.anthropic && !(await fileIncludes(path.join(consumerRoot, rootClaudeMarker), localClaudeEntrypoint))) {
+      missing.push(`consumer:${consumer.name}:${workspaceClaudeMarker} missing or not routed to root ${CLAUDE_MD}`);
     }
   }
 

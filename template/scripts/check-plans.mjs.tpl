@@ -6,7 +6,13 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const plansDir = "ai/plans/active";
+const headingRules = ["Status", "Goal", "Next Step", "Validation Plan"];
 const runtimeTokens = ["app-server.jsonl", "run-status.json", "events.jsonl", ".agent-runs", ".agent-workspaces", "scripts/orchestrator/"];
+const readmePath = "ai/plans/README.md";
+const rulesHeading = "## Rules";
+const techDebtPath = "ai/plans/tech-debt.md";
+const openItemsHeading = "## Open Items";
 
 async function exists(relativePath) {
   try {
@@ -33,25 +39,27 @@ function sectionHasContent(content, heading) {
 }
 
 const errors = [];
-for (const relativePath of await markdownFiles("ai/plans/active")) {
-  const content = await read(relativePath);
-  for (const heading of ["Status", "Goal", "Next Step", "Validation Plan"]) {
-    if (!sectionHasContent(content, heading)) errors.push(`${relativePath} has no ${heading} content.`);
-  }
+  for (const relativePath of await markdownFiles(plansDir)) {
+    const content = await read(relativePath);
+    for (const heading of headingRules) {
+      if (!sectionHasContent(content, heading)) errors.push(`${relativePath} has no ${heading} content.`);
+    }
   for (const token of runtimeTokens) {
     if (content.includes(token)) errors.push(`${relativePath} references runtime state token '${token}'.`);
   }
 }
 
-const readme = await read("ai/plans/README.md");
-if (!/^## Rules\s*$/m.test(readme)) {
-  errors.push("ai/plans/README.md must include a Rules section.");
-}
+  const readme = await read(readmePath);
+  const rulesRegex = new RegExp(`^${rulesHeading}\\s*$`, "m");
+  if (!rulesRegex.test(readme)) {
+    errors.push("ai/plans/README.md must include a Rules section.");
+  }
 
-const techDebt = await read("ai/plans/tech-debt.md");
-if (!/^## Open Items\s*$/m.test(techDebt)) {
-  errors.push("ai/plans/tech-debt.md must include Open Items.");
-}
+  const techDebt = await read(techDebtPath);
+  const openItemsRegex = new RegExp(`^${openItemsHeading}\\s*$`, "m");
+  if (!openItemsRegex.test(techDebt)) {
+    errors.push("ai/plans/tech-debt.md must include Open Items.");
+  }
 
 if (errors.length > 0) {
   console.error("Plan check failed.");

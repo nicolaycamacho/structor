@@ -12,6 +12,19 @@ const models = {
 const clientSupport = {
   codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
 };
+const requiredVerdicts = ["PASS", "FAIL", "MANUAL REVIEW REQUIRED"];
+const readinessCommands = {
+  validateGovernance: "node scripts/validate-governance.mjs",
+  bootstrapWorkspaceDryRun: "node scripts/bootstrap-workspace.mjs --dry-run",
+  bootstrapWorkspace: "node scripts/bootstrap-workspace.mjs",
+  checkWorkspace: "node scripts/check-workspace.mjs",
+  checkOverlayDrift: "node scripts/check-overlay-drift.mjs",
+  checkCodexHooks: "node scripts/check-codex-hooks.mjs",
+  checkClaudeCompatibility: "node scripts/check-claude-compatibility.mjs",
+};
+const qualityTableHeader = "| Domain | Grade | Evidence | Enforced by | Blocking gaps |";
+const gradePattern = /^(A|B|C|D|F|Manual|N\/A)$/;
+const placeholderPattern = /^(todo|tbd|none)$/i;
 
 async function read(relativePath) {
   return readFile(path.join(repoRoot, relativePath), "utf8");
@@ -40,21 +53,21 @@ const readiness = await read("ai/READINESS.md");
 const quality = await read("ai/QUALITY.md");
 const errors = [];
 
-for (const verdict of ["PASS", "FAIL", "MANUAL REVIEW REQUIRED"]) {
+for (const verdict of requiredVerdicts) {
   if (!readiness.includes(verdict)) {
     errors.push(`ai/READINESS.md must define the ${verdict} verdict.`);
   }
 }
 
 const requiredCommands = [
-  "node scripts/validate-governance.mjs",
-  "node scripts/bootstrap-workspace.mjs --dry-run",
-  "node scripts/bootstrap-workspace.mjs",
-  "node scripts/check-workspace.mjs",
+  readinessCommands.validateGovernance,
+  readinessCommands.bootstrapWorkspaceDryRun,
+  readinessCommands.bootstrapWorkspace,
+  readinessCommands.checkWorkspace,
 ];
-if (models.openai || models.anthropic) requiredCommands.push("node scripts/check-overlay-drift.mjs");
-if (clientSupport.codexHooks) requiredCommands.push("node scripts/check-codex-hooks.mjs");
-if (models.anthropic) requiredCommands.push("node scripts/check-claude-compatibility.mjs");
+if (models.openai || models.anthropic) requiredCommands.push(readinessCommands.checkOverlayDrift);
+if (clientSupport.codexHooks) requiredCommands.push(readinessCommands.checkCodexHooks);
+if (models.anthropic) requiredCommands.push(readinessCommands.checkClaudeCompatibility);
 
 for (const command of requiredCommands) {
   if (!readiness.includes(command)) {
@@ -79,7 +92,7 @@ for (const [relativePath, content] of [
   }
 }
 
-const qualityRows = tableRows(quality, "| Domain | Grade | Evidence | Enforced by | Blocking gaps |");
+const qualityRows = tableRows(quality, qualityTableHeader);
 if (qualityRows.length === 0) {
   errors.push("ai/QUALITY.md must include the readiness scorecard table.");
 }
@@ -90,7 +103,7 @@ for (const row of qualityRows) {
     errors.push(`ai/QUALITY.md has an incomplete scorecard row: ${row}`);
     continue;
   }
-  if (!/^(A|B|C|D|F|Manual|N\/A)$/.test(grade)) {
+  if (!gradePattern.test(grade)) {
     errors.push(`ai/QUALITY.md has unsupported grade "${grade}" for ${domain}.`);
   }
   for (const [label, value] of [
@@ -98,7 +111,7 @@ for (const row of qualityRows) {
     ["Enforced by", enforcedBy],
     ["Blocking gaps", blockingGaps],
   ]) {
-    if (/^(todo|tbd|none)$/i.test(value)) {
+    if (placeholderPattern.test(value)) {
       errors.push(`ai/QUALITY.md ${label} for ${domain} must be evidence-based, not "${value}".`);
     }
   }

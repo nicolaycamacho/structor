@@ -8,7 +8,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs SessionStart"
+            "command": "node scripts/hooks/codex-hook.mjs SessionStart --json"
           }
         ]
       }
@@ -20,7 +20,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs UserPromptSubmit"
+            "command": "node scripts/hooks/codex-hook.mjs UserPromptSubmit --json"
           }
         ]
       }
@@ -32,7 +32,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs PreToolUse"
+            "command": "node scripts/hooks/codex-hook.mjs PreToolUse --json"
           }
         ]
       }
@@ -44,7 +44,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs PermissionRequest"
+            "command": "node scripts/hooks/codex-hook.mjs PermissionRequest --json"
           }
         ]
       }
@@ -56,7 +56,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs PostToolUse"
+            "command": "node scripts/hooks/codex-hook.mjs PostToolUse --json"
           }
         ]
       }
@@ -68,7 +68,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node scripts/hooks/codex-hook.mjs Stop"
+            "command": "node scripts/hooks/codex-hook.mjs Stop --json"
           }
         ]
       }

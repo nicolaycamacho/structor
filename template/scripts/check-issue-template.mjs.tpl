@@ -5,7 +5,10 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const templatePath = "ai/templates/issue-template.md";
+const issueTemplatePath = "ai/templates/issue-template.md";
+const issueFixtureDirectory = "ai/templates/fixtures/issues";
+const issueFixtureFileExtension = ".md";
+const invalidFixturePrefix = "invalid-";
 const validStatuses = new Set(["Backlog", "Ready for Agent", "Running", "Needs Fix", "Report Ready", "PR Ready", "Human Review", "Blocked", "Done"]);
 const validRisk = new Set(["low", "medium", "high"]);
 const validAutonomy = new Set(["report_only", "pr_ready", "auto_merge"]);
@@ -34,7 +37,12 @@ const requiredSections = [
   "Notes for the Agent",
 ];
 const placeholderPattern = /<[^>]+>/;
+const sectionHeaderPatternMetaChars = /[.*+?^${}()|[\]\\]/g;
 const protectedSurfacePattern = /\b(auth|authentication|authorization|billing|subscription|payment|secret|environment variable|infrastructure|deployment|database migration|production data|tenant|quota|rate limit|shared contract)\b/i;
+const protectedSurfaceMentionPattern = /protected surface|protected surfaces/i;
+const autoMergeFutureFacingPattern = /auto_merge.*future-facing|future-facing.*auto_merge/i;
+const validationSectionHeader = "## Validation";
+const validationCommandPattern = /`[^`]+`/;
 
 async function read(relativePath) {
   return readFile(path.join(repoRoot, relativePath), "utf8");
@@ -69,7 +77,7 @@ function parseFrontMatter(content) {
 }
 
 function hasSection(content, section) {
-  return new RegExp(`^## ${section.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\s*$`, "m").test(content);
+  return new RegExp(`^## ${section.replace(sectionHeaderPatternMetaChars, "\\$&")}\\s*$`, "m").test(content);
 }
 
 function valuesFor(value) {
@@ -118,13 +126,14 @@ function validateIssueFile(relativePath, content, { allowPlaceholders }) {
   for (const section of requiredSections) {
     if (!hasSection(content, section)) errors.push(`${relativePath} is missing required section '${section}'.`);
   }
-  if (!/protected surface|protected surfaces/i.test(content)) {
+  if (!protectedSurfaceMentionPattern.test(content)) {
     errors.push(`${relativePath} must mention protected surfaces.`);
   }
-  if (!/auto_merge.*future-facing|future-facing.*auto_merge/i.test(content)) {
+  if (!autoMergeFutureFacingPattern.test(content)) {
     errors.push(`${relativePath} must state that auto_merge is future-facing metadata.`);
   }
-  if (!allowPlaceholders && !/`[^`]+`/.test(content.match(/^## Validation\s*\n([\s\S]*?)(?=^## |$)/m)?.[1] ?? "")) {
+  const validationSection = content.match(new RegExp(`^${validationSectionHeader}\\s*\\n([\\s\\S]*?)(?=^## |$)`, "m"))?.[1] ?? "";
+  if (!allowPlaceholders && !validationCommandPattern.test(validationSection)) {
     errors.push(`${relativePath} Validation section must include a concrete command in backticks.`);
   }
   if (!allowPlaceholders && protectedSurfacePattern.test(content) && frontMatter.requires_human_approval !== true) {
@@ -135,16 +144,16 @@ function validateIssueFile(relativePath, content, { allowPlaceholders }) {
 }
 
 async function fixtureFiles() {
-  const dir = path.join(repoRoot, "ai/templates/fixtures/issues");
+  const dir = path.join(repoRoot, issueFixtureDirectory);
   const entries = await readdir(dir, { withFileTypes: true });
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => `ai/templates/fixtures/issues/${entry.name}`);
+  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(issueFixtureFileExtension)).map((entry) => `${issueFixtureDirectory}/${entry.name}`);
 }
 
 const errors = [];
-errors.push(...validateIssueFile(templatePath, await read(templatePath), { allowPlaceholders: true }));
+errors.push(...validateIssueFile(issueTemplatePath, await read(issueTemplatePath), { allowPlaceholders: true }));
 for (const fixture of await fixtureFiles()) {
   const fixtureErrors = validateIssueFile(fixture, await read(fixture), { allowPlaceholders: false });
-  const shouldFail = path.basename(fixture).startsWith("invalid-");
+  const shouldFail = path.basename(fixture).startsWith(invalidFixturePrefix);
   if (shouldFail && fixtureErrors.length === 0) errors.push(`${fixture} was expected to fail but passed.`);
   if (!shouldFail && fixtureErrors.length > 0) errors.push(`${fixture} was expected to pass but failed: ${fixtureErrors.join("; ")}`);
 }

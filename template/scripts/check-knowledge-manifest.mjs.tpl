@@ -7,6 +7,8 @@ import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = "ai/knowledge-manifest.json";
+const ignoredAiDocDirectories = new Set(["model-overlays", "templates", "contracts", "skills", "specs", "plans"]);
+const archiveOrGeneratedPattern = /archive|archived|historical|generated/i;
 
 async function exists(relativePath) {
   try {
@@ -29,7 +31,7 @@ async function markdownFiles(baseRelativePath) {
       const absolute = path.join(currentPath, entry.name);
       const relative = path.relative(repoRoot, absolute).replaceAll(path.sep, "/");
       if (entry.isDirectory()) {
-        if (["model-overlays", "templates", "contracts", "skills", "specs", "plans"].includes(entry.name)) continue;
+        if (ignoredAiDocDirectories.has(entry.name)) continue;
         await walk(absolute);
       } else if (entry.isFile() && entry.name.endsWith(".md")) {
         files.push(relative);
@@ -65,11 +67,11 @@ for (const doc of docs) {
   }
 }
 
-for (const relativePath of await markdownFiles("ai")) {
-  if (!listed.has(relativePath) && !/archive|archived|historical|generated/i.test((await read(relativePath)).slice(0, 400))) {
+  for (const relativePath of await markdownFiles("ai")) {
+  if (!listed.has(relativePath) && !archiveOrGeneratedPattern.test((await read(relativePath)).slice(0, 400))) {
     errors.push(`${relativePath} is an active ai/*.md doc but is not listed in ${manifestPath}.`);
   }
-}
+  }
 
 if (errors.length > 0) {
   console.error("Knowledge manifest check failed.");

@@ -5,8 +5,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const relativePath = "ai/templates/task-brief-template.md";
-const content = await readFile(path.join(repoRoot, relativePath), "utf8");
+const taskTemplatePath = "ai/templates/task-brief-template.md";
+const content = await readFile(path.join(repoRoot, taskTemplatePath), "utf8");
+const providerModelPattern = /\b(?:gpt-|claude|opus|sonnet|haiku)/i;
 
 const requiredSections = [
   "## Summary",
@@ -45,12 +46,12 @@ const requiredFrontmatter = [
 
 const errors = [];
 for (const token of [...requiredSections, ...requiredFrontmatter]) {
-  if (!content.includes(token)) errors.push(`${relativePath} is missing ${token}`);
+  if (!content.includes(token)) errors.push(`${taskTemplatePath} is missing ${token}`);
 }
 
 const modelLine = content.split("\n").find((line) => line.startsWith("model:"));
-if (modelLine && /\b(?:gpt-|claude|opus|sonnet|haiku)/i.test(modelLine)) {
-  errors.push(`${relativePath} must use a runtime-neutral model selector, not a concrete provider model.`);
+if (modelLine && providerModelPattern.test(modelLine)) {
+  errors.push(`${taskTemplatePath} must use a runtime-neutral model selector, not a concrete provider model.`);
 }
 
 if (errors.length > 0) {
