@@ -1,6 +1,6 @@
-# AI Engineering Harness Template
+# Structor
 
-This is the Claude-compatible entrypoint for the generic harness template.
+This is the Claude-compatible entrypoint for Structor.
 
 Canonical guidance lives in:
 

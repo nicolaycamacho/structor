@@ -69,8 +69,8 @@ for (const configPath of configFiles) {
   }
 }
 
-if (repoRoot.endsWith("ai-engineering-harness-template") === false) {
-  errors.push("repository folder should be named ai-engineering-harness-template.");
+if (repoRoot.endsWith("structor") === false) {
+  errors.push("repository folder should be named structor.");
 }
 
 failIfErrors("Config check", errors);

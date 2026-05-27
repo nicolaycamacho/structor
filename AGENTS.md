@@ -1,6 +1,7 @@
-# AI Engineering Harness Template Guide
+# Structor Guide
 
-This repository creates project-specific AI engineering harness repositories.
+Structor is a harness-engineering toolkit that generates repository-local
+harnesses for consumer repos.
 
 ## Read Order
 
@@ -12,7 +13,7 @@ This repository creates project-specific AI engineering harness repositories.
 
 ## Rules
 
-- Keep this template generic and reusable.
+- Keep Structor generic and reusable.
 - Keep canonical generated policy in `template/ai/*`.
 - Keep model overlays and consumer entrypoints thin.
 - Do not add runner or orchestration behavior to this template.

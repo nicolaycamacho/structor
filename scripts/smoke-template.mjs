@@ -28,7 +28,7 @@ const cases = [
   },
 ];
 const smokePrefix = "smoke-";
-const tempRootPrefix = "harness-template-";
+const tempRootPrefix = "structor-";
 const harnessConfigFileName = "harness.config.json";
 const harnessSchemaPath = "schemas/harness-config.schema.json";
 const initHarnessScript = "scripts/init-harness.mjs";

@@ -1,9 +1,9 @@
-# AI Engineering Harness Template
+# Structor
 
-This repository creates project-specific AI engineering harness repositories.
-The generated harness gives Codex, Claude Code, and similar agents a shared
-policy layer for product context, architecture, contracts, task shape, review
-rules, quality tracking, and validation.
+Structor is a harness-engineering toolkit that generates repository-local
+harnesses for consumer repos. The generated harness gives Codex, Claude Code,
+and similar agents a shared policy layer for product context, architecture,
+contracts, task shape, review rules, quality tracking, and validation.
 
 The template is generic and reusable. It must not contain source-project or
 consumer-specific product policy.
@@ -26,7 +26,7 @@ product behavior.
 
 ## Codex And Claude Support
 
-AEHT uses a hybrid model for client support:
+Structor uses a hybrid model for client support:
 
 - Concrete template files provide the stable structure, safety defaults, and
   validators.
@@ -122,7 +122,7 @@ repo and consumer repos share one parent workspace folder.
 
 ```text
 workspace/
-  ai-engineering-harness-template/  # this repo
+  structor/                         # this repo
   project-engineering-harness/      # generated harness output
   project-frontend/                 # consumer repo
   project-backend/                  # optional consumer repo
