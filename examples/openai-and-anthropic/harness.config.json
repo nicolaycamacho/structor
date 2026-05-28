@@ -3,10 +3,10 @@
   "project": {
     "name": "Multi Model Product",
     "slug": "multi-model-product",
-    "harnessRepoName": "multi-model-product-harness"
+    "harnessRepoName": "multi-model-product-structor"
   },
   "output": {
-    "path": "../../generated/multi-model-product-harness"
+    "path": "../../generated/multi-model-product-structor"
   },
   "models": {
     "openai": true,

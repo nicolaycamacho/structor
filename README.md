@@ -24,6 +24,31 @@ The harness is not a runner. It does not poll agent sessions, automate pull
 requests, run dashboards, modify external services, or implement consumer
 product behavior.
 
+## Recommended Setup
+
+Run Structor from the workspace folder that contains your consumer repos:
+
+```sh
+npx structor@latest init
+```
+
+`structor init` is a local-only, deterministic setup wizard. It asks for project
+facts, suggests sibling consumer repos from local filesystem signals, writes
+`harness.config.json` only after confirmation, runs a dry-run preview, and asks
+before generating files. It does not call an LLM, make API requests, install
+dependencies, create remotes, or modify external services.
+
+See `docs/INIT.md` for the exact safety model, read/write behavior, and
+recovery expectations.
+
+If you prefer the conservative manual path, create `harness.config.json`
+yourself and run:
+
+```sh
+npx structor@latest generate --config harness.config.json --dry-run
+npx structor@latest generate --config harness.config.json --install-consumer-entrypoints
+```
+
 ## Codex And Claude Support
 
 Structor uses a hybrid model for client support:
@@ -99,7 +124,8 @@ These boundaries are intentional in the current template:
   `git init`, create remotes, install dependencies, publish branches, or modify
   external services.
 - Consumer repo entrypoints are installed during
-  `npm run init -- --install-consumer-entrypoints`. The generated workspace
+  `structor generate --config harness.config.json --install-consumer-entrypoints`.
+  The generated workspace
   bootstrap script installs workspace-level pointers and verifies consumer
   routing; it does not repair missing consumer pointers after initialization.
 - Runner behavior remains out of scope. Polling, PR automation, dashboards,
@@ -123,7 +149,7 @@ repo and consumer repos share one parent workspace folder.
 ```text
 workspace/
   structor/                         # this repo
-  project-engineering-harness/      # generated harness output
+  project-structor/                 # generated harness output
   project-frontend/                 # consumer repo
   project-backend/                  # optional consumer repo
 ```
@@ -135,12 +161,13 @@ when their agent pointer files are missing. For safety, existing consumer
 move or copy it into the sibling workspace layout before running the generated
 workspace bootstrap scripts.
 
-## Agent-Assisted Setup
+## Agent-Assisted Manual Setup
 
-The preferred setup path is to run the initialization prompt in Codex or Claude
-Code from the root of this template repo. The agent should inspect the sibling
-consumer repos, create `harness.config.json`, preview writes, generate the
-harness, install consumer pointers, and validate the result with evidence.
+When you want an agent to drive the conservative manual path, run the
+initialization prompt in Codex or Claude Code from the root of this template
+repo. The agent should inspect the sibling consumer repos, create
+`harness.config.json`, preview writes, generate the harness, install consumer
+pointers, and validate the result with evidence.
 
 ### Preconditions
 
@@ -161,7 +188,7 @@ Use this repo to create a project-specific AI engineering harness.
 
 Project facts:
 - Project name: <fill in>
-- Harness repo folder name: <fill in, for example project-engineering-harness>
+- Harness repo folder name: <fill in, for example project-structor>
 - Consumer repos: <fill in sibling repo folder names and purposes>
 - Models to support: OpenAI/Codex and Anthropic/Claude Code unless I say otherwise
 - Client support: generate Codex hooks and Claude rules unless I say otherwise;
@@ -184,9 +211,9 @@ Rules:
   canonical `ai/*` docs. Do not add Claude hooks without a validator.
 - Run npm run check:ci before generating anything; use npm run validate when you
   want the full local smoke suite.
-- Run npm run init -- --config harness.config.json --dry-run and summarize the
+- Run npm run generate -- --config harness.config.json --dry-run and summarize the
   planned writes before writing files.
-- If the dry run is correct, run npm run init -- --config harness.config.json
+- If the dry run is correct, run npm run generate -- --config harness.config.json
   --install-consumer-entrypoints.
 - Do not overwrite existing consumer AGENTS.md, CLAUDE.md, or .claude/* files
   unless I explicitly approve --force.
@@ -223,7 +250,7 @@ Set:
 
 - `project.name`, `project.slug`, and `project.harnessRepoName`
 - `output.path` to a generated harness repo path that is a sibling of the
-  consumer repos, for example `../project-engineering-harness`
+  consumer repos, for example `../project-structor`
 - `models.openai` and `models.anthropic`
 - optional `clientSupport.codex.hooks`
 - optional `clientSupport.claude.rules`; keep `clientSupport.claude.hooks` and
@@ -243,13 +270,13 @@ generated harness checks.
 Preview generation:
 
 ```sh
-npm run init -- --config harness.config.json --dry-run
+npm run generate -- --config harness.config.json --dry-run
 ```
 
 Generate the harness and install missing consumer entrypoints:
 
 ```sh
-npm run init -- --config harness.config.json --install-consumer-entrypoints
+npm run generate -- --config harness.config.json --install-consumer-entrypoints
 ```
 
 Then validate and bootstrap from the generated harness:

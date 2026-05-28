@@ -1,8 +1,23 @@
 {
   "name": "structor",
   "version": "0.1.0",
-  "private": true,
   "type": "module",
+  "bin": {
+    "structor": "bin/structor.mjs"
+  },
+  "files": [
+    "bin/",
+    "docs/",
+    "examples/",
+    "harness.config.example.json",
+    "schemas/",
+    "scripts/",
+    "template/",
+    "README.md",
+    "AGENTS.md",
+    "CLAUDE.md",
+    "CONTEXT.md"
+  ],
   "scripts": {
     "check:ci": "node scripts/check-config.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs",
     "check:config": "node scripts/check-config.mjs",
@@ -14,7 +29,9 @@
     "check:smoke": "node scripts/smoke-template.mjs",
     "validate": "npm run check:ci && npm run check:smoke",
     "validate:governance": "node scripts/validate-governance.mjs",
-    "init": "node scripts/init-harness.mjs"
+    "init": "node bin/structor.mjs init",
+    "generate": "node bin/structor.mjs generate",
+    "init:harness": "node scripts/init-harness.mjs"
   },
   "engines": {
     "node": ">=20"

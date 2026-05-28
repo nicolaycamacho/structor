@@ -3,10 +3,10 @@
   "project": {
     "name": "Example Project",
     "slug": "example-project",
-    "harnessRepoName": "example-engineering-harness"
+    "harnessRepoName": "example-structor"
   },
   "output": {
-    "path": "../example-engineering-harness"
+    "path": "../example-structor"
   },
   "models": {
     "openai": true,

@@ -3,10 +3,10 @@
   "project": {
     "name": "Single Repo Product",
     "slug": "single-repo-product",
-    "harnessRepoName": "single-repo-product-harness"
+    "harnessRepoName": "single-repo-product-structor"
   },
   "output": {
-    "path": "../../generated/single-repo-product-harness"
+    "path": "../../generated/single-repo-product-structor"
   },
   "models": {
     "openai": true,

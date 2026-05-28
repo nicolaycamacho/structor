@@ -32,6 +32,7 @@ const tempRootPrefix = "structor-";
 const harnessConfigFileName = "harness.config.json";
 const harnessSchemaPath = "schemas/harness-config.schema.json";
 const initHarnessScript = "scripts/init-harness.mjs";
+const nodeCommand = "node";
 const lintCommand = "npm run lint";
 const testCommand = "npm test";
 const openaiRootEntrypoint = "AGENTS.md";
@@ -82,10 +83,10 @@ async function writeConfig(workspaceRoot, smokeCase, overrides = {}) {
     project: {
       name: `Smoke ${smokeCase.name}`,
       slug: `smoke-${smokeCase.name}`,
-      harnessRepoName: `smoke-${smokeCase.name}-harness`,
+      harnessRepoName: `smoke-${smokeCase.name}-structor`,
     },
     output: overrides.output ?? {
-      path: `./smoke-${smokeCase.name}-harness`,
+      path: `./smoke-${smokeCase.name}-structor`,
     },
     models: overrides.models ?? smokeCase.models,
     clientSupport: {
@@ -112,19 +113,19 @@ async function writeConfig(workspaceRoot, smokeCase, overrides = {}) {
 async function validateCase(smokeCase) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}${smokeCase.name}-`));
   const configPath = await writeConfig(workspaceRoot, smokeCase);
-  const harnessRoot = path.join(workspaceRoot, `${smokePrefix}${smokeCase.name}-harness`);
+  const harnessRoot = path.join(workspaceRoot, `${smokePrefix}${smokeCase.name}-structor`);
 
-  run(process.execPath, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--dry-run"], repoRoot);
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--dry-run"], repoRoot);
   run(
-    process.execPath,
+    nodeCommand,
     [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"],
     repoRoot,
   );
-  run(process.execPath, ["scripts/validate-governance.mjs"], harnessRoot);
+  run(nodeCommand, ["scripts/validate-governance.mjs"], harnessRoot);
   assertExists(path.join(harnessRoot, "ai/views/index.html"), `${smokeCase.name} generated HTML view`);
-  run(process.execPath, ["scripts/bootstrap-workspace.mjs", "--dry-run"], harnessRoot);
-  run(process.execPath, ["scripts/bootstrap-workspace.mjs"], harnessRoot);
-  run(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot);
+  run(nodeCommand, ["scripts/bootstrap-workspace.mjs", "--dry-run"], harnessRoot);
+  run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], harnessRoot);
+  run(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot);
 
   if (smokeCase.models.openai) {
     assertExists(path.join(harnessRoot, "workspace/AGENTS.md"), `${smokeCase.name} generated workspace AGENTS`);
@@ -198,24 +199,24 @@ async function validateCase(smokeCase) {
   if (smokeCase.models.openai) {
     const agentsPath = path.join(firstConsumerRoot, openaiRootEntrypoint);
     await writeFile(agentsPath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
-    assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only pointer`, "does not contain a resolvable");
+    assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only pointer`, "does not contain a resolvable");
     await writeFile(agentsPath, `Read /tmp/${path.basename(harnessRoot)}/AGENTS.md before editing.\n`);
-    assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale pointer`, "instead of");
+    assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale pointer`, "instead of");
   }
   if (smokeCase.models.anthropic && !smokeCase.models.openai) {
     const claudePath = path.join(firstConsumerRoot, claudeRootEntrypoint);
     const claudeMemoryPath = path.join(firstConsumerRoot, claudeMemoryEntrypoint);
     await writeFile(claudePath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
-    assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only Claude pointer`, "does not contain a resolvable");
+    assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only Claude pointer`, "does not contain a resolvable");
     await writeFile(claudePath, `Read /tmp/${path.basename(harnessRoot)}/CLAUDE.md before editing.\n`);
-    assertFails(process.execPath, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale Claude pointer`, "instead of");
+    assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale Claude pointer`, "instead of");
     await writeFile(
       claudePath,
       `Read ${path.join(harnessRoot, "CLAUDE.md")} before editing.\nRead ${path.join(harnessRoot, "ai/AGENTS.md")} before editing.\nRead ${path.join(harnessRoot, "ai/HUB.md")} before editing.\nRead ${path.join(harnessRoot, "ai/context.md")} before editing.\n`,
     );
     await writeFile(claudeMemoryPath, `@../CLAUDE.md\nRead ${path.join(harnessRoot, "AGENTS.md")} before editing.\n`);
     assertFails(
-      process.execPath,
+      nodeCommand,
       ["scripts/check-workspace.mjs"],
       harnessRoot,
       `${smokeCase.name} Claude memory stale ref`,
@@ -232,7 +233,7 @@ async function validateNegativeConfigCase({ name, overrides, args = [], expected
   const smokeCase = { name, models: { openai: true, anthropic: false }, consumers: [{ name: "product-app", purpose: "Application repository" }] };
   const configPath = await writeConfig(workspaceRoot, smokeCase, overrides);
   assertFails(
-    process.execPath,
+    nodeCommand,
     [path.join(repoRoot, initHarnessScript), "--config", configPath, "--dry-run", ...args],
     repoRoot,
     name,
@@ -297,7 +298,7 @@ await validateNegativeConfigCase({
   const smokeCase = { name: "check-config", models: { openai: true, anthropic: false }, consumers: [{ name: "product-app", purpose: "Application repository" }] };
   const configPath = await writeConfig(workspaceRoot, smokeCase, { output: { path: "." } });
   assertFails(
-    process.execPath,
+    nodeCommand,
     [path.join(repoRoot, "scripts/check-config.mjs"), "--config", configPath],
     repoRoot,
     "check-config workspace-root-output",

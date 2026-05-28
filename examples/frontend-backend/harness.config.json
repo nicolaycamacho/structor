@@ -3,10 +3,10 @@
   "project": {
     "name": "Frontend Backend Product",
     "slug": "frontend-backend-product",
-    "harnessRepoName": "frontend-backend-product-harness"
+    "harnessRepoName": "frontend-backend-product-structor"
   },
   "output": {
-    "path": "../../generated/frontend-backend-product-harness"
+    "path": "../../generated/frontend-backend-product-structor"
   },
   "models": {
     "openai": true,
