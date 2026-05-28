@@ -11,28 +11,17 @@ const activeFiles = await collectFiles(".", (file) => {
   return [".md", ".json", ".mjs"].some((suffix) => file.endsWith(suffix));
 });
 
-const defaultForbiddenProjectTermsEnvVar = "HARNESS_FORBIDDEN_PROJECT_TERMS";
-const forbiddenProjectTermsModeEnvVar = "HARNESS_FORBIDDEN_PROJECT_TERMS_MODE";
-const forbiddenProjectTermsModeOverride = "override";
+// Structor ships with no hardcoded project terms. Consumers can opt into this
+// leak check with a comma-separated HARNESS_FORBIDDEN_PROJECT_TERMS value.
+const forbiddenProjectTermsEnvVar = "HARNESS_FORBIDDEN_PROJECT_TERMS";
 const termListSeparator = ",";
-const defaultForbiddenProjectTerms = [
-  "AI Front Desk",
-  "Flowdesk",
-  "ai-front-desk-api",
-  "ai-front-desk-platform",
-];
 
-const configuredForbiddenProjectTerms = (process.env[defaultForbiddenProjectTermsEnvVar] ?? "")
+const configuredForbiddenProjectTerms = (process.env[forbiddenProjectTermsEnvVar] ?? "")
   .split(termListSeparator)
   .map((term) => term.trim())
   .filter(Boolean);
 
-const forbiddenProjectTermValues = [
-  ...(process.env[forbiddenProjectTermsModeEnvVar] === forbiddenProjectTermsModeOverride ? [] : defaultForbiddenProjectTerms),
-  ...configuredForbiddenProjectTerms,
-];
-
-const forbiddenProjectTerms = [...new Set(forbiddenProjectTermValues)]
+const forbiddenProjectTerms = [...new Set(configuredForbiddenProjectTerms)]
   .map((term) => new RegExp(`\\b${escapeRegExp(term)}\\b`, "i"));
 
 function escapeRegExp(value) {
@@ -50,7 +39,7 @@ for (const relativePath of activeFiles) {
   if (relativePath === "scripts/check-placeholders.mjs") continue;
   for (const pattern of forbiddenProjectTerms) {
     if (pattern.test(content)) {
-      errors.push(`${relativePath} contains project-specific source content.`);
+      errors.push(`${relativePath} contains a configured forbidden project term.`);
       break;
     }
   }

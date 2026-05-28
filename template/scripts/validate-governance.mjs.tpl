@@ -28,7 +28,7 @@ const optionalChecks = [
   "scripts/check-repo-name-consistency.mjs",
   "scripts/check-linear-contract.mjs",
   "scripts/check-contract-conformance.mjs",
-  "scripts/check-flowdesk-contract-matrix.mjs",
+  "scripts/check-domain-contract-matrix.mjs",
 ];
 const checkCodexHooksScript = "scripts/check-codex-hooks.mjs";
 const checkClaudeCompatibilityScript = "scripts/check-claude-compatibility.mjs";

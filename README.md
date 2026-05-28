@@ -1,53 +1,75 @@
 # Structor
 
-Structor is a harness-engineering toolkit that generates repository-local
-harnesses for consumer repos. The generated harness gives Codex, Claude Code,
-and similar agents a shared policy layer for product context, architecture,
-contracts, task shape, review rules, quality tracking, and validation.
+> Experimental. Early infrastructure for harness engineering. The API,
+> generated layout, and config shape may change.
 
-The template is generic and reusable. It must not contain source-project or
-consumer-specific product policy.
+Structor generates a repository-local AI engineering harness for your project:
+a versioned policy layer that gives Codex, Claude Code, and similar agents a
+shared, enforceable set of rules for context routing, contracts, task shape,
+review, and validation.
 
-## What This Creates
+It is a generator, not a runtime. Structor scaffolds the harness; it never runs
+agents, polls sessions, automates pull requests, or touches external services.
 
-- A generated harness repo with canonical guidance under `ai/*`.
-- Thin model entrypoints for OpenAI/Codex (`AGENTS.md`) and Anthropic/Claude
-  Code (`CLAUDE.md`, `.claude/CLAUDE.md`).
-- Optional Codex hook scaffolding with deterministic, local, fixture-validated
-  policy checks.
-- Optional Claude Code project rules and settings scaffolding.
-- Optional consumer repo pointer files that route agents back to the harness.
-- Workspace bootstrap scripts that install workspace-level pointers and verify
-  the generated harness and consumer repo wiring.
-
-The harness is not a runner. It does not poll agent sessions, automate pull
-requests, run dashboards, modify external services, or implement consumer
-product behavior.
-
-## Recommended Setup
+## Quick Start
 
 Run Structor from the workspace folder that contains your consumer repos:
 
 ```sh
-npx structor@latest init
+npx @structor-dev/cli init
 ```
 
-`structor init` is a local-only, deterministic setup wizard. It asks for project
-facts, suggests sibling consumer repos from local filesystem signals, writes
-`harness.config.json` only after confirmation, runs a dry-run preview, and asks
-before generating files. It does not call an LLM, make API requests, install
-dependencies, create remotes, or modify external services.
+During local development from a clone of this repo, use
+`node ./structor/bin/structor.mjs init` from the parent workspace instead.
+
+`init` is local-only and deterministic. It detects sibling repos, asks a few
+questions, previews every file it would write, and generates nothing until you
+confirm. No network calls, no LLM calls, no installs.
+
+## What You Get
+
+Running `init` produces a generated harness repo as a sibling of your code:
+
+```text
+workspace/
+  my-app-structor/        # generated harness: policy, contracts, validation
+  my-app-frontend/         # your code
+  my-app-backend/          # optional second repo
+```
+
+Inside `my-app-structor/`:
+
+```text
+ai/                 canonical policy: context routing, contracts, task templates,
+                    review skills, quality tracking, decisions
+AGENTS.md           thin Codex entrypoint -> routes into ai/
+CLAUDE.md           thin Claude Code entrypoint -> routes into ai/
+scripts/            validation that mechanically enforces the rules above
+```
+
+Optional consumer repo pointer files can route agents back to the generated
+harness from each code repo.
+
+## Why It Exists
+
+Most AI coding workflow tooling is a pile of prompts and rules with nothing
+enforcing them. Structor's bet is that reliable agentic engineering needs
+context architecture plus mechanical enforcement. The generated harness ships
+with validators that fail when policy drifts: overlay drift checks, contract
+manifest checks, task-shape checks, and hook guardrails.
+
+## Manual Setup
+
+If you prefer the conservative manual path, create `harness.config.json` and
+run:
+
+```sh
+npx @structor-dev/cli generate --config harness.config.json --dry-run
+npx @structor-dev/cli generate --config harness.config.json --install-consumer-entrypoints
+```
 
 See `docs/INIT.md` for the exact safety model, read/write behavior, and
 recovery expectations.
-
-If you prefer the conservative manual path, create `harness.config.json`
-yourself and run:
-
-```sh
-npx structor@latest generate --config harness.config.json --dry-run
-npx structor@latest generate --config harness.config.json --install-consumer-entrypoints
-```
 
 ## Codex And Claude Support
 
@@ -344,6 +366,14 @@ npm run validate
 development and CI: config examples, required template files, task template
 structure, contract manifest schema, placeholder hygiene, and model overlay
 thinness.
+
+The placeholder check has no hardcoded private project names. If you are
+extracting a harness from a private codebase, opt into leak detection with a
+comma-separated list:
+
+```sh
+HARNESS_FORBIDDEN_PROJECT_TERMS="Internal Product,private-api" npm run check:placeholders
+```
 
 `npm run validate` adds the smoke-tested initialization flow and is the
 default push/PR GitHub Actions path. The smoke test

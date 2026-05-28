@@ -9,8 +9,11 @@ API requests, install packages, create remotes, or modify external services.
 Run from the workspace folder that contains your consumer repos:
 
 ```sh
-npx structor@latest init
+npx @structor-dev/cli init
 ```
+
+During local development from a clone of this repo, use
+`node ./structor/bin/structor.mjs init` from the parent workspace instead.
 
 During local development from this repo, use:
 

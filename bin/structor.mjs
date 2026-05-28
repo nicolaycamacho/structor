@@ -33,6 +33,10 @@ const repoSignals = [
   "composer.json",
 ];
 
+async function readPackageMetadata() {
+  return await readJson(path.join(packageRoot, "package.json"));
+}
+
 function color(style, value) {
   return `${styles[style]}${value}${reset}`;
 }
@@ -537,6 +541,11 @@ async function init(options) {
 
 async function main() {
   const { command, options, rawArgs } = parseArgs(process.argv.slice(2));
+  if (command === "--version" || command === "-v" || options.version) {
+    const metadata = await readPackageMetadata();
+    console.log(metadata.version);
+    return;
+  }
   if (options.help || command === "help" || command === "--help" || command === "-h") {
     printHelp();
     return;
@@ -550,7 +559,12 @@ async function main() {
     return;
   }
   if (command === "doctor") {
-    warn("structor doctor is planned but not implemented yet. See docs/issues/0001-structor-doctor.md.");
+    note("structor doctor is planned but not implemented yet.");
+    note("It will diagnose and repair drift in an existing Structor workspace:");
+    note("  - stale or missing consumer entrypoints");
+    note("  - moved harness or consumer folders");
+    note("  - unsafe output paths");
+    note("Track progress: docs/issues/0001-structor-doctor.md");
     process.exit(1);
   }
   throw new Error(`Unknown command: ${command}`);
