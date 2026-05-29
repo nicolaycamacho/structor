@@ -25,7 +25,7 @@
   "consumers": [
     {
       "name": "example-app",
-      "path": "../example-app",
+      "path": "./example-app",
       "purpose": "Primary application repository",
       "validation": {
         "install": "npm install",
