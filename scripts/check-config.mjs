@@ -3,13 +3,15 @@
 import path from "node:path";
 import { readFile } from "node:fs/promises";
 import {
+  assertConfirmedConsumerRepository,
+  assertSafeConsumerPath,
   assertSafeOutputRoot,
   collectFiles,
-  exists,
   failIfErrors,
   readJson,
   repoRoot,
   validateConfigShape,
+  workspaceRootForConfig,
 } from "./lib.mjs";
 
 const errors = [];
@@ -36,18 +38,44 @@ for (const configPath of configFiles) {
     const configDir = path.dirname(configPath);
     const outputPath = config.output.path;
     const outputRoot = path.resolve(configDir, outputPath);
-    const consumerRepos = Array.isArray(config.consumers)
-      ? config.consumers.map((consumer) => path.resolve(configDir, consumer.path))
-      : [];
+    const workspaceRoot = workspaceRootForConfig(configDir, repoRoot);
+    const consumerRepos = [];
+    if (Array.isArray(config.consumers)) {
+      for (const consumer of config.consumers) {
+        if (typeof consumer?.path !== "string") continue;
+        try {
+          consumerRepos.push(assertSafeConsumerPath({
+            consumerName: consumer.name,
+            consumerPath: consumer.path,
+            workspaceRoot,
+            repoRoot,
+          }));
+        } catch (error) {
+          errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
+        }
+      }
+    }
     try {
-      assertSafeOutputRoot({
+      const safeOutputRoot = await assertSafeOutputRoot({
         outputPath,
         outputRoot,
         repoRoot,
-        workspaceRoot: configDir,
+        workspaceRoot,
         consumerRepos,
         allowAbsoluteOutput,
       });
+      if (Array.isArray(config.consumers)) {
+        for (const consumer of config.consumers) {
+          if (typeof consumer?.path !== "string") continue;
+          assertSafeConsumerPath({
+            consumerName: consumer.name,
+            consumerPath: consumer.path,
+            workspaceRoot,
+            outputRoot: safeOutputRoot,
+            repoRoot,
+          });
+        }
+      }
     } catch (error) {
       errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
     }
@@ -55,14 +83,32 @@ for (const configPath of configFiles) {
 
   if (Array.isArray(config.consumers)) {
     for (const consumer of config.consumers) {
+      if (typeof consumer?.path !== "string") continue;
       if (checkingExamples && path.isAbsolute(consumer.path)) {
         errors.push(`${label}: consumer path for ${consumer.name} must be relative in checked-in examples.`);
       }
       if (requireExistingConsumers) {
         const configDir = checkingExamples ? path.dirname(path.join(repoRoot, configPath)) : path.dirname(configPath);
-        const consumerPath = path.resolve(configDir, consumer.path);
-        if (!(await exists(consumerPath))) {
-          errors.push(`${label}: consumer path for ${consumer.name} does not exist: ${consumerPath}`);
+        const workspaceRoot = checkingExamples ? configDir : workspaceRootForConfig(configDir, repoRoot);
+        const outputRoot = checkingExamples || !config.output?.path ? null : path.resolve(configDir, config.output.path);
+        let consumerRoot;
+        try {
+          consumerRoot = assertSafeConsumerPath({
+            consumerName: consumer.name,
+            consumerPath: consumer.path,
+            workspaceRoot,
+            outputRoot,
+            repoRoot,
+          });
+          await assertConfirmedConsumerRepository({
+            consumerName: consumer.name,
+            consumerRoot,
+            workspaceRoot,
+            outputRoot,
+            repoRoot,
+          });
+        } catch (error) {
+          errors.push(`${label}: ${error instanceof Error ? error.message : String(error)}`);
         }
       }
     }

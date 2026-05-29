@@ -65,7 +65,11 @@
         "required": ["name", "path", "purpose", "validation"],
         "properties": {
           "name": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
-          "path": { "type": "string", "minLength": 1 },
+          "path": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^(?![A-Za-z]:)(?![\\\\/])(?!.*(?:^|[\\\\/])\\.\\.(?:[\\\\/]|$)).+$"
+          },
           "purpose": { "type": "string", "minLength": 1 },
           "validation": {
             "type": "object",

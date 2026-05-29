@@ -7,6 +7,7 @@ import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
+import { assertSafeConsumerPath } from "../scripts/lib.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
@@ -323,12 +324,24 @@ async function collectConsumerDetails(rl, workspaceRoot, selectedCandidates) {
   return consumers;
 }
 
-async function promptManualConsumers(rl, workspaceRoot) {
+async function promptManualConsumers(rl, workspaceRoot, outputPath) {
   const consumers = [];
   while (consumers.length === 0 || await askYesNo(rl, "Add another consumer repo?", false)) {
     section(`Consumer ${consumers.length + 1}`);
     const repoPath = await askLine(rl, "Path to consumer repo, relative to workspace", "./app");
     const absolutePath = path.resolve(workspaceRoot, repoPath);
+    try {
+      assertSafeConsumerPath({
+        consumerName: slugify(path.basename(absolutePath)),
+        consumerPath: repoPath,
+        workspaceRoot,
+        outputRoot: path.resolve(workspaceRoot, outputPath),
+        repoRoot: packageRoot,
+      });
+    } catch (error) {
+      warn(error instanceof Error ? error.message : String(error));
+      continue;
+    }
     if (!(await isDirectory(absolutePath))) {
       warn(`Path does not exist yet: ${absolutePath}`);
       if (!(await askYesNo(rl, "Use this path anyway?", false))) continue;
@@ -463,7 +476,7 @@ async function init(options) {
       consumers = await collectConsumerDetails(rl, workspaceRoot, selected);
       } else {
       warn("No obvious sibling consumer repos found.");
-      consumers = await promptManualConsumers(rl, workspaceRoot);
+      consumers = await promptManualConsumers(rl, workspaceRoot, outputPath);
       }
     }
 
