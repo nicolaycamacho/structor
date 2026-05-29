@@ -9,6 +9,7 @@ const args = process.argv.slice(2);
 const outputArgIndex = args.indexOf("--output");
 const outputRoot = outputArgIndex === -1 ? repoRoot : path.resolve(args[outputArgIndex + 1]);
 const viewsDir = path.join(outputRoot, "ai/views");
+const projectName = {{PROJECT_NAME_JSON}};
 
 async function read(relativePath) {
   try {
@@ -52,7 +53,7 @@ function layout(title, body) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>${escapeHtml(title)} - {{PROJECT_NAME}} Harness Views</title>
+  <title>${escapeHtml(title)} - ${escapeHtml(projectName)} Harness Views</title>
   <style>
     body { font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; margin: 0; color: #172026; background: #f7f8fa; }
     header, main { max-width: 1080px; margin: 0 auto; padding: 24px; }

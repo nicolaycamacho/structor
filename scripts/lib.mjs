@@ -102,6 +102,25 @@ export function workspaceRootForConfig(configDir, templateRepoRoot = repoRoot) {
     : resolvedConfigDir;
 }
 
+export async function canonicalPathForWrite(targetPath) {
+  let currentPath = path.resolve(targetPath);
+  const missingSegments = [];
+
+  while (true) {
+    if (await exists(currentPath)) {
+      return path.join(await realpath(currentPath), ...missingSegments);
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      return path.join(currentPath, ...missingSegments);
+    }
+
+    missingSegments.unshift(path.basename(currentPath));
+    currentPath = parentPath;
+  }
+}
+
 export function assertSafeConsumerPath({
   consumerName,
   consumerPath,
@@ -167,40 +186,59 @@ export async function assertConfirmedConsumerRepository({
     throw new Error(`${label} is not a directory: ${consumerRoot}.`);
   }
 
-  const realWorkspaceRoot = await realpath(workspaceRoot);
-  const realConsumerRoot = await realpath(consumerRoot);
-  if (!isSameOrInsidePath(realConsumerRoot, realWorkspaceRoot)) {
-    throw new Error(`${label} is unsafe: resolved path escapes workspace ${realWorkspaceRoot}: ${realConsumerRoot}.`);
+  const canonicalWorkspaceRoot = await canonicalPathForWrite(workspaceRoot);
+  const canonicalConsumerRoot = await canonicalPathForWrite(consumerRoot);
+  if (!isSameOrInsidePath(canonicalConsumerRoot, canonicalWorkspaceRoot)) {
+    throw new Error(
+      `${label} is unsafe: resolved path escapes workspace ${canonicalWorkspaceRoot}: ${canonicalConsumerRoot}.`,
+    );
   }
 
-  if (await exists(templateRepoRoot)) {
-    const realTemplateRepoRoot = await realpath(templateRepoRoot);
-    if (isSameOrInsidePath(realConsumerRoot, realTemplateRepoRoot)) {
+  const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
+  if (isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
+    throw new Error(
+      `${label} is unsafe: resolved path must not equal or be inside the Structor template repo ${canonicalTemplateRepoRoot}.`,
+    );
+  }
+
+  if (outputRoot) {
+    const canonicalOutputRoot = await canonicalPathForWrite(outputRoot);
+    if (isSameOrInsidePath(canonicalConsumerRoot, canonicalOutputRoot)) {
       throw new Error(
-        `${label} is unsafe: resolved path must not equal or be inside the Structor template repo ${realTemplateRepoRoot}.`,
+        `${label} is unsafe: resolved path must not equal or be inside the generated harness output ${canonicalOutputRoot}.`,
       );
     }
   }
 
-  if (outputRoot && await exists(outputRoot)) {
-    const realOutputRoot = await realpath(outputRoot);
-    if (isSameOrInsidePath(realConsumerRoot, realOutputRoot)) {
-      throw new Error(
-        `${label} is unsafe: resolved path must not equal or be inside the generated harness output ${realOutputRoot}.`,
-      );
-    }
-  }
-
-  if (!(await hasConsumerRepositorySignal(realConsumerRoot))) {
+  if (!(await hasConsumerRepositorySignal(canonicalConsumerRoot))) {
     throw new Error(
       `${label} is not a confirmed consumer repository: ${consumerRoot} (expected one of ${consumerRepoSignals.join(", ")}).`,
     );
   }
 
-  return realConsumerRoot;
+  return canonicalConsumerRoot;
 }
 
-export function assertSafeOutputRoot({
+async function firstSymlinkUnderRoot(targetPath, rootPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+  if (!isSameOrInsidePath(resolvedTarget, resolvedRoot)) return null;
+
+  const relative = path.relative(resolvedRoot, resolvedTarget);
+  if (relative === "") return null;
+
+  let currentPath = resolvedRoot;
+  for (const segment of relative.split(path.sep)) {
+    currentPath = path.join(currentPath, segment);
+    const info = await lstatIfExists(currentPath);
+    if (info === null) return null;
+    if (info.isSymbolicLink()) return currentPath;
+  }
+
+  return null;
+}
+
+export async function assertSafeOutputRoot({
   outputPath,
   outputRoot,
   repoRoot: templateRepoRoot,
@@ -212,22 +250,48 @@ export function assertSafeOutputRoot({
   if (path.isAbsolute(outputPath) && !allowAbsoluteOutput) {
     throw new Error(`Unsafe output path ${rejectedPath}: absolute output paths require --allow-absolute-output.`);
   }
-  if (isSameOrInsidePath(outputRoot, templateRepoRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${templateRepoRoot}.`);
+  if (pathContainsSegment(rejectedPath, ".git")) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
   }
-  if (path.resolve(outputRoot) === path.resolve(workspaceRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${workspaceRoot}.`);
+
+  const symlinkPath = await firstSymlinkUnderRoot(outputRoot, workspaceRoot);
+  if (symlinkPath !== null) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not use symlinked output directories (${symlinkPath}).`);
+  }
+
+  const outputInfo = await lstatIfExists(outputRoot);
+  if (outputInfo?.isSymbolicLink()) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not use symlinked output directories (${rejectedPath}).`);
+  }
+
+  const canonicalOutputRoot = await canonicalPathForWrite(outputRoot);
+  const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
+  const canonicalWorkspaceRoot = await canonicalPathForWrite(workspaceRoot);
+
+  if (!path.isAbsolute(outputPath) && !isSameOrInsidePath(canonicalOutputRoot, canonicalWorkspaceRoot)) {
+    throw new Error(
+      `Unsafe output path ${rejectedPath}: relative output paths must remain inside the workspace boundary ${canonicalWorkspaceRoot}.`,
+    );
+  }
+  if (isSameOrInsidePath(canonicalOutputRoot, canonicalTemplateRepoRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${canonicalTemplateRepoRoot}.`);
+  }
+  if (canonicalOutputRoot === canonicalWorkspaceRoot) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${canonicalWorkspaceRoot}.`);
   }
   for (const consumerRoot of consumerRepos) {
-    if (isSameOrInsidePath(outputRoot, consumerRoot)) {
+    const canonicalConsumerRoot = await canonicalPathForWrite(consumerRoot);
+    if (isSameOrInsidePath(canonicalOutputRoot, canonicalConsumerRoot)) {
       throw new Error(
-        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${consumerRoot}.`,
+        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${canonicalConsumerRoot}.`,
       );
     }
   }
-  if (pathContainsSegment(outputRoot, ".git")) {
+  if (pathContainsSegment(canonicalOutputRoot, ".git")) {
     throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
   }
+
+  return canonicalOutputRoot;
 }
 
 export function failIfErrors(title, errors) {
