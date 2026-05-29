@@ -1,9 +1,11 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
+import { repoRoot } from "../scripts/lib.mjs";
 import {
   parseArgs,
   render,
@@ -34,6 +36,34 @@ async function silenceLog(run) {
 // repo's placeholder-leak check.
 const placeholder = (key) => `{{${key}}}`;
 const SAMPLE_TEMPLATE = `Hello ${placeholder("NAME")}`;
+
+async function writeMinimalConfig(root, outputPath) {
+  const consumerRoot = path.join(root, "product-app");
+  await mkdir(consumerRoot, { recursive: true });
+  await writeFile(path.join(consumerRoot, "README.md"), "# product-app\n");
+
+  const config = {
+    project: {
+      name: "Test Project",
+      slug: "test-project",
+      harnessRepoName: "test-structor",
+    },
+    output: { path: outputPath },
+    models: { openai: true, anthropic: false },
+    clientSupport: { codex: { hooks: false } },
+    consumers: [
+      {
+        name: "product-app",
+        path: "./product-app",
+        purpose: "Application repository",
+        validation: {},
+      },
+    ],
+  };
+  const configPath = path.join(root, "harness.config.json");
+  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+  return configPath;
+}
 
 test("parseArgs uses safe defaults", () => {
   const options = parseArgs([]);
@@ -137,5 +167,31 @@ test("writeRenderedFile overwrites existing files with force", async () => {
     );
 
     assert.equal(await readFile(path.join(targetRoot, "sample.md"), "utf8"), "Hello World");
+  });
+});
+
+test("init harness does not execute a skipped output script", async () => {
+  await withTempDir(async (root) => {
+    const outputPath = "./test-structor";
+    const configPath = await writeMinimalConfig(root, outputPath);
+    const outputRoot = path.join(root, "test-structor");
+    const scriptPath = path.join(outputRoot, "scripts", "generate-html-views.mjs");
+    const markerPath = path.join(outputRoot, "executed.txt");
+
+    await mkdir(path.dirname(scriptPath), { recursive: true });
+    await writeFile(
+      scriptPath,
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(new URL('../executed.txt', import.meta.url), 'ran');\n",
+    );
+
+    const result = spawnSync(process.execPath, [path.join(repoRoot, "scripts/init-harness.mjs"), "--config", configPath], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+
+    assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stdout, /skipped existing .*generate-html-views\.mjs/);
+    assert.match(result.stdout, /skipped HTML view generation/);
+    await assert.rejects(readFile(markerPath, "utf8"));
   });
 });

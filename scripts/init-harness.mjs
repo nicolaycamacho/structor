@@ -21,6 +21,7 @@ const anthropicPathPrefix = ".claude/";
 const codexHookPathPrefix = ".codex/";
 const scriptRulesPath = "scripts/check-claude-compatibility.mjs.tpl";
 const scriptCodexPath = "scripts/check-codex-hooks.mjs.tpl";
+const scriptHtmlViewsPath = "scripts/generate-html-views.mjs.tpl";
 const scriptHooksPath = "scripts/hooks/";
 
 export function parseArgs(argv) {
@@ -151,18 +152,19 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
 
   if (options.dryRun) {
     console.log(`would create ${targetPath}`);
-    return;
+    return { action: "dry-run", rendered: false, targetPath, targetRelative };
   }
 
   if ((await exists(targetPath)) && !options.force) {
     console.log(`skipped existing ${targetPath}`);
-    return;
+    return { action: "skipped", rendered: false, targetPath, targetRelative };
   }
 
   const existed = await exists(targetPath);
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content);
   console.log(`${existed ? "wrote" : "created"} ${targetPath}`);
+  return { action: existed ? "wrote" : "created", rendered: true, targetPath, targetRelative };
 }
 
 async function installConsumerEntrypoints(config, harnessRoot, options) {
@@ -247,16 +249,22 @@ async function main() {
     CLIENT_CLAUDE_SKILLS_ENABLED: booleanLiteral(support.claudeSkills),
   };
 
+  let renderedHtmlViewsScript = false;
   for (const sourceRelative of await collectTemplateFiles()) {
     if (!shouldRenderTemplate(sourceRelative, config)) continue;
-    await writeRenderedFile(sourceRelative, outputRoot, values, options);
+    const result = await writeRenderedFile(sourceRelative, outputRoot, values, options);
+    if (sourceRelative === scriptHtmlViewsPath && result.rendered) {
+      renderedHtmlViewsScript = true;
+    }
   }
 
-  if (!options.dryRun) {
+  if (!options.dryRun && renderedHtmlViewsScript) {
     execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
       cwd: outputRoot,
       stdio: "inherit",
     });
+  } else if (!options.dryRun) {
+    console.log("skipped HTML view generation because scripts/generate-html-views.mjs was not freshly rendered");
   }
 
   if (options.installConsumerEntrypoints) {
