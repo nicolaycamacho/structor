@@ -6,6 +6,7 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
+const projectName = {{PROJECT_NAME_JSON}};
 export const canonicalRepos = ["{{HARNESS_REPO_NAME}}", ...{{CONSUMER_REPO_NAMES_JSON}}];
 export const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
@@ -301,7 +302,7 @@ export function renderPointerFile({ relativePath, harnessRoot, repoName }) {
   ];
   return `# ${title}
 
-This checkout is part of the {{PROJECT_NAME}} workspace.
+This checkout is part of the ${projectName} workspace.
 The canonical AI guidance lives in the harness repo.
 
 Canonical repo: \`${repoName}\`

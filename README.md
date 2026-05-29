@@ -225,6 +225,8 @@ Rules:
   templates.
 - Create or update harness.config.json for this workspace.
 - Set output.path so the generated harness repo is a sibling of the consumer repos.
+- Set consumer paths as workspace-relative sibling paths such as `./project-app`;
+  do not use absolute paths or `..` traversal.
 - Use concrete template-provided client-support files. Do not invent Codex or
   Claude Code surfaces from scratch.
 - If customizing Codex hook rules, keep them deterministic, local, read-only,
@@ -259,8 +261,8 @@ require human input.
 
 ## Manual Setup
 
-Use these commands when you want to operate the template without an
-agent-assisted prompt.
+Use these commands from this template repo when you want to operate the
+template without an agent-assisted prompt.
 
 Copy and edit the example config:
 
@@ -277,7 +279,10 @@ Set:
 - optional `clientSupport.codex.hooks`
 - optional `clientSupport.claude.rules`; keep `clientSupport.claude.hooks` and
   `clientSupport.claude.skills` false or omitted until those surfaces are added
-- each consumer `name`, sibling `path`, `purpose`, and validation commands
+- each consumer `name`, workspace-relative sibling `path`, `purpose`, and
+  validation commands. Consumer paths must stay inside the workspace and cannot
+  use absolute paths or `..` traversal. From a template clone at
+  `workspace/structor`, use paths like `./project-app`, not `../project-app`.
 
 Validate the template and config shape:
 
