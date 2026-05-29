@@ -1,13 +1,26 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtemp, mkdir, realpath, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
+  assertConfirmedConsumerRepository,
+  assertSafeConsumerPath,
   assertSafeOutputRoot,
   isSameOrInsidePath,
   pathContainsSegment,
   validateConfigShape,
 } from "../scripts/lib.mjs";
+
+async function withTempDir(run) {
+  const dir = await mkdtemp(path.join(tmpdir(), "structor-lib-test-"));
+  try {
+    return await run(dir);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+}
 
 test("isSameOrInsidePath accepts identical paths", () => {
   assert.equal(isSameOrInsidePath("/workspace/app", "/workspace/app"), true);
@@ -25,6 +38,99 @@ test("isSameOrInsidePath rejects siblings and parents", () => {
 test("pathContainsSegment matches path segments only", () => {
   assert.equal(pathContainsSegment("/workspace/repo/.git/harness", ".git"), true);
   assert.equal(pathContainsSegment("/workspace/gitignored/harness", ".git"), false);
+});
+
+function safeConsumerCall(consumerPath, extra = {}) {
+  const workspaceRoot = extra.workspaceRoot ?? "/workspace";
+  const outputRoot = extra.outputRoot ?? "/workspace/product-structor";
+  return () =>
+    assertSafeConsumerPath({
+      consumerName: "product-app",
+      consumerPath,
+      workspaceRoot,
+      outputRoot,
+      repoRoot: extra.repoRoot ?? "/tpl/structor",
+    });
+}
+
+test("assertSafeConsumerPath accepts workspace-relative consumer repo paths", () => {
+  assert.equal(safeConsumerCall("./product-app")(), "/workspace/product-app");
+  assert.equal(safeConsumerCall("apps/product-app")(), "/workspace/apps/product-app");
+});
+
+test("assertSafeConsumerPath rejects absolute, traversal, and root paths", () => {
+  assert.throws(safeConsumerCall("/tmp/product-app"), /absolute consumer paths/);
+  assert.throws(safeConsumerCall("../product-app"), /relative traversal/);
+  assert.throws(safeConsumerCall("apps/../product-app"), /relative traversal/);
+  assert.throws(safeConsumerCall("."), /workspace root/);
+});
+
+test("assertSafeConsumerPath rejects template, output, and .git paths", () => {
+  assert.throws(safeConsumerCall("./structor", { repoRoot: "/workspace/structor" }), /Structor template repo/);
+  assert.throws(safeConsumerCall("./product-structor/app"), /generated harness output/);
+  assert.throws(safeConsumerCall("./product-app/.git/hooks"), /\.git path segment/);
+});
+
+test("assertConfirmedConsumerRepository accepts directories with repo signals", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const consumerRoot = path.join(workspaceRoot, "product-app");
+    await mkdir(path.join(consumerRoot, ".git"), { recursive: true });
+
+    assert.equal(
+      await assertConfirmedConsumerRepository({
+        consumerName: "product-app",
+        consumerRoot,
+        workspaceRoot,
+        outputRoot: path.join(workspaceRoot, "product-structor"),
+        repoRoot: path.join(workspaceRoot, "structor"),
+      }),
+      await realpath(consumerRoot),
+    );
+  });
+});
+
+test("assertConfirmedConsumerRepository rejects existing non-repo directories", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const consumerRoot = path.join(workspaceRoot, "product-app");
+    await mkdir(consumerRoot, { recursive: true });
+
+    await assert.rejects(
+      () =>
+        assertConfirmedConsumerRepository({
+          consumerName: "product-app",
+          consumerRoot,
+          workspaceRoot,
+          outputRoot: path.join(workspaceRoot, "product-structor"),
+          repoRoot: path.join(workspaceRoot, "structor"),
+        }),
+      /not a confirmed consumer repository/,
+    );
+  });
+});
+
+test("assertConfirmedConsumerRepository rejects symlinked consumer paths", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const outsideRoot = path.join(root, "outside-app");
+    const consumerRoot = path.join(workspaceRoot, "linked-app");
+    await mkdir(workspaceRoot, { recursive: true });
+    await mkdir(path.join(outsideRoot, ".git"), { recursive: true });
+    await symlink(outsideRoot, consumerRoot, "dir");
+
+    await assert.rejects(
+      () =>
+        assertConfirmedConsumerRepository({
+          consumerName: "linked-app",
+          consumerRoot,
+          workspaceRoot,
+          outputRoot: path.join(workspaceRoot, "product-structor"),
+          repoRoot: path.join(workspaceRoot, "structor"),
+        }),
+      /symlinked consumer paths/,
+    );
+  });
 });
 
 const baseSafeOutputArgs = {
@@ -71,7 +177,7 @@ function validConfig() {
     consumers: [
       {
         name: "demo-app",
-        path: "../demo-app",
+        path: "./demo-app",
         purpose: "App repo",
         validation: { lint: "npm run lint" },
       },
@@ -102,6 +208,20 @@ test("validateConfigShape rejects duplicate consumer names", async () => {
   config.consumers.push({ ...config.consumers[0] });
   const errors = await validateConfigShape(config, "config");
   assert.ok(errors.some((error) => /duplicated/.test(error)));
+});
+
+test("validateConfigShape rejects unsafe consumer path syntax", async () => {
+  const absoluteConfig = validConfig();
+  absoluteConfig.consumers[0].path = "/tmp/demo-app";
+  assert.ok((await validateConfigShape(absoluteConfig, "config")).some((error) => /absolute paths/.test(error)));
+
+  const traversalConfig = validConfig();
+  traversalConfig.consumers[0].path = "../demo-app";
+  assert.ok((await validateConfigShape(traversalConfig, "config")).some((error) => /relative traversal/.test(error)));
+
+  const rootConfig = validConfig();
+  rootConfig.consumers[0].path = ".";
+  assert.ok((await validateConfigShape(rootConfig, "config")).some((error) => /workspace root/.test(error)));
 });
 
 test("validateConfigShape rejects unknown top-level keys", async () => {
