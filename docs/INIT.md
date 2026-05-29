@@ -90,6 +90,10 @@ implementation.
 - Codex and Claude support flags
 - consumer repo paths, purposes, and validation commands
 
+Consumer repo paths are workspace-relative. The generator rejects absolute
+consumer paths, `..` traversal, symlinked consumer paths, and entrypoint writes
+to directories that do not look like repositories.
+
 `structor generate --config harness.config.json` uses this file to render the
 generated harness deterministically.
 

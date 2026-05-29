@@ -15,7 +15,7 @@
   "consumers": [
     {
       "name": "multi-model-app",
-      "path": "../../../multi-model-app",
+      "path": "./multi-model-app",
       "purpose": "Application repository used by both OpenAI and Anthropic agents",
       "validation": {
         "install": "npm install",
