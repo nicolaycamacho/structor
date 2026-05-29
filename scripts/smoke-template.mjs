@@ -263,6 +263,19 @@ await validateNegativeConfigCase({
   expectedMessage: "absolute output paths require --allow-absolute-output",
 });
 await validateNegativeConfigCase({
+  name: "relative-traversal-output",
+  overrides: { output: { path: "../outside-harness-output" } },
+  expectedMessage: "workspace boundary",
+});
+await validateNegativeConfigCase({
+  name: "symlink-output",
+  overrides: { output: { path: "./linked-harness-output" } },
+  expectedMessage: "symlinked output directories",
+  setup: async (workspaceRoot) => {
+    await symlink(path.join(workspaceRoot, "product-app"), path.join(workspaceRoot, "linked-harness-output"), "dir");
+  },
+});
+await validateNegativeConfigCase({
   name: "template-root-output",
   overrides: { output: { path: repoRoot } },
   args: ["--allow-absolute-output"],

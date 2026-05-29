@@ -56,7 +56,7 @@ for (const configPath of configFiles) {
       }
     }
     try {
-      assertSafeOutputRoot({
+      const safeOutputRoot = await assertSafeOutputRoot({
         outputPath,
         outputRoot,
         repoRoot,
@@ -71,7 +71,7 @@ for (const configPath of configFiles) {
             consumerName: consumer.name,
             consumerPath: consumer.path,
             workspaceRoot,
-            outputRoot,
+            outputRoot: safeOutputRoot,
             repoRoot,
           });
         }
