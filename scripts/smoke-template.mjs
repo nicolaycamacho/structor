@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtemp, mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
@@ -76,6 +76,7 @@ async function writeConfig(workspaceRoot, smokeCase, overrides = {}) {
   for (const consumer of smokeCase.consumers) {
     await mkdir(path.join(workspaceRoot, consumer.name), { recursive: true });
     await writeFile(path.join(workspaceRoot, consumer.name, "README.md"), `# ${consumer.name}\n`);
+    await writeFile(path.join(workspaceRoot, consumer.name, "package.json"), `${JSON.stringify({ name: consumer.name })}\n`);
   }
 
   const config = {
@@ -228,10 +229,11 @@ for (const smokeCase of cases) {
   await validateCase(smokeCase);
 }
 
-async function validateNegativeConfigCase({ name, overrides, args = [], expectedMessage }) {
+async function validateNegativeConfigCase({ name, overrides, args = [], expectedMessage, setup }) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}${name}-`));
   const smokeCase = { name, models: { openai: true, anthropic: false }, consumers: [{ name: "product-app", purpose: "Application repository" }] };
   const configPath = await writeConfig(workspaceRoot, smokeCase, overrides);
+  if (setup) await setup(workspaceRoot);
   assertFails(
     nodeCommand,
     [path.join(repoRoot, initHarnessScript), "--config", configPath, "--dry-run", ...args],
@@ -259,6 +261,19 @@ await validateNegativeConfigCase({
   name: "absolute-output",
   overrides: { output: { path: path.join(os.tmpdir(), "absolute-harness-output") } },
   expectedMessage: "absolute output paths require --allow-absolute-output",
+});
+await validateNegativeConfigCase({
+  name: "relative-traversal-output",
+  overrides: { output: { path: "../outside-harness-output" } },
+  expectedMessage: "workspace boundary",
+});
+await validateNegativeConfigCase({
+  name: "symlink-output",
+  overrides: { output: { path: "./linked-harness-output" } },
+  expectedMessage: "symlinked output directories",
+  setup: async (workspaceRoot) => {
+    await symlink(path.join(workspaceRoot, "product-app"), path.join(workspaceRoot, "linked-harness-output"), "dir");
+  },
 });
 await validateNegativeConfigCase({
   name: "template-root-output",
@@ -292,6 +307,104 @@ await validateNegativeConfigCase({
   overrides: { output: { path: "./generated/.git/harness" } },
   expectedMessage: ".git path segment",
 });
+await validateNegativeConfigCase({
+  name: "absolute-consumer",
+  overrides: {
+    consumers: [{
+      name: "outside-app",
+      path: path.join(os.tmpdir(), "outside-app"),
+      purpose: "Application repository",
+      validation: {},
+    }],
+  },
+  expectedMessage: "absolute paths are not allowed",
+});
+await validateNegativeConfigCase({
+  name: "traversal-consumer",
+  overrides: {
+    consumers: [{
+      name: "outside-app",
+      path: "../outside-app",
+      purpose: "Application repository",
+      validation: {},
+    }],
+  },
+  expectedMessage: "relative traversal",
+});
+await validateNegativeConfigCase({
+  name: "force-traversal-consumer",
+  overrides: {
+    consumers: [{
+      name: "outside-app",
+      path: "../outside-app",
+      purpose: "Application repository",
+      validation: {},
+    }],
+  },
+  args: ["--install-consumer-entrypoints", "--force"],
+  expectedMessage: "relative traversal",
+});
+await validateNegativeConfigCase({
+  name: "unconfirmed-consumer",
+  overrides: {
+    consumers: [{
+      name: "not-repo",
+      path: "./not-repo",
+      purpose: "Existing directory without repo signals",
+      validation: {},
+    }],
+  },
+  args: ["--install-consumer-entrypoints"],
+  expectedMessage: "not a confirmed consumer repository",
+  setup: async (workspaceRoot) => {
+    await mkdir(path.join(workspaceRoot, "not-repo"), { recursive: true });
+  },
+});
+await validateNegativeConfigCase({
+  name: "symlinked-consumer",
+  overrides: {
+    consumers: [{
+      name: "linked-app",
+      path: "./linked-app",
+      purpose: "Symlinked application repository",
+      validation: {},
+    }],
+  },
+  args: ["--install-consumer-entrypoints"],
+  expectedMessage: "symlinked consumer paths",
+  setup: async (workspaceRoot) => {
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}outside-consumer-`));
+    await writeFile(path.join(outsideRoot, "package.json"), `${JSON.stringify({ name: "outside-app" })}\n`);
+    await symlink(outsideRoot, path.join(workspaceRoot, "linked-app"), "dir");
+  },
+});
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}force-consumer-entrypoints-`));
+  const smokeCase = {
+    name: "force-consumer-entrypoints",
+    models: { openai: true, anthropic: false },
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const agentsPath = path.join(workspaceRoot, "product-app", openaiRootEntrypoint);
+  await writeFile(agentsPath, "OLD");
+
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);
+  if (await readFile(agentsPath, "utf8") !== "OLD") {
+    throw new Error("consumer entrypoint should be skipped without --force.");
+  }
+
+  run(
+    nodeCommand,
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--force"],
+    repoRoot,
+  );
+  const forcedContent = await readFile(agentsPath, "utf8");
+  if (forcedContent === "OLD" || !forcedContent.includes("This consumer repository is governed by")) {
+    throw new Error("consumer entrypoint should be overwritten with --force.");
+  }
+}
 
 {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}check-config-`));
