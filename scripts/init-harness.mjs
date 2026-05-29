@@ -3,7 +3,7 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { assertSafeOutputRoot, exists, validateConfigShape } from "./lib.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,7 +23,7 @@ const scriptRulesPath = "scripts/check-claude-compatibility.mjs.tpl";
 const scriptCodexPath = "scripts/check-codex-hooks.mjs.tpl";
 const scriptHooksPath = "scripts/hooks/";
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const options = {
     config: configFileDefault,
     output: null,
@@ -47,7 +47,7 @@ function parseArgs(argv) {
   return options;
 }
 
-function render(content, values) {
+export function render(content, values) {
   return content.replace(/\{\{([A-Z0-9_]+)\}\}/g, (_, key) => {
     if (!(key in values)) {
       throw new Error(`No value provided for template placeholder {{${key}}}`);
@@ -95,7 +95,7 @@ function clientSupport(config) {
   };
 }
 
-function shouldRenderTemplate(sourceRelative, config) {
+export function shouldRenderTemplate(sourceRelative, config) {
   const support = clientSupport(config);
   const claudePath = "workspace/.claude/";
   const openaiWorkspacePath = "workspace/AGENTS.md.tpl";
@@ -143,8 +143,8 @@ async function collectTemplateFiles() {
   return files.sort();
 }
 
-async function writeRenderedFile(sourceRelative, targetRoot, values, options) {
-  const sourcePath = path.join(repoRoot, "template", sourceRelative);
+export async function writeRenderedFile(sourceRelative, targetRoot, values, options, templateRoot = path.join(repoRoot, "template")) {
+  const sourcePath = path.join(templateRoot, sourceRelative);
   const targetRelative = sourceRelative.replace(/\.tpl$/, "");
   const targetPath = path.join(targetRoot, targetRelative);
   const content = render(await readFile(sourcePath, "utf8"), values);
@@ -264,7 +264,9 @@ async function main() {
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

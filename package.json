@@ -6,7 +6,7 @@
   "author": "Nicolay Camacho",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/wari1986/structor.git"
+    "url": "git+https://github.com/nicolaycamacho/structor.git"
   },
   "keywords": [
     "ai",
@@ -32,6 +32,7 @@
     "schemas/",
     "scripts/",
     "template/",
+    "CHANGELOG.md",
     "README.md",
     "LICENSE"
   ],
