@@ -1,9 +1,21 @@
-import { access, readdir, readFile, stat } from "node:fs/promises";
+import { access, lstat, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+
+export const consumerRepoSignals = [
+  ".git",
+  "package.json",
+  "pyproject.toml",
+  "go.mod",
+  "Cargo.toml",
+  "pom.xml",
+  "build.gradle",
+  "Gemfile",
+  "composer.json",
+];
 
 export async function exists(filePath) {
   try {
@@ -56,7 +68,177 @@ export function isSameOrInsidePath(candidate, root) {
   return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative));
 }
 
-export function assertSafeOutputRoot({
+export function isAbsolutePathString(candidate) {
+  return (
+    path.isAbsolute(candidate) ||
+    candidate.startsWith("/") ||
+    candidate.startsWith("\\") ||
+    /^[A-Za-z]:/.test(candidate)
+  );
+}
+
+export function pathHasTraversal(candidate) {
+  return candidate.split(/[\\/]+/).includes("..");
+}
+
+function pathSegments(candidate) {
+  return candidate.split(/[\\/]+/).filter(Boolean);
+}
+
+async function lstatIfExists(targetPath) {
+  try {
+    return await lstat(targetPath);
+  } catch (error) {
+    if (error?.code === "ENOENT") return null;
+    throw error;
+  }
+}
+
+export function workspaceRootForConfig(configDir, templateRepoRoot = repoRoot) {
+  const resolvedConfigDir = path.resolve(configDir);
+  const resolvedTemplateRepoRoot = path.resolve(templateRepoRoot);
+  return isSameOrInsidePath(resolvedConfigDir, resolvedTemplateRepoRoot)
+    ? path.dirname(resolvedTemplateRepoRoot)
+    : resolvedConfigDir;
+}
+
+export async function canonicalPathForWrite(targetPath) {
+  let currentPath = path.resolve(targetPath);
+  const missingSegments = [];
+
+  while (true) {
+    if (await exists(currentPath)) {
+      return path.join(await realpath(currentPath), ...missingSegments);
+    }
+
+    const parentPath = path.dirname(currentPath);
+    if (parentPath === currentPath) {
+      return path.join(currentPath, ...missingSegments);
+    }
+
+    missingSegments.unshift(path.basename(currentPath));
+    currentPath = parentPath;
+  }
+}
+
+export function assertSafeConsumerPath({
+  consumerName,
+  consumerPath,
+  workspaceRoot,
+  outputRoot = null,
+  repoRoot: templateRepoRoot = repoRoot,
+}) {
+  const label = `Consumer path for ${consumerName}`;
+  const rejectedPath = path.resolve(workspaceRoot, consumerPath);
+  const segments = pathSegments(consumerPath);
+
+  if (isAbsolutePathString(consumerPath)) {
+    throw new Error(`${label} is unsafe: absolute consumer paths are not allowed.`);
+  }
+  if (pathHasTraversal(consumerPath)) {
+    throw new Error(`${label} is unsafe: relative traversal is not allowed.`);
+  }
+  if (segments.filter((segment) => segment !== ".").length === 0) {
+    throw new Error(`${label} is unsafe: path must name a consumer repository folder, not the workspace root.`);
+  }
+  if (segments.includes(".git") || pathContainsSegment(rejectedPath, ".git")) {
+    throw new Error(`${label} is unsafe: consumer paths must not contain a .git path segment.`);
+  }
+  if (!isSameOrInsidePath(rejectedPath, workspaceRoot)) {
+    throw new Error(`${label} is unsafe: path must stay inside the workspace ${workspaceRoot}.`);
+  }
+  if (path.resolve(rejectedPath) === path.resolve(workspaceRoot)) {
+    throw new Error(`${label} is unsafe: path must not equal the workspace root ${workspaceRoot}.`);
+  }
+  if (isSameOrInsidePath(rejectedPath, templateRepoRoot)) {
+    throw new Error(`${label} is unsafe: path must not equal or be inside the Structor template repo ${templateRepoRoot}.`);
+  }
+  if (outputRoot && isSameOrInsidePath(rejectedPath, outputRoot)) {
+    throw new Error(`${label} is unsafe: path must not equal or be inside the generated harness output ${outputRoot}.`);
+  }
+
+  return rejectedPath;
+}
+
+export async function hasConsumerRepositorySignal(consumerRoot) {
+  for (const signal of consumerRepoSignals) {
+    if (await exists(path.join(consumerRoot, signal))) return true;
+  }
+  return false;
+}
+
+export async function assertConfirmedConsumerRepository({
+  consumerName,
+  consumerRoot,
+  workspaceRoot,
+  outputRoot = null,
+  repoRoot: templateRepoRoot = repoRoot,
+}) {
+  const label = `Consumer path for ${consumerName}`;
+  const info = await lstatIfExists(consumerRoot);
+  if (info === null) {
+    throw new Error(`Consumer repo path for ${consumerName} does not exist: ${consumerRoot}`);
+  }
+  if (info.isSymbolicLink()) {
+    throw new Error(`${label} is unsafe: symlinked consumer paths are not allowed: ${consumerRoot}.`);
+  }
+  if (!info.isDirectory()) {
+    throw new Error(`${label} is not a directory: ${consumerRoot}.`);
+  }
+
+  const canonicalWorkspaceRoot = await canonicalPathForWrite(workspaceRoot);
+  const canonicalConsumerRoot = await canonicalPathForWrite(consumerRoot);
+  if (!isSameOrInsidePath(canonicalConsumerRoot, canonicalWorkspaceRoot)) {
+    throw new Error(
+      `${label} is unsafe: resolved path escapes workspace ${canonicalWorkspaceRoot}: ${canonicalConsumerRoot}.`,
+    );
+  }
+
+  const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
+  if (isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
+    throw new Error(
+      `${label} is unsafe: resolved path must not equal or be inside the Structor template repo ${canonicalTemplateRepoRoot}.`,
+    );
+  }
+
+  if (outputRoot) {
+    const canonicalOutputRoot = await canonicalPathForWrite(outputRoot);
+    if (isSameOrInsidePath(canonicalConsumerRoot, canonicalOutputRoot)) {
+      throw new Error(
+        `${label} is unsafe: resolved path must not equal or be inside the generated harness output ${canonicalOutputRoot}.`,
+      );
+    }
+  }
+
+  if (!(await hasConsumerRepositorySignal(canonicalConsumerRoot))) {
+    throw new Error(
+      `${label} is not a confirmed consumer repository: ${consumerRoot} (expected one of ${consumerRepoSignals.join(", ")}).`,
+    );
+  }
+
+  return canonicalConsumerRoot;
+}
+
+async function firstSymlinkUnderRoot(targetPath, rootPath) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+  if (!isSameOrInsidePath(resolvedTarget, resolvedRoot)) return null;
+
+  const relative = path.relative(resolvedRoot, resolvedTarget);
+  if (relative === "") return null;
+
+  let currentPath = resolvedRoot;
+  for (const segment of relative.split(path.sep)) {
+    currentPath = path.join(currentPath, segment);
+    const info = await lstatIfExists(currentPath);
+    if (info === null) return null;
+    if (info.isSymbolicLink()) return currentPath;
+  }
+
+  return null;
+}
+
+export async function assertSafeOutputRoot({
   outputPath,
   outputRoot,
   repoRoot: templateRepoRoot,
@@ -68,22 +250,48 @@ export function assertSafeOutputRoot({
   if (path.isAbsolute(outputPath) && !allowAbsoluteOutput) {
     throw new Error(`Unsafe output path ${rejectedPath}: absolute output paths require --allow-absolute-output.`);
   }
-  if (isSameOrInsidePath(outputRoot, templateRepoRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${templateRepoRoot}.`);
+  if (pathContainsSegment(rejectedPath, ".git")) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
   }
-  if (path.resolve(outputRoot) === path.resolve(workspaceRoot)) {
-    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${workspaceRoot}.`);
+
+  const symlinkPath = await firstSymlinkUnderRoot(outputRoot, workspaceRoot);
+  if (symlinkPath !== null) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not use symlinked output directories (${symlinkPath}).`);
+  }
+
+  const outputInfo = await lstatIfExists(outputRoot);
+  if (outputInfo?.isSymbolicLink()) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output path must not use symlinked output directories (${rejectedPath}).`);
+  }
+
+  const canonicalOutputRoot = await canonicalPathForWrite(outputRoot);
+  const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
+  const canonicalWorkspaceRoot = await canonicalPathForWrite(workspaceRoot);
+
+  if (!path.isAbsolute(outputPath) && !isSameOrInsidePath(canonicalOutputRoot, canonicalWorkspaceRoot)) {
+    throw new Error(
+      `Unsafe output path ${rejectedPath}: relative output paths must remain inside the workspace boundary ${canonicalWorkspaceRoot}.`,
+    );
+  }
+  if (isSameOrInsidePath(canonicalOutputRoot, canonicalTemplateRepoRoot)) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal or be inside the template repo ${canonicalTemplateRepoRoot}.`);
+  }
+  if (canonicalOutputRoot === canonicalWorkspaceRoot) {
+    throw new Error(`Unsafe output path ${rejectedPath}: output must not equal the workspace root ${canonicalWorkspaceRoot}.`);
   }
   for (const consumerRoot of consumerRepos) {
-    if (isSameOrInsidePath(outputRoot, consumerRoot)) {
+    const canonicalConsumerRoot = await canonicalPathForWrite(consumerRoot);
+    if (isSameOrInsidePath(canonicalOutputRoot, canonicalConsumerRoot)) {
       throw new Error(
-        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${consumerRoot}.`,
+        `Unsafe output path ${rejectedPath}: output must not equal or be inside configured consumer repo ${canonicalConsumerRoot}.`,
       );
     }
   }
-  if (pathContainsSegment(outputRoot, ".git")) {
+  if (pathContainsSegment(canonicalOutputRoot, ".git")) {
     throw new Error(`Unsafe output path ${rejectedPath}: output path must not contain a .git path segment.`);
   }
+
+  return canonicalOutputRoot;
 }
 
 export function failIfErrors(title, errors) {
@@ -180,9 +388,21 @@ export async function validateConfigShape(config, label) {
   const names = new Set();
   if (Array.isArray(config.consumers)) {
     for (const [index, consumer] of config.consumers.entries()) {
+      if (!isPlainObject(consumer)) continue;
       const prefix = `${label}.consumers[${index}]`;
       if (names.has(consumer.name)) errors.push(`${prefix}.name is duplicated.`);
       names.add(consumer.name);
+      if (typeof consumer.path === "string") {
+        if (isAbsolutePathString(consumer.path)) {
+          errors.push(`${prefix}.path must be relative to the workspace; absolute paths are not allowed.`);
+        }
+        if (pathHasTraversal(consumer.path)) {
+          errors.push(`${prefix}.path must not contain relative traversal segments.`);
+        }
+        if (pathSegments(consumer.path).filter((segment) => segment !== ".").length === 0) {
+          errors.push(`${prefix}.path must name a consumer repository folder, not the workspace root.`);
+        }
+      }
     }
   }
 

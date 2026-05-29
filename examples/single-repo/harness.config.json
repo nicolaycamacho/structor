@@ -15,7 +15,7 @@
   "consumers": [
     {
       "name": "single-repo-app",
-      "path": "../../../single-repo-app",
+      "path": "./single-repo-app",
       "purpose": "Application repository",
       "validation": {
         "lint": "npm run lint",
