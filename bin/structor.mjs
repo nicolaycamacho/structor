@@ -6,7 +6,7 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
@@ -83,7 +83,7 @@ async function maybeReadJson(filePath) {
   }
 }
 
-function slugify(value) {
+export function slugify(value) {
   return value
     .trim()
     .toLowerCase()
@@ -92,12 +92,12 @@ function slugify(value) {
     || "project";
 }
 
-function relativeFrom(basePath, targetPath) {
+export function relativeFrom(basePath, targetPath) {
   const relative = path.relative(basePath, targetPath).replaceAll(path.sep, "/");
   return relative === "" ? "." : relative.startsWith(".") ? relative : `./${relative}`;
 }
 
-function parseArgs(argv) {
+export function parseArgs(argv) {
   const [command = "help", ...rest] = argv;
   const options = { _: [] };
   for (let index = 0; index < rest.length; index += 1) {
@@ -216,7 +216,7 @@ async function isDirectory(filePath) {
   }
 }
 
-function shouldExcludeCandidate(name) {
+export function shouldExcludeCandidate(name) {
   return (
     name.startsWith(".") ||
     name === "node_modules" ||
@@ -261,7 +261,7 @@ async function detectPackageManager(repoRoot) {
   return null;
 }
 
-function packageCommand(packageManager, scriptName) {
+export function packageCommand(packageManager, scriptName) {
   if (packageManager === "yarn") return `yarn ${scriptName}`;
   if (scriptName === "test") return `${packageManager} test`;
   return `${packageManager} run ${scriptName}`;
@@ -297,7 +297,7 @@ async function inferValidation(repoRoot) {
   return validation;
 }
 
-function compactValidation(validation) {
+export function compactValidation(validation) {
   return Object.fromEntries(Object.entries(validation).filter(([, value]) => value.trim() !== ""));
 }
 
@@ -378,7 +378,7 @@ async function writeConfig(configPath, config) {
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
 }
 
-function nextValidationCommands(config) {
+export function nextValidationCommands(config) {
   const commands = [
     `cd ${config.output.path}`,
     "node scripts/validate-governance.mjs",
@@ -570,7 +570,9 @@ async function main() {
   throw new Error(`Unknown command: ${command}`);
 }
 
-main().catch((error) => {
-  fail(error instanceof Error ? error.message : String(error));
-  process.exit(1);
-});
+if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+  main().catch((error) => {
+    fail(error instanceof Error ? error.message : String(error));
+    process.exit(1);
+  });
+}

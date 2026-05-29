@@ -19,7 +19,7 @@ before writing code.
 Requirements: Node.js 20 or newer. No other dependencies.
 
 ```sh
-git clone https://github.com/wari1986/structor.git
+git clone https://github.com/nicolaycamacho/structor.git
 cd structor
 npm install
 npm run validate

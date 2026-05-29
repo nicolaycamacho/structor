@@ -58,7 +58,7 @@ context architecture plus mechanical enforcement. The generated harness ships
 with validators that fail when policy drifts: overlay drift checks, contract
 manifest checks, task-shape checks, and hook guardrails.
 
-## Manual Setup
+## Conservative Manual Path
 
 If you prefer the conservative manual path, create `harness.config.json` and
 run:
