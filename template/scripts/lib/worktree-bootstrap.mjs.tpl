@@ -364,7 +364,7 @@ export async function inspectCheckout({ targetPath, harnessRoot, worktreeRecord 
 
 export function renderPointerFile({ relativePath, harnessRoot, repoName }) {
   const normalizedHarnessRoot = path.resolve(harnessRoot);
-  const bootstrapCommand = `node ${path.join(normalizedHarnessRoot, "scripts/bootstrap-codex-worktree.mjs")} <checkout-path>`;
+  const bootstrapCommand = repairCommand({ harnessRoot: normalizedHarnessRoot, targetPath: "<checkout-path>" });
   const title = relativePath === "CLAUDE.md" ? "Project Agent Guide" : "Agent Bootstrap";
   const guidance = [
     ...(relativePath === "AGENTS.md" && models.openai ? [path.join(normalizedHarnessRoot, "AGENTS.md")] : []),
