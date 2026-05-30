@@ -8,6 +8,7 @@ import {
   assertConfirmedConsumerRepository,
   assertSafeConsumerPath,
   assertSafeOutputRoot,
+  assertSafeWriteTarget,
   exists,
   validateConfigShape,
   workspaceRootForConfig,
@@ -172,6 +173,11 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
   }
 
   const existed = await exists(targetPath);
+  await assertSafeWriteTarget({
+    targetPath,
+    rootPath: targetRoot,
+    label: `Generated harness file ${targetRelative}`,
+  });
   await mkdir(path.dirname(targetPath), { recursive: true });
   await writeFile(targetPath, content);
   console.log(`${existed ? "wrote" : "created"} ${targetPath}`);
@@ -228,6 +234,11 @@ async function installConsumerEntrypoints(config, harnessRoot, options) {
         continue;
       }
 
+      await assertSafeWriteTarget({
+        targetPath,
+        rootPath: consumerRoot,
+        label: `Consumer entrypoint ${targetRelative}`,
+      });
       await mkdir(path.dirname(targetPath), { recursive: true });
       await writeFile(targetPath, content);
       console.log(`wrote consumer entrypoint ${targetPath}`);

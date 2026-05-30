@@ -380,6 +380,62 @@ await validateNegativeConfigCase({
 });
 
 {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}workspace-claude-symlink-`));
+  const smokeCase = {
+    name: "workspace-claude-symlink",
+    models: { openai: false, anthropic: true },
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const harnessRoot = path.join(workspaceRoot, "smoke-workspace-claude-symlink-structor");
+  const outsideRoot = path.join(workspaceRoot, "outside-claude");
+  await mkdir(outsideRoot);
+
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath], repoRoot);
+  await symlink(outsideRoot, path.join(workspaceRoot, ".claude"), "dir");
+
+  assertFails(
+    nodeCommand,
+    ["scripts/bootstrap-workspace.mjs"],
+    harnessRoot,
+    "workspace .claude symlink",
+    "symlinked write targets",
+  );
+  assertMissing(path.join(outsideRoot, "CLAUDE.md"), "workspace bootstrap should not write through symlinked .claude");
+}
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}worktree-pointer-symlink-`));
+  const smokeCase = {
+    name: "worktree-pointer-symlink",
+    models: { openai: true, anthropic: false },
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const harnessRoot = path.join(workspaceRoot, "smoke-worktree-pointer-symlink-structor");
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+  const outsideRoot = path.join(workspaceRoot, "outside-pointer");
+  const outsidePointer = path.join(outsideRoot, "AGENTS.md");
+  await mkdir(outsideRoot);
+  await writeFile(outsidePointer, "Read /tmp/other-structor/AGENTS.md before editing.\n");
+
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath], repoRoot);
+  run("git", ["init"], consumerRoot);
+  await symlink(outsidePointer, path.join(consumerRoot, "AGENTS.md"));
+
+  assertFails(
+    nodeCommand,
+    ["scripts/bootstrap-codex-worktree.mjs", consumerRoot],
+    harnessRoot,
+    "worktree pointer symlink",
+    "symlinked write targets",
+  );
+  if ((await readFile(outsidePointer, "utf8")) !== "Read /tmp/other-structor/AGENTS.md before editing.\n") {
+    throw new Error("worktree repair should not write through a symlinked pointer file.");
+  }
+}
+
+{
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}force-consumer-entrypoints-`));
   const smokeCase = {
     name: "force-consumer-entrypoints",
