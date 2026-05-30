@@ -238,6 +238,27 @@ async function firstSymlinkUnderRoot(targetPath, rootPath) {
   return null;
 }
 
+export async function assertSafeWriteTarget({ targetPath, rootPath, label = "Write target" }) {
+  const resolvedTarget = path.resolve(targetPath);
+  const resolvedRoot = path.resolve(rootPath);
+  if (!isSameOrInsidePath(resolvedTarget, resolvedRoot)) {
+    throw new Error(`${label} is unsafe: target ${resolvedTarget} must stay inside ${resolvedRoot}.`);
+  }
+
+  const symlinkPath = await firstSymlinkUnderRoot(resolvedTarget, resolvedRoot);
+  if (symlinkPath !== null) {
+    throw new Error(`${label} is unsafe: symlinked write targets are not allowed (${symlinkPath}).`);
+  }
+
+  const canonicalRoot = await canonicalPathForWrite(resolvedRoot);
+  const canonicalTarget = await canonicalPathForWrite(resolvedTarget);
+  if (!isSameOrInsidePath(canonicalTarget, canonicalRoot)) {
+    throw new Error(`${label} is unsafe: resolved target escapes ${canonicalRoot}: ${canonicalTarget}.`);
+  }
+
+  return canonicalTarget;
+}
+
 export async function assertSafeOutputRoot({
   outputPath,
   outputRoot,

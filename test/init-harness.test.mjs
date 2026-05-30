@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -186,6 +186,51 @@ test("writeRenderedFile overwrites existing files with force", async () => {
   });
 });
 
+test("writeRenderedFile rejects symlinked output parents", async () => {
+  await withTempDir(async (root) => {
+    const templateRoot = path.join(root, "template");
+    await mkdir(path.join(templateRoot, "linked"), { recursive: true });
+    await writeFile(path.join(templateRoot, "linked", "sample.md.tpl"), SAMPLE_TEMPLATE);
+    const targetRoot = path.join(root, "out");
+    const outsideRoot = path.join(root, "outside");
+    await mkdir(targetRoot);
+    await mkdir(outsideRoot);
+    await symlink(outsideRoot, path.join(targetRoot, "linked"), "dir");
+
+    await assert.rejects(
+      () =>
+        silenceLog(() =>
+          writeRenderedFile("linked/sample.md.tpl", targetRoot, { NAME: "World" }, { dryRun: false, force: false }, templateRoot),
+        ),
+      /Generated harness file linked\/sample\.md is unsafe: symlinked write targets/,
+    );
+    await assert.rejects(readFile(path.join(outsideRoot, "sample.md"), "utf8"));
+  });
+});
+
+test("writeRenderedFile rejects forced symlinked leaf targets", async () => {
+  await withTempDir(async (root) => {
+    const templateRoot = path.join(root, "template");
+    await mkdir(templateRoot, { recursive: true });
+    await writeFile(path.join(templateRoot, "sample.md.tpl"), SAMPLE_TEMPLATE);
+    const targetRoot = path.join(root, "out");
+    const outsideRoot = path.join(root, "outside");
+    await mkdir(targetRoot);
+    await mkdir(outsideRoot);
+    await writeFile(path.join(outsideRoot, "sample.md"), "OUTSIDE");
+    await symlink(path.join(outsideRoot, "sample.md"), path.join(targetRoot, "sample.md"));
+
+    await assert.rejects(
+      () =>
+        silenceLog(() =>
+          writeRenderedFile("sample.md.tpl", targetRoot, { NAME: "World" }, { dryRun: false, force: true }, templateRoot),
+        ),
+      /Generated harness file sample\.md is unsafe: symlinked write targets/,
+    );
+    assert.equal(await readFile(path.join(outsideRoot, "sample.md"), "utf8"), "OUTSIDE");
+  });
+});
+
 test("init harness does not execute a skipped output script", async () => {
   await withTempDir(async (root) => {
     const outputPath = "./test-structor";
@@ -206,6 +251,34 @@ test("init harness does not execute a skipped output script", async () => {
     assert.match(result.stdout, /skipped existing .*generate-html-views\.mjs/);
     assert.match(result.stdout, /skipped HTML view generation/);
     await assert.rejects(readFile(markerPath, "utf8"));
+  });
+});
+
+test("init harness rejects forced symlinked consumer entrypoints", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const consumerRoot = path.join(root, "product-app");
+    const outsideRoot = path.join(root, "outside");
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
+    await mkdir(outsideRoot);
+    await writeFile(path.join(outsideRoot, "AGENTS.md"), "OUTSIDE");
+    await symlink(path.join(outsideRoot, "AGENTS.md"), path.join(consumerRoot, "AGENTS.md"));
+
+    const result = spawnSync(
+      process.execPath,
+      [
+        path.join(repoRoot, "scripts/init-harness.mjs"),
+        "--config",
+        configPath,
+        "--install-consumer-entrypoints",
+        "--force",
+      ],
+      { cwd: repoRoot, encoding: "utf8" },
+    );
+
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /Consumer entrypoint AGENTS\.md is unsafe: symlinked write targets/);
+    assert.equal(await readFile(path.join(outsideRoot, "AGENTS.md"), "utf8"), "OUTSIDE");
   });
 });
 
