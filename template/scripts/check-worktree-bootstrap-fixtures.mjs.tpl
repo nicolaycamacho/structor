@@ -8,8 +8,10 @@ import {
   classifyWorktreeBootstrap,
   models,
   parseWorktreeListPorcelain,
+  repairCommand,
   requiredPointerFiles,
   renderPointerFile,
+  shellQuote,
 } from "./lib/worktree-bootstrap.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -32,6 +34,8 @@ const tempConsumerRoot = "/tmp/{{PRIMARY_CONSUMER_NAME}}";
 const testCaseTemplateConsumer = "{{PRIMARY_CONSUMER_NAME}}";
 const invalidHarnessRoot = "Read ../{{HARNESS_REPO_NAME}}/AGENTS.md before editing.";
 const wrongHarnessRootPointer = `Read /other/{{HARNESS_REPO_NAME}}/AGENTS.md before editing.`;
+const unsafeHarnessRoot = "/workspace/{{HARNESS_REPO_NAME}} with spaces/'quotes';$(touch /tmp/unsafe)";
+const unsafeCheckoutPath = "/workspace/{{PRIMARY_CONSUMER_NAME}} with spaces/'quotes';$(touch /tmp/checkout)";
 const harnessFiles = new Set([
   ...(models.openai ? ["AGENTS.md"] : []),
   ...(models.anthropic ? ["CLAUDE.md"] : []),
@@ -115,8 +119,16 @@ assert.equal(mixedResult.state, stateMissing, "mixed_references");
 
 const pointerPattern = new RegExp(`{{HARNESS_REPO_NAME}}/${models.openai ? "AGENTS" : "CLAUDE"}\\.md`);
 const worktreePorcelainOutput = "worktree /repo/main\nHEAD abc\nbranch refs/heads/main\n\nworktree /repo/detached\nHEAD def\ndetached\n";
+const quotedPointer = renderPointerFile({
+  relativePath: requiredPointerFiles[0],
+  harnessRoot: unsafeHarnessRoot,
+  repoName: testCaseTemplateConsumer,
+});
+const quotedBootstrapScript = path.join(path.resolve(unsafeHarnessRoot), "scripts/bootstrap-codex-worktree.mjs");
 
 assert.match(renderPointerFile({ relativePath: requiredPointerFiles[0], harnessRoot, repoName: testCaseTemplateConsumer }), pointerPattern);
+assert.match(quotedPointer, new RegExp(`node ${shellQuote(quotedBootstrapScript).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")} ${shellQuote("<checkout-path>").replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`));
+assert.equal(repairCommand({ harnessRoot: unsafeHarnessRoot, targetPath: unsafeCheckoutPath }), `node ${shellQuote(path.join(unsafeHarnessRoot, "scripts/bootstrap-codex-worktree.mjs"))} ${shellQuote(unsafeCheckoutPath)}`);
 assert.equal(parseWorktreeListPorcelain(worktreePorcelainOutput).length, 2);
 
 console.log("Worktree bootstrap fixture check passed.");
