@@ -66,14 +66,31 @@ export function render(content, values) {
   });
 }
 
+function markdownText(value) {
+  const normalized = String(value).replace(/\s+/g, " ").trim();
+  const escaped = normalized.replace(/[\\`*_{}\[\]<>()#+!|>~]/g, "\\$&");
+  return escaped.replace(/^([-+]) /, "\\$1 ").replace(/^(\d+)([.)]) /, "$1\\$2 ");
+}
+
+function markdownCodeSpan(value) {
+  const text = String(value)
+    .replace(/\r/g, "\\r")
+    .replace(/\n/g, "\\n")
+    .replace(/\t/g, "\\t");
+  const longestBacktickRun = Math.max(0, ...Array.from(text.matchAll(/`+/g), (match) => match[0].length));
+  const delimiter = "`".repeat(longestBacktickRun + 1);
+  const padding = text.startsWith("`") || text.endsWith("`") || text.startsWith(" ") || text.endsWith(" ") ? " " : "";
+  return `${delimiter}${padding}${text}${padding}${delimiter}`;
+}
+
 function consumerList(consumers) {
-  return consumers.map((consumer) => `- ${consumer.name}: ${consumer.purpose}`).join("\n");
+  return consumers.map((consumer) => `- ${markdownCodeSpan(consumer.name)}: ${markdownText(consumer.purpose)}`).join("\n");
 }
 
 function validationList(validation) {
   const entries = Object.entries(validation ?? {});
   if (entries.length === 0) return "- No local validation commands documented yet.";
-  return entries.map(([name, command]) => `- ${name}: \`${command}\``).join("\n");
+  return entries.map(([name, command]) => `- ${markdownText(name)}: ${markdownCodeSpan(command)}`).join("\n");
 }
 
 function consumerNames(consumers) {
@@ -228,9 +245,9 @@ async function installConsumerEntrypoints(config, harnessRoot, options) {
 
     const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
     const values = {
-      PROJECT_NAME: config.project.name,
-      CONSUMER_NAME: consumer.name,
-      CONSUMER_PURPOSE: consumer.purpose,
+      PROJECT_NAME: markdownText(config.project.name),
+      CONSUMER_NAME: markdownText(consumer.name),
+      CONSUMER_PURPOSE: markdownText(consumer.purpose),
       CONSUMER_VALIDATION_LIST: validationList(consumer.validation),
       HARNESS_RELATIVE_PATH: harnessRelativePath,
     };
@@ -308,7 +325,7 @@ async function main() {
   }
   const support = clientSupport(config);
   const values = {
-    PROJECT_NAME: config.project.name,
+    PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
     PROJECT_SLUG: config.project.slug,
     HARNESS_REPO_NAME: config.project.harnessRepoName,
