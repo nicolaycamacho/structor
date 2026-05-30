@@ -8,6 +8,7 @@ import {
   assertConfirmedConsumerRepository,
   assertSafeConsumerPath,
   assertSafeOutputRoot,
+  assertSafeWriteTarget,
   canonicalPathForWrite,
   isSameOrInsidePath,
   pathContainsSegment,
@@ -168,6 +169,68 @@ test("canonicalPathForWrite resolves existing symlinks before missing leaf segme
     assert.equal(
       await canonicalPathForWrite(path.join(linkedParent, "generated")),
       path.join(await realpath(realTarget), "generated"),
+    );
+  });
+});
+
+test("assertSafeWriteTarget accepts non-symlink targets inside the root", async () => {
+  await withTempDir(async (root) => {
+    const writeRoot = path.join(root, "write-root");
+    await mkdir(writeRoot);
+
+    await assert.doesNotReject(() =>
+      assertSafeWriteTarget({
+        targetPath: path.join(writeRoot, "nested", "file.md"),
+        rootPath: writeRoot,
+        label: "Test write",
+      }),
+    );
+  });
+});
+
+test("assertSafeWriteTarget rejects targets outside the root", async () => {
+  await withTempDir(async (root) => {
+    const writeRoot = path.join(root, "write-root");
+    await mkdir(writeRoot);
+
+    await assert.rejects(
+      () =>
+        assertSafeWriteTarget({
+          targetPath: path.join(root, "outside.md"),
+          rootPath: writeRoot,
+          label: "Test write",
+        }),
+      /must stay inside/,
+    );
+  });
+});
+
+test("assertSafeWriteTarget rejects symlinked parent and leaf targets", async () => {
+  await withTempDir(async (root) => {
+    const writeRoot = path.join(root, "write-root");
+    const outsideRoot = path.join(root, "outside");
+    await mkdir(writeRoot);
+    await mkdir(outsideRoot);
+    await symlink(outsideRoot, path.join(writeRoot, "linked-parent"), "dir");
+    await symlink(path.join(outsideRoot, "leaf.md"), path.join(writeRoot, "leaf.md"));
+
+    await assert.rejects(
+      () =>
+        assertSafeWriteTarget({
+          targetPath: path.join(writeRoot, "linked-parent", "file.md"),
+          rootPath: writeRoot,
+          label: "Test write",
+        }),
+      /symlinked write targets/,
+    );
+    await assert.rejects(
+      () =>
+        assertSafeWriteTarget({
+          targetPath: path.join(writeRoot, "leaf.md"),
+          rootPath: writeRoot,
+          label: "Test write",
+        }),
+      /symlinked write targets/,
     );
   });
 });
