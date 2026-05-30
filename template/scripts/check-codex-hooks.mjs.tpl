@@ -4,7 +4,6 @@ import { readFile, readdir } from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { denyRules } from "./hooks/lib/codex-hooks-core.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -25,6 +24,83 @@ const expectedEvents = [
   eventPermissionRequest,
   eventPostToolUse,
   eventStop,
+];
+const expectedEventSet = new Set(expectedEvents);
+const syncFileMutationApis = [
+  "appendFileSync",
+  "chmodSync",
+  "chownSync",
+  "copyFileSync",
+  "cpSync",
+  "fchmodSync",
+  "fchownSync",
+  "fdatasyncSync",
+  "fsyncSync",
+  "ftruncateSync",
+  "futimesSync",
+  "lchmodSync",
+  "lchownSync",
+  "linkSync",
+  "lutimesSync",
+  "mkdirSync",
+  "mkdtempSync",
+  "renameSync",
+  "rmSync",
+  "rmdirSync",
+  "symlinkSync",
+  "truncateSync",
+  "unlinkSync",
+  "utimesSync",
+  "writeFileSync",
+  "writeSync",
+  "writevSync",
+];
+const asyncFileMutationApis = [
+  "appendFile",
+  "chmod",
+  "chown",
+  "copyFile",
+  "cp",
+  "fchmod",
+  "fchown",
+  "fdatasync",
+  "fsync",
+  "ftruncate",
+  "futimes",
+  "lchmod",
+  "lchown",
+  "link",
+  "lutimes",
+  "mkdir",
+  "mkdtemp",
+  "rename",
+  "rm",
+  "rmdir",
+  "symlink",
+  "truncate",
+  "unlink",
+  "utimes",
+  "writeFile",
+  "writev",
+];
+const writeOpenFlagPattern = String.raw`(?:a|a\+|as|as\+|ax|ax\+|r\+|rs\+|w|w\+|wx|wx\+)`;
+const syncFileMutationPattern = new RegExp(`\\b(?:${syncFileMutationApis.join("|")})\\b`);
+const asyncFileMutationPattern = new RegExp(`\\b(?:${asyncFileMutationApis.join("|")})\\s*\\(`);
+const hookScriptBanRules = [
+  { pattern: /node:child_process|from\s+["']child_process["']/i, label: "process supervision" },
+  { pattern: /\b(fetch|XMLHttpRequest)\s*\(/, label: "network call" },
+  { pattern: /from\s+["']node:fs\/promises["']|from\s+["']fs\/promises["']/i, label: "file-system write-capable import" },
+  { pattern: asyncFileMutationPattern, label: "file mutation" },
+  { pattern: syncFileMutationPattern, label: "synchronous file mutation" },
+  { pattern: /\bcreateWriteStream\b/, label: "write-capable stream" },
+  {
+    pattern: new RegExp(`\\b(?:open|openSync)\\s*\\([^;\\n]*,\\s*["']${writeOpenFlagPattern}["']`, "i"),
+    label: "write-capable file open",
+  },
+  {
+    pattern: /\b(?:open|openSync)\s*\([^;\n]*\b(?:O_WRONLY|O_RDWR|O_CREAT|O_TRUNC|O_APPEND)\b/i,
+    label: "write-capable file open",
+  },
 ];
 
 const fixtures = [
@@ -72,6 +148,71 @@ const fixtures = [
   },
 ];
 
+const invalidConfigFixtures = [
+  {
+    name: "extra-hook-command",
+    expectedMessage: "PreToolUse must configure exactly one hook command.",
+    mutate(config) {
+      config.hooks.PreToolUse[0].hooks.push({
+        type: "command",
+        command: "node scripts/hooks/extra-hook.mjs PreToolUse --json",
+      });
+    },
+  },
+  {
+    name: "extra-hook-entry",
+    expectedMessage: "Stop must configure exactly one hook entry.",
+    mutate(config) {
+      config.hooks.Stop.push({
+        matcher: "*",
+        timeoutMs: fixtureTimeoutMs,
+        hooks: [{ type: "command", command: "node scripts/hooks/codex-hook.mjs Stop --json" }],
+      });
+    },
+  },
+  {
+    name: "extra-hook-event",
+    expectedMessage: ".codex/hooks.json must not define unexpected CustomEvent hook entry.",
+    mutate(config) {
+      config.hooks.CustomEvent = [
+        {
+          matcher: "*",
+          timeoutMs: fixtureTimeoutMs,
+          hooks: [{ type: "command", command: "node scripts/hooks/codex-hook.mjs CustomEvent --json" }],
+        },
+      ];
+    },
+  },
+];
+
+const invalidHookScriptFixtures = [
+  {
+    name: "sync-mutation-import",
+    source: "import { writeFileSync } from 'node:fs';\n",
+    expectedLabel: "synchronous file mutation",
+  },
+  ...syncFileMutationApis.map((api) => ({
+    name: `sync-mutation-${api}`,
+    source: `fs.${api}('hook-target');\n`,
+    expectedLabel: "synchronous file mutation",
+  })),
+  {
+    name: "write-stream-call",
+    source: "createWriteStream('hook.log');\n",
+    expectedLabel: "write-capable stream",
+  },
+  {
+    name: "write-open-call",
+    source: "openSync('hook.log', 'w');\n",
+    expectedLabel: "write-capable file open",
+  },
+  {
+    name: "write-open-constant",
+    source: "openSync('hook.log', constants.O_WRONLY | constants.O_CREAT);\n",
+    expectedLabel: "write-capable file open",
+  },
+];
+
 async function readJson(relativePath) {
   return JSON.parse(await readFile(path.join(repoRoot, relativePath), "utf8"));
 }
@@ -86,22 +227,86 @@ function hookCommandFor(event) {
   return hookCommandForEvent(event);
 }
 
-async function checkConfig(errors) {
-  const config = await readJson(".codex/hooks.json");
+function expectedHookConfig() {
+  return {
+    version: 1,
+    hooks: Object.fromEntries(
+      expectedEvents.map((event) => [
+        event,
+        [
+          {
+            matcher: "*",
+            timeoutMs: fixtureTimeoutMs,
+            hooks: [{ type: "command", command: hookCommandFor(event) }],
+          },
+        ],
+      ]),
+    ),
+  };
+}
+
+function cloneJson(value) {
+  return JSON.parse(JSON.stringify(value));
+}
+
+function checkConfigObject(errors, config, label = ".codex/hooks.json") {
   if (config.version !== 1) errors.push(".codex/hooks.json must set version: 1.");
+  if (!config.hooks || typeof config.hooks !== "object" || Array.isArray(config.hooks)) {
+    errors.push(`${label} must define hooks object.`);
+    return;
+  }
+  for (const event of Object.keys(config.hooks)) {
+    if (!expectedEventSet.has(event)) {
+      errors.push(`${label} must not define unexpected ${event} hook entry.`);
+    }
+  }
   for (const event of expectedEvents) {
     const entries = config.hooks?.[event];
     if (!Array.isArray(entries) || entries.length === 0) {
       errors.push(`.codex/hooks.json missing ${event} hook entry.`);
       continue;
     }
-    const commands = entries.flatMap((entry) => (entry.hooks ?? []).map((hook) => hook.command));
-    const expectedCommand = hookCommandFor(event);
-    if (!commands.includes(expectedCommand)) {
-      errors.push(`${event} must reference committed command '${expectedCommand}'.`);
-    }
     for (const entry of entries) {
       checkTimeoutLimit(errors, event, entry.timeoutMs);
+    }
+    if (entries.length !== 1) {
+      errors.push(`${event} must configure exactly one hook entry.`);
+      continue;
+    }
+    const [entry] = entries;
+    const hooks = entry.hooks;
+    if (!Array.isArray(hooks) || hooks.length !== 1) {
+      errors.push(`${event} must configure exactly one hook command.`);
+      continue;
+    }
+    const [hook] = hooks;
+    const expectedCommand = hookCommandFor(event);
+    if (hook.type !== "command" || hook.command !== expectedCommand) {
+      errors.push(`${event} must reference committed command '${expectedCommand}'.`);
+    }
+  }
+}
+
+async function checkConfig(errors) {
+  checkConfigObject(errors, await readJson(".codex/hooks.json"));
+}
+
+function checkConfigFixtures(errors) {
+  for (const fixture of invalidConfigFixtures) {
+    const config = cloneJson(expectedHookConfig());
+    fixture.mutate(config);
+    const fixtureErrors = [];
+    checkConfigObject(fixtureErrors, config);
+    if (!fixtureErrors.some((error) => error.includes(fixture.expectedMessage))) {
+      errors.push(`${fixture.name}: missing expected config validation error '${fixture.expectedMessage}'.`);
+    }
+  }
+}
+
+function checkHookScriptSource(errors, relativePath, source) {
+  for (const banned of hookScriptBanRules) {
+    if (banned.pattern.test(source)) {
+      errors.push(`${relativePath} contains ${banned.label} token. Hook scripts must stay deterministic and local.`);
     }
   }
 }
@@ -111,23 +316,23 @@ async function checkHookScripts(errors) {
   const files = (await readdir(hooksDir, { recursive: true }))
     .filter((file) => file.endsWith(".mjs"))
     .map((file) => `scripts/hooks/${file}`);
-  const bannedPatterns = [
-    { pattern: /node:child_process|from\s+["']child_process["']/i, label: "process supervision" },
-    { pattern: /\b(fetch|XMLHttpRequest)\s*\(/, label: "network call" },
-    { pattern: /from\s+["']node:fs\/promises["']|from\s+["']fs\/promises["']/i, label: "file-system write-capable import" },
-    { pattern: /\b(writeFile|appendFile|mkdir|rm|unlink|rmdir)\s*\(/, label: "file mutation" },
-  ];
   for (const relativePath of files) {
     const source = await readFile(path.join(repoRoot, relativePath), "utf8");
-    for (const banned of bannedPatterns) {
-      if (banned.pattern.test(source)) {
-        errors.push(`${relativePath} contains ${banned.label} token. Hook scripts must stay deterministic and local.`);
-      }
+    checkHookScriptSource(errors, relativePath, source);
+  }
+}
+
+function checkHookScriptFixtures(errors) {
+  for (const fixture of invalidHookScriptFixtures) {
+    const fixtureErrors = [];
+    checkHookScriptSource(fixtureErrors, `fixture/${fixture.name}.mjs`, fixture.source);
+    if (!fixtureErrors.some((error) => error.includes(fixture.expectedLabel))) {
+      errors.push(`${fixture.name}: missing expected hook script validation error '${fixture.expectedLabel}'.`);
     }
   }
 }
 
-function checkDenyRules(errors) {
+function checkDenyRules(errors, denyRules) {
   for (const rule of denyRules) {
     for (const field of ["id", "prevents", "remediation", "falsePositiveNote"]) {
       if (!rule[field]) errors.push(`deny rule missing ${field}.`);
@@ -176,9 +381,18 @@ function checkFixtures(errors) {
 
 const errors = [];
 await checkConfig(errors);
+checkConfigFixtures(errors);
 await checkHookScripts(errors);
-checkDenyRules(errors);
-checkFixtures(errors);
+checkHookScriptFixtures(errors);
+
+if (errors.length === 0) {
+  const { denyRules } = await import("./hooks/lib/codex-hooks-core.mjs");
+  checkDenyRules(errors, denyRules);
+}
+
+if (errors.length === 0) {
+  checkFixtures(errors);
+}
 
 if (errors.length > 0) {
   console.error("Codex hook check failed.");
