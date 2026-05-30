@@ -2,6 +2,7 @@
 
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
@@ -98,6 +99,10 @@ function javascriptLiteral(value) {
   return JSON.stringify(value);
 }
 
+function sha256(content) {
+  return createHash("sha256").update(content).digest("hex");
+}
+
 function clientSupport(config) {
   return {
     codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
@@ -153,6 +158,23 @@ async function collectTemplateFiles() {
 
   await walk(basePath);
   return files.sort();
+}
+
+async function generatedScriptHashes(templateFiles, config, values) {
+  const hashes = {};
+
+  for (const sourceRelative of templateFiles) {
+    if (!sourceRelative.startsWith("scripts/")) continue;
+    if (!sourceRelative.endsWith(".mjs.tpl")) continue;
+    if (sourceRelative === "scripts/validate-governance.mjs.tpl") continue;
+    if (!shouldRenderTemplate(sourceRelative, config)) continue;
+
+    const sourcePath = path.join(repoRoot, "template", sourceRelative);
+    const targetRelative = sourceRelative.replace(/\.tpl$/, "");
+    hashes[targetRelative] = sha256(render(await readFile(sourcePath, "utf8"), values));
+  }
+
+  return JSON.stringify(hashes, null, 2);
 }
 
 export async function writeRenderedFile(sourceRelative, targetRoot, values, options, templateRoot = path.join(repoRoot, "template")) {
@@ -291,8 +313,11 @@ async function main() {
     CLIENT_CLAUDE_SKILLS_ENABLED: booleanLiteral(support.claudeSkills),
   };
 
+  const templateFiles = await collectTemplateFiles();
+  values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, config, values);
+
   let renderedHtmlViewsScript = false;
-  for (const sourceRelative of await collectTemplateFiles()) {
+  for (const sourceRelative of templateFiles) {
     if (!shouldRenderTemplate(sourceRelative, config)) continue;
     const result = await writeRenderedFile(sourceRelative, outputRoot, values, options);
     if (sourceRelative === scriptHtmlViewsPath && result.rendered) {
