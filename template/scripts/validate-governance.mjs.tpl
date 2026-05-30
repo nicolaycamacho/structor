@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 
-import { access, constants as fsConstants } from "node:fs/promises";
+import { access, constants as fsConstants, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -33,6 +34,16 @@ const optionalChecks = [
 const checkCodexHooksScript = "scripts/check-codex-hooks.mjs";
 const checkClaudeCompatibilityScript = "scripts/check-claude-compatibility.mjs";
 const checkOverlayDriftScript = "scripts/check-overlay-drift.mjs";
+const checkDependencies = {
+  "scripts/check-html-views.mjs": ["scripts/generate-html-views.mjs"],
+  "scripts/check-worktree-bootstrap-fixtures.mjs": ["scripts/lib/worktree-bootstrap.mjs"],
+  [checkCodexHooksScript]: ["scripts/hooks/codex-hook.mjs", "scripts/hooks/lib/codex-hooks-core.mjs"],
+};
+const generatedScriptHashes = {{GENERATED_SCRIPT_HASHES_JSON}};
+
+function sha256(content) {
+  return createHash("sha256").update(content).digest("hex");
+}
 
 async function exists(relativePath) {
   try {
@@ -43,7 +54,43 @@ async function exists(relativePath) {
   }
 }
 
+async function assertTrustedCheck(relativePath) {
+  const expectedHash = generatedScriptHashes[relativePath];
+  if (!expectedHash) {
+    throw new Error(
+      `Refusing to execute ${relativePath}: no trusted generated hash is recorded. ` +
+        "Inspect the file and regenerate with --force after review if it should be replaced.",
+    );
+  }
+
+  let content;
+  try {
+    content = await readFile(path.join(repoRoot, relativePath));
+  } catch (error) {
+    if (error?.code === "ENOENT") {
+      throw new Error(
+        `Refusing to execute ${relativePath}: the expected generated script is missing. ` +
+          "Regenerate the harness after reviewing the output directory.",
+      );
+    }
+    throw error;
+  }
+
+  const actualHash = sha256(content);
+  if (actualHash !== expectedHash) {
+    throw new Error(
+      `Refusing to execute ${relativePath}: content does not match the current generated template. ` +
+        "Inspect the preserved file and regenerate with --force after review if it should be replaced.",
+    );
+  }
+}
+
 async function runCheck(relativePath) {
+  await assertTrustedCheck(relativePath);
+  for (const dependency of checkDependencies[relativePath] ?? []) {
+    await assertTrustedCheck(dependency);
+  }
+
   execFileSync(process.execPath, [path.join(repoRoot, relativePath)], {
     cwd: repoRoot,
     stdio: "inherit",
