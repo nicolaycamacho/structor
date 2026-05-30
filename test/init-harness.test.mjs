@@ -72,6 +72,13 @@ function runInitHarness(configPath) {
   });
 }
 
+function runValidateGovernance(harnessRoot) {
+  return spawnSync(process.execPath, ["scripts/validate-governance.mjs"], {
+    cwd: harnessRoot,
+    encoding: "utf8",
+  });
+}
+
 function assertSuccess(result, label) {
   assert.equal(result.status, 0, `${label}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
 }
@@ -250,6 +257,84 @@ test("init harness does not execute a skipped output script", async () => {
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(result.stdout, /skipped existing .*generate-html-views\.mjs/);
     assert.match(result.stdout, /skipped HTML view generation/);
+    await assert.rejects(readFile(markerPath, "utf8"));
+  });
+});
+
+test("validate governance refuses to execute skipped mandatory check scripts", async () => {
+  await withTempDir(async (root) => {
+    const outputPath = "./test-structor";
+    const configPath = await writeMinimalConfig(root, outputPath);
+    const outputRoot = path.join(root, "test-structor");
+    const scriptPath = path.join(outputRoot, "scripts", "check-readiness.mjs");
+    const markerPath = path.join(outputRoot, "mandatory-executed.txt");
+
+    await mkdir(path.dirname(scriptPath), { recursive: true });
+    await writeFile(
+      scriptPath,
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(new URL('../mandatory-executed.txt', import.meta.url), 'ran');\n",
+    );
+
+    const result = runInitHarness(configPath);
+    assertSuccess(result, "generator should preserve existing mandatory check script");
+    assert.match(result.stdout, /skipped existing .*check-readiness\.mjs/);
+
+    const validate = runValidateGovernance(outputRoot);
+    assert.notEqual(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+    assert.match(`${validate.stdout}\n${validate.stderr}`, /Refusing to execute scripts\/check-readiness\.mjs/);
+    assert.match(`${validate.stdout}\n${validate.stderr}`, /regenerate with --force after review/);
+    await assert.rejects(readFile(markerPath, "utf8"));
+  });
+});
+
+test("validate governance refuses to execute skipped check dependencies", async () => {
+  await withTempDir(async (root) => {
+    const outputPath = "./test-structor";
+    const configPath = await writeMinimalConfig(root, outputPath);
+    const outputRoot = path.join(root, "test-structor");
+    const scriptPath = path.join(outputRoot, "scripts", "generate-html-views.mjs");
+    const markerPath = path.join(outputRoot, "html-generator-executed.txt");
+
+    await mkdir(path.dirname(scriptPath), { recursive: true });
+    await writeFile(
+      scriptPath,
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(new URL('../html-generator-executed.txt', import.meta.url), 'ran');\n",
+    );
+
+    const result = runInitHarness(configPath);
+    assertSuccess(result, "generator should preserve existing check dependency script");
+    assert.match(result.stdout, /skipped existing .*generate-html-views\.mjs/);
+
+    await mkdir(path.join(outputRoot, "ai", "views"), { recursive: true });
+    await writeFile(path.join(outputRoot, "ai", "views", "index.html"), "<!doctype html>\n");
+
+    const validate = runValidateGovernance(outputRoot);
+    assert.notEqual(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+    assert.match(`${validate.stdout}\n${validate.stderr}`, /Refusing to execute scripts\/generate-html-views\.mjs/);
+    await assert.rejects(readFile(markerPath, "utf8"));
+  });
+});
+
+test("validate governance refuses to execute untrusted optional check scripts", async () => {
+  await withTempDir(async (root) => {
+    const outputPath = "./test-structor";
+    const configPath = await writeMinimalConfig(root, outputPath);
+    const outputRoot = path.join(root, "test-structor");
+    const scriptPath = path.join(outputRoot, "scripts", "check-repo-name-consistency.mjs");
+    const markerPath = path.join(outputRoot, "optional-executed.txt");
+
+    await mkdir(path.dirname(scriptPath), { recursive: true });
+    await writeFile(
+      scriptPath,
+      "import { writeFileSync } from 'node:fs';\nwriteFileSync(new URL('../optional-executed.txt', import.meta.url), 'ran');\n",
+    );
+
+    assertSuccess(runInitHarness(configPath), "generator should create harness with preserved optional check script");
+
+    const validate = runValidateGovernance(outputRoot);
+    assert.notEqual(validate.status, 0, `${validate.stdout}\n${validate.stderr}`);
+    assert.match(`${validate.stdout}\n${validate.stderr}`, /Refusing to execute scripts\/check-repo-name-consistency\.mjs/);
+    assert.match(`${validate.stdout}\n${validate.stderr}`, /no trusted generated hash is recorded/);
     await assert.rejects(readFile(markerPath, "utf8"));
   });
 });
