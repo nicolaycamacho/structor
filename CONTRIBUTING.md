@@ -16,17 +16,30 @@ before writing code.
 
 ## Contributor Paths
 
-The recommended path for contributing to Structor should become:
+The recommended path for contributing to Structor is:
 
 ```sh
 npx @structor-dev/cli contribute structor
 ```
 
-That future contributor bootstrap creates or refreshes a contributor workspace:
-the Structor source repository plus a sibling Structor self-harness. It may
-clone local repositories for the workspace, but it must not fork repositories,
-push branches, open pull requests, mutate GitHub or other external services, run
-agents, or become a runner in v1.
+Run it from the folder you want to use as a contributor workspace. It creates or
+reuses:
+
+```text
+workspace/
+  structor/
+  structor-self/
+```
+
+The source repo stays in `workspace/structor`. The sibling `structor-self`
+harness is the repo-specific guidance layer agents should read before editing
+Structor itself. The command may clone Structor as a network-read-only source
+checkout, but it does not create forks, push branches, open pull requests, edit
+issues, require GitHub authentication, mutate external services, run agents, or
+become a runner.
+
+After the local workspace is ready, use normal GitHub workflows for forks,
+branches, pushes, and PRs.
 
 The manual contributor setup path remains available for contributors who prefer
 the conventional clone-first workflow:
@@ -34,8 +47,12 @@ the conventional clone-first workflow:
 ```sh
 git clone https://github.com/nicolaycamacho/structor.git
 cd structor
+npm install
 npm run setup:contributor
 ```
+
+See `docs/CONTRIBUTOR-SETUP.md` for command options, validation, and
+troubleshooting.
 
 ## Local Development
 

@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, realpath, readdir, readFile, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { fileURLToPath } from "node:url";
 import { assertSafeConsumerPath } from "../scripts/lib.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -771,7 +771,18 @@ async function main() {
   throw new Error(`Unknown command: ${command}`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+async function isDirectCliInvocation() {
+  if (!process.argv[1]) return false;
+  const modulePath = fileURLToPath(import.meta.url);
+  const invokedPath = path.resolve(process.argv[1]);
+  const [resolvedModulePath, resolvedInvokedPath] = await Promise.all([
+    realpath(modulePath).catch(() => modulePath),
+    realpath(invokedPath).catch(() => invokedPath),
+  ]);
+  return resolvedModulePath === resolvedInvokedPath;
+}
+
+if (await isDirectCliInvocation()) {
   main().catch((error) => {
     fail(error instanceof Error ? error.message : String(error));
     process.exit(1);
