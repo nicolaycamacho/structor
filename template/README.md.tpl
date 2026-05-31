@@ -55,6 +55,11 @@ Validate the harness:
 node scripts/validate-governance.mjs
 ```
 
+Generated artifact, entrypoint, and check participation lives in
+`scripts/generated-harness-contract.mjs`. The validator uses that contract to
+resolve required files, trusted check dependencies, and enabled client-support
+surfaces.
+
 `validate-governance.mjs` also runs client-support checks when the matching
 surfaces are enabled:
 

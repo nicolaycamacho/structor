@@ -13,6 +13,10 @@ import {
   shouldRenderTemplate,
   writeRenderedFile,
 } from "../scripts/init-harness.mjs";
+import {
+  generatedHarnessContractScript,
+  validationPlanForSettings,
+} from "../scripts/generated-harness-contract.mjs";
 
 async function withTempDir(run) {
   const dir = await mkdtemp(path.join(tmpdir(), "structor-test-"));
@@ -136,6 +140,40 @@ test("shouldRenderTemplate gates anthropic-only surfaces", () => {
   assert.equal(shouldRenderTemplate(".claude/CLAUDE.md.tpl", codexOnly), false);
   assert.equal(shouldRenderTemplate("AGENTS.md.tpl", codexOnly), true);
   assert.equal(shouldRenderTemplate("consumer/AGENTS.md.tpl", codexOnly), false);
+});
+
+test("shouldRenderTemplate gates client support surfaces through the generated harness contract", () => {
+  const codexWithoutHooks = {
+    models: { openai: true, anthropic: false },
+    clientSupport: { codex: { hooks: false } },
+  };
+  const codexWithHooks = {
+    models: { openai: true, anthropic: false },
+    clientSupport: { codex: { hooks: true } },
+  };
+
+  assert.equal(shouldRenderTemplate("scripts/check-codex-hooks.mjs.tpl", codexWithoutHooks), false);
+  assert.equal(shouldRenderTemplate("scripts/check-codex-hooks.mjs.tpl", codexWithHooks), true);
+  assert.equal(shouldRenderTemplate("scripts/hooks/lib/codex-hooks-core.mjs.tpl", codexWithHooks), true);
+});
+
+test("validation contract declares trusted generated check dependencies", () => {
+  const plan = validationPlanForSettings({
+    models: { openai: true, anthropic: true },
+    clientSupport: {
+      codexHooks: true,
+      claudeRules: true,
+      claudeHooks: false,
+      claudeSkills: false,
+    },
+  });
+
+  assert.deepEqual(plan.checkDependencies["scripts/check-codex-hooks.mjs"], [
+    "scripts/hooks/codex-hook.mjs",
+    "scripts/hooks/lib/codex-hooks-core.mjs",
+  ]);
+  assert.ok(plan.checkDependencies["scripts/check-template-governance.mjs"].includes(generatedHarnessContractScript));
+  assert.ok(plan.conditionalChecks.includes("scripts/check-codex-hooks.mjs"));
 });
 
 test("writeRenderedFile dry-run writes nothing", async () => {

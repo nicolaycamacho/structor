@@ -4,20 +4,21 @@ import { readFile, readdir, access } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { requiredClaudeCompatibilityFiles } from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const claudeRulesEnabled = {{CLIENT_CLAUDE_RULES_ENABLED}};
 const claudeHooksEnabled = {{CLIENT_CLAUDE_HOOKS_ENABLED}};
 const claudeSkillsEnabled = {{CLIENT_CLAUDE_SKILLS_ENABLED}};
-
-const requiredFiles = [
-  "CLAUDE.md",
-  ".claude/CLAUDE.md",
-  ".claude/settings.json",
-  "ai/model-overlays/anthropic/CLAUDE.md",
-];
-
-if (claudeRulesEnabled) requiredFiles.push(".claude/rules/harness-client-surfaces.md");
+const settings = {
+  models: { openai: false, anthropic: true },
+  clientSupport: {
+    claudeRules: claudeRulesEnabled,
+    claudeHooks: claudeHooksEnabled,
+    claudeSkills: claudeSkillsEnabled,
+  },
+};
+const requiredFiles = requiredClaudeCompatibilityFiles(settings);
 
 async function exists(relativePath) {
   try {

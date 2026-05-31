@@ -5,6 +5,12 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { assertReferencesHarnessRoot } from "./lib/worktree-bootstrap.mjs";
+import {
+  consumerEntrypointsForSettings,
+  requiredHarnessRepoFilesForWorkspaceCheck,
+  requiredWorkspaceFilesForWorkspaceCheck,
+  workspaceEntrypointsForSettings,
+} from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(repoRoot, "..");
@@ -18,95 +24,15 @@ const clientSupport = {
   codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
   claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
 };
+const settings = { models, clientSupport };
 const harnessRepoNameError = "repo folder name: expected";
 const missingEntryPrefix = "missing ";
-const repoBaseFiles = [
-  "README.md",
-  "ai/AGENTS.md",
-  "ai/HUB.md",
-  "ai/context.md",
-  "ai/HARNESS.md",
-  "ai/HARNESS-ENGINEERING.md",
-  "ai/READINESS.md",
-  "ai/QUALITY.md",
-  "ai/DECISIONS.md",
-  "ai/PRODUCT-SUMMARY.md",
-  "ai/PRODUCT.md",
-  "ai/ARCHITECTURE.md",
-  "ai/DESIGN.md",
-  "ai/WORKFLOW.md",
-  "ai/VERSIONING.md",
-  "ai/CODEX-HOOKS.md",
-  "ai/RUNNER-SAFETY.md",
-  "ai/RUNNER-READINESS.md",
-  "ai/AGENT-GARBAGE-COLLECTION.md",
-  "ai/knowledge-manifest.json",
-  "ai/workspace/REPOS.md",
-  "ai/workspace/SYSTEM-MAP.md",
-  "ai/workspace/SESSION-BOOTSTRAP.md",
-  "ai/workspace/LOCAL-STACK.md",
-  "ai/workspace/TEST-STRATEGY.md",
-  "ai/contracts/README.md",
-  "ai/templates/README.md",
-  "ai/skills/README.md",
-  "ai/specs/README.md",
-  "scripts/bootstrap-workspace.mjs",
-  "scripts/check-workspace.mjs",
-  "scripts/validate-governance.mjs",
-  "scripts/check-readiness.mjs",
-  "scripts/check-task-template.mjs",
-  "scripts/check-issue-template.mjs",
-  "scripts/check-knowledge-manifest.mjs",
-  "scripts/check-plans.mjs",
-  "scripts/check-review-skills.mjs",
-  "scripts/check-garbage-collection.mjs",
-  "scripts/check-contract-manifests.mjs",
-  "scripts/generate-html-views.mjs",
-  "scripts/check-html-views.mjs",
-  "scripts/lib/path-safety.mjs",
-  "scripts/bootstrap-codex-worktree.mjs",
-  "scripts/check-worktrees.mjs",
-  "scripts/check-worktree-bootstrap-fixtures.mjs",
-  "scripts/lib/worktree-bootstrap.mjs",
-];
-const openaiRepoFiles = ["AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "scripts/check-overlay-drift.mjs"];
-const anthopicRepoFiles = [
-  "CLAUDE.md",
-  ".claude/CLAUDE.md",
-  ".claude/settings.json",
-  "ai/model-overlays/anthropic/CLAUDE.md",
-  "scripts/check-claude-compatibility.mjs",
-  "scripts/check-overlay-drift.mjs",
-];
-const codexRepoFiles = [".codex/hooks.json", "scripts/check-codex-hooks.mjs", "scripts/hooks/codex-hook.mjs"];
-const claudeRulesRepoFiles = [".claude/rules/harness-client-surfaces.md"];
-const workspaceOpenaiFiles = ["AGENTS.md"];
-const workspaceAnthropicFiles = ["CLAUDE.md", ".claude/CLAUDE.md", ".claude/settings.json"];
-const workspaceClaudeRulesFiles = [".claude/rules/harness-client-surfaces.md"];
-const CLAUDE_MD = "CLAUDE.md";
-
-const repoRequiredFiles = [...repoBaseFiles];
-
-if (models.openai) {
-  repoRequiredFiles.push(...openaiRepoFiles);
-}
-
-if (models.anthropic) {
-  repoRequiredFiles.push(...anthopicRepoFiles);
-}
-
-if (clientSupport.codexHooks) {
-  repoRequiredFiles.push(...codexRepoFiles);
-}
-
-if (clientSupport.claudeRules) {
-  repoRequiredFiles.push(...claudeRulesRepoFiles);
-}
-
-const workspaceRequiredFiles = [];
-if (models.openai) workspaceRequiredFiles.push(...workspaceOpenaiFiles);
-if (models.anthropic) workspaceRequiredFiles.push(...workspaceAnthropicFiles);
-if (clientSupport.claudeRules) workspaceRequiredFiles.push(...workspaceClaudeRulesFiles);
+const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);
+const workspaceRequiredFiles = requiredWorkspaceFilesForWorkspaceCheck(settings);
+const workspaceRoutingEntrypoints = workspaceEntrypointsForSettings(settings).filter(
+  (entrypoint) => entrypoint.routing !== "presence",
+);
+const consumerRoutingEntrypoints = consumerEntrypointsForSettings(settings);
 
 async function exists(filePath) {
   try {
@@ -162,6 +88,13 @@ async function collectClaudeMemoryRoutingIssue({ basePath, relativePath }) {
   });
 }
 
+async function collectEntrypointRoutingIssue({ basePath, entrypoint, expectedHarnessRoot }) {
+  if (entrypoint.routing === "claude-memory") {
+    return collectClaudeMemoryRoutingIssue({ basePath, relativePath: entrypoint.path });
+  }
+  return collectHarnessRoutingIssue({ basePath, relativePath: entrypoint.path, expectedHarnessRoot });
+}
+
 async function main() {
   const missing = [];
   if (path.basename(repoRoot) !== harnessRepoName) {
@@ -171,31 +104,20 @@ async function main() {
   missing.push(...(await collectMissing(repoRoot, repoRequiredFiles, "repo")));
   missing.push(...(await collectMissing(workspaceRoot, workspaceRequiredFiles, "workspace")));
 
+  for (const entrypoint of workspaceRoutingEntrypoints) {
+    const issue = await collectEntrypointRoutingIssue({ basePath: workspaceRoot, entrypoint, expectedHarnessRoot: repoRoot });
+    if (issue) missing.push(`workspace:${issue}`);
+  }
+
   for (const consumer of consumers) {
     const consumerRoot = path.resolve(workspaceRoot, consumer.workspacePath);
     if (!(await exists(consumerRoot))) {
       missing.push(`consumer:${consumer.name}:missing repo at ${consumerRoot}`);
       continue;
     }
-    if (models.openai) {
-      const issue = await collectHarnessRoutingIssue({ basePath: workspaceRoot, relativePath: "AGENTS.md", expectedHarnessRoot: repoRoot });
-      if (issue) missing.push(`workspace:${issue}`);
-    }
-    if (models.anthropic) {
-      const issue = await collectHarnessRoutingIssue({ basePath: workspaceRoot, relativePath: CLAUDE_MD, expectedHarnessRoot: repoRoot });
-      if (issue) missing.push(`workspace:${issue}`);
-      const memoryIssue = await collectClaudeMemoryRoutingIssue({ basePath: workspaceRoot, relativePath: ".claude/CLAUDE.md" });
-      if (memoryIssue) missing.push(`workspace:${memoryIssue}`);
-    }
-    if (models.openai) {
-      const issue = await collectHarnessRoutingIssue({ basePath: consumerRoot, relativePath: "AGENTS.md", expectedHarnessRoot: repoRoot });
+    for (const entrypoint of consumerRoutingEntrypoints) {
+      const issue = await collectEntrypointRoutingIssue({ basePath: consumerRoot, entrypoint, expectedHarnessRoot: repoRoot });
       if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
-    }
-    if (models.anthropic) {
-      const issue = await collectHarnessRoutingIssue({ basePath: consumerRoot, relativePath: CLAUDE_MD, expectedHarnessRoot: repoRoot });
-      if (issue) missing.push(`consumer:${consumer.name}:${issue}`);
-      const memoryIssue = await collectClaudeMemoryRoutingIssue({ basePath: consumerRoot, relativePath: ".claude/CLAUDE.md" });
-      if (memoryIssue) missing.push(`consumer:${consumer.name}:${memoryIssue}`);
     }
   }
 
