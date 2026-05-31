@@ -4,6 +4,7 @@ import { spawnSync } from "node:child_process";
 import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { pathToFileURL } from "node:url";
 
 import { repoRoot } from "../scripts/lib.mjs";
 import {
@@ -54,8 +55,8 @@ async function writeMinimalConfig(root, outputPath, overrides = {}) {
       harnessRepoName: "test-structor",
     },
     output: { path: outputPath },
-    models: { openai: true, anthropic: false },
-    clientSupport: { codex: { hooks: false } },
+    models: overrides.models ?? { openai: true, anthropic: false },
+    clientSupport: overrides.clientSupport ?? { codex: { hooks: false } },
     consumers: [
       {
         name: "product-app",
@@ -79,6 +80,13 @@ function runInitHarness(configPath, extraArgs = []) {
 
 function runValidateGovernance(harnessRoot) {
   return spawnSync(process.execPath, ["scripts/validate-governance.mjs"], {
+    cwd: harnessRoot,
+    encoding: "utf8",
+  });
+}
+
+function runWorkspaceBootstrap(harnessRoot, extraArgs = []) {
+  return spawnSync(process.execPath, [path.join(harnessRoot, "scripts/bootstrap-workspace.mjs"), ...extraArgs], {
     cwd: harnessRoot,
     encoding: "utf8",
   });
@@ -406,6 +414,117 @@ test("init harness rejects forced symlinked consumer entrypoints", async () => {
   });
 });
 
+test("generated write scripts share the generated path-safety module", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+
+    assertSuccess(runInitHarness(configPath), "generator should create harness with shared path safety");
+
+    const pathSafety = await readFile(path.join(outputRoot, "scripts/lib/path-safety.mjs"), "utf8");
+    const workspaceBootstrap = await readFile(path.join(outputRoot, "scripts/bootstrap-workspace.mjs"), "utf8");
+    const worktreeBootstrap = await readFile(path.join(outputRoot, "scripts/lib/worktree-bootstrap.mjs"), "utf8");
+
+    assert.match(pathSafety, /export async function assertSafeWriteTarget/);
+    assert.match(workspaceBootstrap, /from "\.\/lib\/path-safety\.mjs"/);
+    assert.match(worktreeBootstrap, /from "\.\/path-safety\.mjs"/);
+    assert.doesNotMatch(workspaceBootstrap, /function isSameOrInsidePath|function canonicalPathForWrite/);
+    assert.doesNotMatch(worktreeBootstrap, /function isSameOrInsidePath|function canonicalPathForWrite/);
+  });
+});
+
+test("generated workspace bootstrap rejects symlinked leaf targets", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+    const outsideRoot = path.join(root, "outside");
+    await mkdir(outsideRoot);
+    await writeFile(path.join(outsideRoot, "AGENTS.md"), "OUTSIDE");
+
+    assertSuccess(runInitHarness(configPath), "generator should create workspace bootstrap script");
+    await symlink(path.join(outsideRoot, "AGENTS.md"), path.join(root, "AGENTS.md"));
+
+    const result = runWorkspaceBootstrap(outputRoot, ["--force"]);
+
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /Workspace bootstrap target AGENTS\.md is unsafe: symlinked write targets/);
+    assert.equal(await readFile(path.join(outsideRoot, "AGENTS.md"), "utf8"), "OUTSIDE");
+  });
+});
+
+test("generated workspace bootstrap rejects symlinked parent targets", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", {
+      models: { openai: true, anthropic: true },
+      clientSupport: { codex: { hooks: false }, claude: { rules: false } },
+    });
+    const outputRoot = path.join(root, "test-structor");
+    const outsideRoot = path.join(root, "outside");
+    await mkdir(outsideRoot);
+
+    assertSuccess(runInitHarness(configPath), "generator should create workspace bootstrap script");
+    await symlink(outsideRoot, path.join(root, ".claude"), "dir");
+
+    const result = runWorkspaceBootstrap(outputRoot, ["--force"]);
+
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(result.stderr, /Workspace bootstrap target \.claude\/CLAUDE\.md is unsafe: symlinked write targets/);
+    await assert.rejects(readFile(path.join(outsideRoot, "CLAUDE.md"), "utf8"));
+  });
+});
+
+test("generated worktree repair rejects symlinked parent and leaf targets", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+    const consumerRoot = path.join(root, "product-app");
+    const outsideRoot = path.join(root, "outside");
+    const outsideParentRoot = path.join(root, "outside-parent");
+
+    assertSuccess(runInitHarness(configPath), "generator should create worktree bootstrap library");
+    const { writeRepairPlan } = await import(pathToFileURL(path.join(outputRoot, "scripts/lib/worktree-bootstrap.mjs")).href);
+
+    await mkdir(outsideRoot);
+    await writeFile(path.join(outsideRoot, "AGENTS.md"), "OUTSIDE");
+    await symlink(path.join(outsideRoot, "AGENTS.md"), path.join(consumerRoot, "AGENTS.md"));
+
+    await assert.rejects(
+      () =>
+        writeRepairPlan({
+          writes: [
+            {
+              relativePath: "AGENTS.md",
+              rootPath: consumerRoot,
+              targetPath: path.join(consumerRoot, "AGENTS.md"),
+              content: "NEW",
+            },
+          ],
+        }),
+      /Worktree pointer AGENTS\.md is unsafe: symlinked write targets/,
+    );
+    assert.equal(await readFile(path.join(outsideRoot, "AGENTS.md"), "utf8"), "OUTSIDE");
+
+    await mkdir(outsideParentRoot);
+    await symlink(outsideParentRoot, path.join(consumerRoot, "linked-parent"), "dir");
+
+    await assert.rejects(
+      () =>
+        writeRepairPlan({
+          writes: [
+            {
+              relativePath: "linked-parent/AGENTS.md",
+              rootPath: consumerRoot,
+              targetPath: path.join(consumerRoot, "linked-parent", "AGENTS.md"),
+              content: "NEW",
+            },
+          ],
+        }),
+      /Worktree pointer linked-parent\/AGENTS\.md is unsafe: symlinked write targets/,
+    );
+    await assert.rejects(readFile(path.join(outsideParentRoot, "AGENTS.md"), "utf8"));
+  });
+});
+
 test("init harness treats project name as data in executable JavaScript templates", async () => {
   await withTempDir(async (root) => {
     const projectName = 'Unsafe ${(() => { throw new Error("project name executed"); })()}';
@@ -431,6 +550,7 @@ test("init harness keeps generated JavaScript valid for project names with synta
     assertSuccess(runInitHarness(configPath), "generator should handle JavaScript metacharacters in project.name");
 
     assertSyntaxChecks(path.join(outputRoot, "scripts/generate-html-views.mjs"));
+    assertSyntaxChecks(path.join(outputRoot, "scripts/lib/path-safety.mjs"));
     assertSyntaxChecks(path.join(outputRoot, "scripts/lib/worktree-bootstrap.mjs"));
 
     const indexHtml = await readFile(path.join(outputRoot, "ai/views/index.html"), "utf8");

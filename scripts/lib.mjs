@@ -315,6 +315,144 @@ export async function assertSafeOutputRoot({
   return canonicalOutputRoot;
 }
 
+export class ConfigResolutionError extends Error {
+  constructor(errors) {
+    super(errors.join("\n"));
+    this.name = "ConfigResolutionError";
+    this.errors = errors;
+  }
+}
+
+export function resolveClientSupport(config) {
+  return {
+    codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
+    claudeRules: config.models.anthropic && (config.clientSupport?.claude?.rules ?? true),
+    claudeHooks: config.models.anthropic && (config.clientSupport?.claude?.hooks ?? false),
+    claudeSkills: config.models.anthropic && (config.clientSupport?.claude?.skills ?? false),
+  };
+}
+
+function configResolutionMessage(label, error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return `${label}: ${message}`;
+}
+
+export async function resolveHarnessConfig(config, {
+  label = "harness config",
+  configPath = null,
+  configDir = configPath ? path.dirname(path.resolve(configPath)) : process.cwd(),
+  outputPath = config?.output?.path,
+  repoRoot: templateRepoRoot = repoRoot,
+  allowAbsoluteOutput = false,
+  requireExistingConsumers = false,
+} = {}) {
+  const errors = await validateConfigShape(config, label);
+  if (errors.length > 0) {
+    throw new ConfigResolutionError(errors);
+  }
+
+  const resolvedConfigDir = path.resolve(configDir);
+  const workspaceRoot = workspaceRootForConfig(resolvedConfigDir, templateRepoRoot);
+  const requestedOutputRoot = path.resolve(resolvedConfigDir, outputPath);
+  const consumerRoots = [];
+
+  for (const consumer of config.consumers) {
+    try {
+      consumerRoots.push(assertSafeConsumerPath({
+        consumerName: consumer.name,
+        consumerPath: consumer.path,
+        workspaceRoot,
+        repoRoot: templateRepoRoot,
+      }));
+    } catch (error) {
+      errors.push(configResolutionMessage(label, error));
+    }
+  }
+
+  let outputRoot = requestedOutputRoot;
+  try {
+    outputRoot = await assertSafeOutputRoot({
+      outputPath,
+      outputRoot: requestedOutputRoot,
+      repoRoot: templateRepoRoot,
+      workspaceRoot,
+      consumerRepos: consumerRoots,
+      allowAbsoluteOutput,
+    });
+  } catch (error) {
+    errors.push(configResolutionMessage(label, error));
+  }
+
+  if (errors.length > 0) {
+    throw new ConfigResolutionError(errors);
+  }
+
+  const canonicalWorkspaceRoot = await canonicalPathForWrite(workspaceRoot);
+  const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
+  const consumers = [];
+  for (const consumer of config.consumers) {
+    try {
+      const consumerRoot = assertSafeConsumerPath({
+        consumerName: consumer.name,
+        consumerPath: consumer.path,
+        workspaceRoot,
+        outputRoot,
+        repoRoot: templateRepoRoot,
+      });
+      const confirmedRoot = requireExistingConsumers
+        ? await assertConfirmedConsumerRepository({
+          consumerName: consumer.name,
+          consumerRoot,
+          workspaceRoot,
+          outputRoot,
+          repoRoot: templateRepoRoot,
+        })
+        : null;
+      const canonicalConsumerRoot = confirmedRoot ?? await canonicalPathForWrite(consumerRoot);
+      if (!confirmedRoot) {
+        if (!isSameOrInsidePath(canonicalConsumerRoot, canonicalWorkspaceRoot)) {
+          throw new Error(
+            `Consumer path for ${consumer.name} is unsafe: resolved path escapes workspace ${canonicalWorkspaceRoot}: ${canonicalConsumerRoot}.`,
+          );
+        }
+        if (isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
+          throw new Error(
+            `Consumer path for ${consumer.name} is unsafe: resolved path must not equal or be inside the Structor template repo ${canonicalTemplateRepoRoot}.`,
+          );
+        }
+        if (isSameOrInsidePath(canonicalConsumerRoot, outputRoot)) {
+          throw new Error(
+            `Consumer path for ${consumer.name} is unsafe: resolved path must not equal or be inside the generated harness output ${outputRoot}.`,
+          );
+        }
+      }
+      consumers.push({
+        config: consumer,
+        requestedRoot: consumerRoot,
+        root: canonicalConsumerRoot,
+        confirmedRoot,
+      });
+    } catch (error) {
+      errors.push(configResolutionMessage(label, error));
+    }
+  }
+
+  if (errors.length > 0) {
+    throw new ConfigResolutionError(errors);
+  }
+
+  return {
+    config,
+    configDir: resolvedConfigDir,
+    workspaceRoot,
+    outputPath,
+    requestedOutputRoot,
+    outputRoot,
+    support: resolveClientSupport(config),
+    consumers,
+  };
+}
+
 export function failIfErrors(title, errors) {
   if (errors.length === 0) {
     console.log(`${title} passed.`);
