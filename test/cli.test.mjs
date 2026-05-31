@@ -1,5 +1,8 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import {
   compactValidation,
@@ -10,6 +13,16 @@ import {
   shouldExcludeCandidate,
   slugify,
 } from "../bin/structor.mjs";
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const cliPath = path.join(repoRoot, "bin/structor.mjs");
+
+function runCli(args) {
+  return spawnSync(process.execPath, [cliPath, ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+}
 
 test("parseArgs defaults to the help command", () => {
   assert.equal(parseArgs([]).command, "help");
@@ -36,6 +49,20 @@ test("parseArgs collects positional args for passthrough", () => {
   const { command, options } = parseArgs(["generate", "extra", "values"]);
   assert.equal(command, "generate");
   assert.deepEqual(options._, ["extra", "values"]);
+});
+
+test("init and doctor reject unknown flags before running command behavior", () => {
+  for (const command of ["init", "doctor"]) {
+    const result = runCli([command, "--bogus"]);
+    assert.notEqual(result.status, 0, `${command} should reject unknown flags.`);
+    assert.match(`${result.stdout}\n${result.stderr}`, new RegExp(`Unknown argument for structor ${command}: --bogus`));
+  }
+});
+
+test("generate still passes generator-specific flags through", () => {
+  const result = runCli(["generate", "--dry-run", "--config", "harness.config.example.json"]);
+  assert.equal(result.status, 0, `generate passthrough failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  assert.match(result.stdout, /would create/);
 });
 
 test("slugify normalizes arbitrary names", () => {

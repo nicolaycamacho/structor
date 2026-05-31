@@ -118,6 +118,14 @@ export function parseArgs(argv) {
   return { command, options, rawArgs: rest };
 }
 
+function assertNoUnknownCommandFlags(command, options) {
+  const unknownFlags = options._.filter((arg) => arg.startsWith("--"));
+  if (unknownFlags.length === 0) return;
+
+  const noun = unknownFlags.length === 1 ? "argument" : "arguments";
+  throw new Error(`Unknown ${noun} for structor ${command}: ${unknownFlags.join(", ")}`);
+}
+
 function printHelp() {
   console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor doctor\n\nCommands:\n  init      Guided local setup for a Structor workspace.\n  generate  Render a generated harness from an existing config.\n  doctor    Planned diagnostic and repair command.\n`);
 }
@@ -564,6 +572,7 @@ async function main() {
     return;
   }
   if (command === "init") {
+    assertNoUnknownCommandFlags(command, options);
     await init(options);
     return;
   }
@@ -572,6 +581,7 @@ async function main() {
     return;
   }
   if (command === "doctor") {
+    assertNoUnknownCommandFlags(command, options);
     note("structor doctor is planned but not implemented yet.");
     note("It will diagnose and repair drift in an existing Structor workspace:");
     note("  - stale or missing consumer entrypoints");
