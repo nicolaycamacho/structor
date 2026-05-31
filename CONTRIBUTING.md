@@ -66,6 +66,9 @@ npm run check:smoke
 - The harness/runner boundary is preserved.
 - Any new generated file is added to the relevant template and governance
   checks.
+- Issues and pull requests use the structured GitHub labels: one `type:*`, one
+  or more `area:*`, one `risk:*`, and a `status:*` label when the workflow
+  state is known.
 
 ## Reporting Bugs
 

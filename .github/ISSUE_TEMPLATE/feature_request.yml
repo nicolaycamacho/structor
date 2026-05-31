@@ -1,0 +1,44 @@
+name: Feature request
+description: Propose a scoped Structor change
+labels: ["type: feature", "risk: medium"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Keep requests scoped to Structor's generator, templates, validation, docs, or contributor workflow.
+  - type: textarea
+    id: summary
+    attributes:
+      label: Summary
+      description: What should change and why?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - CLI
+        - Templates
+        - Schemas
+        - Validation
+        - Docs
+        - Contributor workflow
+        - Release
+    validations:
+      required: true
+  - type: textarea
+    id: scope
+    attributes:
+      label: Scope
+      description: What is in scope, and what should stay out of scope?
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Validation
+      description: Which command or check should prove the work is complete?
+      placeholder: npm run validate
+    validations:
+      required: false
