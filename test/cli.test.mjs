@@ -130,6 +130,48 @@ test("generate still passes generator-specific flags through", () => {
   assert.match(result.stdout, /would create/);
 });
 
+test("init customization step explains starter-only mode without scan selection", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-customization-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          workspaceRoot,
+          "Example Project",
+          "example-project",
+          "example-structor",
+          "./example-structor",
+          "1",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "n",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(result.stdout, /Starter only creates generic harness content/);
+    assert.match(result.stdout, /Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes/);
+    assert.doesNotMatch(result.stdout, /How much should Structor customize from consumer repos/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("doctor reports a healthy generated workspace", async () => {
   const { workspaceRoot } = await createDoctorWorkspace();
   const result = runCli(["doctor", "--workspace", workspaceRoot]);
