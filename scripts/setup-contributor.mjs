@@ -85,15 +85,18 @@ async function main() {
 
   await overlaySelfHarnessFiles(resolvedConfig.outputRoot, options);
 
+  const bootstrapArgs = ["scripts/bootstrap-workspace.mjs"];
+  if (options.force) bootstrapArgs.push("--force");
+
   if (options.dryRun) {
     console.log(`would refresh self-harness HTML views in ${resolvedConfig.outputRoot}`);
-    console.log(`would run workspace bootstrap dry-run in ${resolvedConfig.outputRoot}`);
+    console.log(`would run workspace bootstrap dry-run in ${resolvedConfig.outputRoot}: ${process.execPath} ${bootstrapArgs.join(" ")}`);
   } else {
     execFileSync(process.execPath, ["scripts/generate-html-views.mjs"], {
       cwd: resolvedConfig.outputRoot,
       stdio: "inherit",
     });
-    execFileSync(process.execPath, ["scripts/bootstrap-workspace.mjs"], {
+    execFileSync(process.execPath, bootstrapArgs, {
       cwd: resolvedConfig.outputRoot,
       stdio: "inherit",
     });

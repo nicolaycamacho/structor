@@ -41,6 +41,13 @@ function outputText(result) {
   return `${result.stdout}\n${result.stderr}`.replace(/\x1b\[[0-9;]*m/g, "");
 }
 
+function runSetupContributor(args = []) {
+  return spawnSync(process.execPath, [path.join(repoRoot, "scripts/setup-contributor.mjs"), ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+}
+
 function assertSuccess(result, label) {
   assert.equal(result.status, 0, `${label}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
 }
@@ -67,7 +74,7 @@ console.log("fixture setup complete");
   for (const args of [
     ["init"],
     ["add", "."],
-    ["-c", "user.email=fixture@example.com", "-c", "user.name=Fixture", "commit", "-m", "fixture"],
+    ["-c", "user.email=fixture.invalid", "-c", "user.name=Fixture", "commit", "-m", "fixture"],
   ]) {
     const result = spawnSync("git", args, { cwd: fixtureRoot, encoding: "utf8" });
     assertSuccess(result, `git ${args.join(" ")}`);
@@ -361,6 +368,12 @@ test("contribute structor reuses an existing source checkout", async () => {
     assert.match(result.stdout, /reuse existing local checkout/);
     assert.doesNotMatch(result.stdout, /git clone/);
   });
+});
+
+test("setup contributor forwards force to workspace bootstrap preview", () => {
+  const result = runSetupContributor(["--dry-run", "--force"]);
+  assertSuccess(result, "setup contributor force dry-run");
+  assert.match(result.stdout, /bootstrap-workspace\.mjs --force/);
 });
 
 test("contribute structor completes from a local fixture repo without GitHub auth", async () => {
