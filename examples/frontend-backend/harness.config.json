@@ -6,7 +6,7 @@
     "harnessRepoName": "frontend-backend-product-structor"
   },
   "output": {
-    "path": "../../generated/frontend-backend-product-structor"
+    "path": "../../../generated/frontend-backend-product-structor"
   },
   "models": {
     "openai": true,

@@ -11,6 +11,7 @@ import {
   resolveHarnessConfig,
 } from "./lib.mjs";
 import {
+  consumerEntrypointsForSettings,
   freshRenderScriptTemplatesForSettings,
   shouldRenderTemplate as shouldRenderContractTemplate,
   trustedGeneratedScriptTemplatesForSettings,
@@ -137,7 +138,11 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
 }
 
 async function installConsumerEntrypoints(resolvedConfig, options) {
-  const { config, outputRoot: harnessRoot, consumers } = resolvedConfig;
+  const { config, outputRoot: harnessRoot, support, consumers } = resolvedConfig;
+  const entrypoints = consumerEntrypointsForSettings({
+    models: config.models,
+    clientSupport: support,
+  });
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
@@ -146,15 +151,9 @@ async function installConsumerEntrypoints(resolvedConfig, options) {
     const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
 
-    const entrypoints = [];
-    if (config.models.openai) entrypoints.push(["AGENTS.md", "AGENTS.md.tpl"]);
-    if (config.models.anthropic) {
-      entrypoints.push(["CLAUDE.md", "CLAUDE.md.tpl"]);
-      entrypoints.push([path.join(".claude", "CLAUDE.md"), path.join(".claude", "CLAUDE.md.tpl")]);
-    }
-
-    for (const [targetRelative, sourceRelative] of entrypoints) {
-      const sourcePath = path.join(repoRoot, "template", "consumer", sourceRelative);
+    for (const entrypoint of entrypoints) {
+      const targetRelative = entrypoint.path;
+      const sourcePath = path.join(repoRoot, "template", entrypoint.template);
       const targetPath = path.join(consumerRoot, targetRelative);
       const content = render(await readFile(sourcePath, "utf8"), values);
 

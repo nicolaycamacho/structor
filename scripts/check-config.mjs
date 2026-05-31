@@ -9,7 +9,6 @@ import {
   readJson,
   repoRoot,
   resolveHarnessConfig,
-  validateConfigShape,
 } from "./lib.mjs";
 
 const errors = [];
@@ -38,19 +37,15 @@ for (const configPath of configFiles) {
     errors.push(`${label}: output.path must be relative for examples.`);
   }
 
-  if (checkingExamples) {
-    errors.push(...(await validateConfigShape(config, label)));
-  } else {
-    try {
-      await resolveHarnessConfig(config, {
-        label,
-        configPath,
-        allowAbsoluteOutput,
-        requireExistingConsumers,
-      });
-    } catch (error) {
-      errors.push(...resolutionErrors(error));
-    }
+  try {
+    await resolveHarnessConfig(config, {
+      label,
+      configPath: checkingExamples ? path.join(repoRoot, configPath) : configPath,
+      allowAbsoluteOutput,
+      requireExistingConsumers,
+    });
+  } catch (error) {
+    errors.push(...resolutionErrors(error));
   }
 
   if (checkingExamples && Array.isArray(config.consumers)) {

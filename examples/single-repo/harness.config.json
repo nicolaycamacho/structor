@@ -6,7 +6,7 @@
     "harnessRepoName": "single-repo-product-structor"
   },
   "output": {
-    "path": "../../generated/single-repo-product-structor"
+    "path": "../../../generated/single-repo-product-structor"
   },
   "models": {
     "openai": true,
