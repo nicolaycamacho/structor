@@ -69,6 +69,18 @@ function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
+function relativePath(from, to) {
+  return path.relative(from, to).replaceAll(path.sep, "/") || ".";
+}
+
+async function packageMetadata() {
+  const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+  return {
+    name: packageJson.name,
+    version: packageJson.version,
+  };
+}
+
 export function shouldRenderTemplate(sourceRelative, config) {
   return shouldRenderContractTemplate(sourceRelative, config);
 }
@@ -143,6 +155,7 @@ async function installConsumerEntrypoints(resolvedConfig, options) {
     models: config.models,
     clientSupport: support,
   });
+  const records = [];
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
@@ -156,13 +169,21 @@ async function installConsumerEntrypoints(resolvedConfig, options) {
       const sourcePath = path.join(repoRoot, "template", entrypoint.template);
       const targetPath = path.join(consumerRoot, targetRelative);
       const content = render(await readFile(sourcePath, "utf8"), values);
+      const record = {
+        consumer: consumer.name,
+        consumerPath: consumer.path,
+        path: targetRelative,
+        rendered: false,
+      };
 
       if (options.dryRun) {
         console.log(`would create consumer entrypoint ${targetPath}`);
+        records.push({ ...record, action: "dry-run" });
         continue;
       }
       if ((await exists(targetPath)) && !options.force) {
         console.log(`skipped existing consumer entrypoint ${targetPath}`);
+        records.push({ ...record, action: "skipped" });
         continue;
       }
 
@@ -174,14 +195,71 @@ async function installConsumerEntrypoints(resolvedConfig, options) {
       await mkdir(path.dirname(targetPath), { recursive: true });
       await writeFile(targetPath, content);
       console.log(`wrote consumer entrypoint ${targetPath}`);
+      records.push({ ...record, action: "wrote", rendered: true });
     }
   }
+
+  return records;
+}
+
+async function writeGenerationManifest({
+  config,
+  configContent,
+  configPath,
+  consumerEntrypoints,
+  generatedFiles,
+  outputRoot,
+  resolvedConfig,
+  support,
+}) {
+  const manifestPath = path.join(outputRoot, ".structor", "manifest.json");
+  const metadata = await packageMetadata();
+  const manifest = {
+    generatorName: metadata.name,
+    generatorVersion: metadata.version,
+    generatedAt: new Date().toISOString(),
+    config: {
+      path: relativePath(resolvedConfig.workspaceRoot, configPath),
+      sha256: sha256(configContent),
+      project: {
+        name: config.project.name,
+        slug: config.project.slug,
+        harnessRepoName: config.project.harnessRepoName,
+      },
+      models: {
+        openai: Boolean(config.models.openai),
+        anthropic: Boolean(config.models.anthropic),
+      },
+      clientSupport: support,
+      consumers: config.consumers.map((consumer) => ({
+        name: consumer.name,
+        path: consumer.path,
+        purpose: consumer.purpose,
+      })),
+    },
+    files: generatedFiles.map((file) => ({
+      path: file.targetRelative,
+      action: file.action,
+      rendered: file.rendered,
+    })),
+    consumerEntrypoints,
+  };
+
+  await assertSafeWriteTarget({
+    targetPath: manifestPath,
+    rootPath: outputRoot,
+    label: "Generation manifest .structor/manifest.json",
+  });
+  await mkdir(path.dirname(manifestPath), { recursive: true });
+  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  console.log(`wrote ${manifestPath}`);
 }
 
 async function main() {
   const options = parseArgs(process.argv.slice(2));
   const configPath = path.resolve(options.config);
-  const config = JSON.parse(await readFile(configPath, "utf8"));
+  const configContent = await readFile(configPath, "utf8");
+  const config = JSON.parse(configContent);
   const outputPath = options.output ?? config.output.path;
   const resolvedConfig = await resolveHarnessConfig(config, {
     label: options.config,
@@ -202,9 +280,11 @@ async function main() {
   const freshRenderScriptTemplates = new Set(freshRenderScriptTemplatesForSettings(config));
 
   let renderedHtmlViewsScript = false;
+  const generatedFiles = [];
   for (const sourceRelative of templateFiles) {
     if (!shouldRenderTemplate(sourceRelative, config)) continue;
     const result = await writeRenderedFile(sourceRelative, outputRoot, values, options);
+    generatedFiles.push(result);
     if (freshRenderScriptTemplates.has(sourceRelative) && result.rendered) {
       renderedHtmlViewsScript = true;
     }
@@ -219,8 +299,21 @@ async function main() {
     console.log("skipped HTML view generation because scripts/generate-html-views.mjs was not freshly rendered");
   }
 
-  if (options.installConsumerEntrypoints) {
-    await installConsumerEntrypoints(resolvedConfig, { ...options, config: configPath });
+  const consumerEntrypoints = options.installConsumerEntrypoints
+    ? await installConsumerEntrypoints(resolvedConfig, { ...options, config: configPath })
+    : [];
+
+  if (!options.dryRun) {
+    await writeGenerationManifest({
+      config,
+      configContent,
+      configPath,
+      consumerEntrypoints,
+      generatedFiles,
+      outputRoot,
+      resolvedConfig,
+      support,
+    });
   }
 }
 
