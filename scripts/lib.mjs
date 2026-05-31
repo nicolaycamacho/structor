@@ -482,7 +482,63 @@ function typeName(value) {
   return typeof value;
 }
 
-function validateJsonSchema(value, schema, label, errors) {
+const SUPPORTED_SCHEMA_KEYWORDS = new Set([
+  "$id",
+  "$schema",
+  "additionalProperties",
+  "const",
+  "description",
+  "enum",
+  "items",
+  "minItems",
+  "minLength",
+  "pattern",
+  "properties",
+  "required",
+  "title",
+  "type",
+]);
+
+function collectUnsupportedSchemaKeywords(schema, label, errors) {
+  if (!isPlainObject(schema)) return;
+
+  for (const key of Object.keys(schema)) {
+    if (!SUPPORTED_SCHEMA_KEYWORDS.has(key)) {
+      errors.push(`${label} schema uses unsupported keyword ${key}.`);
+    }
+  }
+
+  if (Object.hasOwn(schema, "items") && !isPlainObject(schema.items)) {
+    errors.push(`${label}.items must be a schema object; tuple or boolean items are not supported.`);
+  } else if (isPlainObject(schema.items)) {
+    collectUnsupportedSchemaKeywords(schema.items, `${label}[]`, errors);
+  }
+
+  if (
+    Object.hasOwn(schema, "additionalProperties") &&
+    typeof schema.additionalProperties !== "boolean"
+  ) {
+    errors.push(`${label}.additionalProperties must be a boolean; schema-valued additionalProperties is not supported.`);
+  }
+
+  if (Object.hasOwn(schema, "properties") && !isPlainObject(schema.properties)) {
+    errors.push(`${label}.properties must be an object of schema objects.`);
+  } else if (isPlainObject(schema.properties)) {
+    for (const [key, propertySchema] of Object.entries(schema.properties)) {
+      if (!isPlainObject(propertySchema)) {
+        errors.push(`${label}.${key} schema must be an object.`);
+        continue;
+      }
+      collectUnsupportedSchemaKeywords(propertySchema, `${label}.${key}`, errors);
+    }
+  }
+}
+
+function jsonSchemaValueEquals(actual, expected) {
+  return Object.is(actual, expected);
+}
+
+function validateJsonSchemaValue(value, schema, label, errors) {
   const expectedType = schema.type;
   if (expectedType) {
     const validType =
@@ -497,6 +553,10 @@ function validateJsonSchema(value, schema, label, errors) {
 
   if (Object.hasOwn(schema, "const") && value !== schema.const) {
     errors.push(`${label} must be ${JSON.stringify(schema.const)}.`);
+  }
+
+  if (Array.isArray(schema.enum) && !schema.enum.some((allowed) => jsonSchemaValueEquals(value, allowed))) {
+    errors.push(`${label} must be one of ${schema.enum.map((allowed) => JSON.stringify(allowed)).join(", ")}.`);
   }
 
   if (typeof value === "string") {
@@ -514,7 +574,7 @@ function validateJsonSchema(value, schema, label, errors) {
     }
     if (schema.items) {
       for (const [index, item] of value.entries()) {
-        validateJsonSchema(item, schema.items, `${label}[${index}]`, errors);
+        validateJsonSchemaValue(item, schema.items, `${label}[${index}]`, errors);
       }
     }
   }
@@ -535,10 +595,15 @@ function validateJsonSchema(value, schema, label, errors) {
     }
     for (const [key, propertySchema] of Object.entries(properties)) {
       if (Object.hasOwn(value, key)) {
-        validateJsonSchema(value[key], propertySchema, `${label}.${key}`, errors);
+        validateJsonSchemaValue(value[key], propertySchema, `${label}.${key}`, errors);
       }
     }
   }
+}
+
+export function validateJsonSchema(value, schema, label, errors) {
+  collectUnsupportedSchemaKeywords(schema, label, errors);
+  validateJsonSchemaValue(value, schema, label, errors);
 }
 
 export async function validateConfigShape(config, label) {
