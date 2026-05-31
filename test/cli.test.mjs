@@ -36,6 +36,13 @@ function runCli(args, cwd = repoRoot) {
   });
 }
 
+function runSetupContributor(args = []) {
+  return spawnSync(process.execPath, [path.join(repoRoot, "scripts/setup-contributor.mjs"), ...args], {
+    cwd: repoRoot,
+    encoding: "utf8",
+  });
+}
+
 function assertSuccess(result, label) {
   assert.equal(result.status, 0, `${label}\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
 }
@@ -213,6 +220,12 @@ test("contribute structor reuses an existing source checkout", async () => {
     assert.match(result.stdout, /reuse existing local checkout/);
     assert.doesNotMatch(result.stdout, /git clone/);
   });
+});
+
+test("setup contributor forwards force to workspace bootstrap preview", () => {
+  const result = runSetupContributor(["--dry-run", "--force"]);
+  assertSuccess(result, "setup contributor force dry-run");
+  assert.match(result.stdout, /bootstrap-workspace\.mjs --force/);
 });
 
 test("contribute structor completes from a local fixture repo without GitHub auth", async () => {
