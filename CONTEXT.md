@@ -26,6 +26,30 @@ A product or application repository governed by a generated harness while still
 owning its implementation, runtime behavior, tests, and deployment checks.
 _Avoid_: Harness repo, template repo
 
+**Structor Self-Harness**:
+A generated harness whose **Consumer Repository** is the Structor source
+repository itself. It teaches agents how to contribute to Structor without
+changing what generated harnesses mean for other projects.
+_Avoid_: Core template, runner, fork
+
+**Contributor Workspace**:
+The local workspace used by Structor contributors, containing the Structor source
+repository and its sibling **Structor Self-Harness**.
+_Avoid_: Generated harness, consumer project, remote fork
+
+**Contributor Bootstrap**:
+The future onboarding flow for Structor contributors. It should become
+`npx @structor-dev/cli contribute structor`, may clone local repositories into
+the contributor workspace, and must not fork, push, open pull requests, mutate
+external services, or become a runner.
+_Avoid_: Initializer, setup wizard, runner
+
+**Manual Contributor Setup**:
+The clone-first fallback path for Structor contributors who want the
+conventional workflow:
+`git clone https://github.com/nicolaycamacho/structor.git && cd structor && npm run setup:contributor`.
+_Avoid_: Contributor bootstrap, generated harness setup, target-repo init
+
 **Consumer Entrypoint**:
 A thin file inside a consumer repository that points agents back to the generated
 harness and records minimal repo-local facts.
