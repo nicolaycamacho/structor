@@ -17,7 +17,9 @@ requires_human_approval: false
 
 ## Summary
 
-Update harness guidance without touching protected surfaces.
+Update harness guidance without touching protected surfaces. The work stays in
+`ai/HARNESS.md`, preserves harness-only scope, and is complete when governance
+validation passes with `node scripts/validate-governance.mjs`.
 
 ## Context
 
