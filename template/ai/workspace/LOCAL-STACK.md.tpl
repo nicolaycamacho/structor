@@ -1,6 +1,6 @@
 # Local Stack
 
-This document records stable local assumptions for `{{PROJECT_NAME}}`.
+This document records stable local assumptions for {{PROJECT_NAME_CODE}}.
 
 ## Harness
 
