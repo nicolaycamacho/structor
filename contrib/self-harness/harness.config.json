@@ -1,0 +1,37 @@
+{
+  "$schema": "../../schemas/harness-config.schema.json",
+  "project": {
+    "name": "Structor Self-Harness",
+    "slug": "structor-self",
+    "harnessRepoName": "structor-self"
+  },
+  "output": {
+    "path": "./structor-self"
+  },
+  "models": {
+    "openai": true,
+    "anthropic": false
+  },
+  "clientSupport": {
+    "codex": {
+      "hooks": true
+    },
+    "claude": {
+      "rules": false,
+      "hooks": false,
+      "skills": false
+    }
+  },
+  "consumers": [
+    {
+      "name": "structor",
+      "path": "./structor",
+      "purpose": "Structor source repository: the generator, templates, schemas, docs, tests, and CLI for repository-local AI engineering harnesses.",
+      "validation": {
+        "install": "npm install",
+        "test": "npm test",
+        "health": "npm run validate"
+      }
+    }
+  ]
+}

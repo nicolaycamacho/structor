@@ -109,6 +109,7 @@ test("parseArgs uses safe defaults", () => {
   assert.equal(options.force, false);
   assert.equal(options.installConsumerEntrypoints, false);
   assert.equal(options.allowAbsoluteOutput, false);
+  assert.equal(options.allowTemplateRepoConsumer, false);
 });
 
 test("parseArgs reads flags and valued options", () => {
@@ -118,12 +119,14 @@ test("parseArgs reads flags and valued options", () => {
     "--force",
     "--install-consumer-entrypoints",
     "--allow-absolute-output",
+    "--allow-template-repo-consumer",
   ]);
   assert.equal(options.config, "custom.json");
   assert.equal(options.dryRun, true);
   assert.equal(options.force, true);
   assert.equal(options.installConsumerEntrypoints, true);
   assert.equal(options.allowAbsoluteOutput, true);
+  assert.equal(options.allowTemplateRepoConsumer, true);
 });
 
 test("parseArgs rejects unknown arguments", () => {

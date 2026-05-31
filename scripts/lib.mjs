@@ -127,6 +127,7 @@ export function assertSafeConsumerPath({
   workspaceRoot,
   outputRoot = null,
   repoRoot: templateRepoRoot = repoRoot,
+  allowTemplateRepoConsumer = false,
 }) {
   const label = `Consumer path for ${consumerName}`;
   const rejectedPath = path.resolve(workspaceRoot, consumerPath);
@@ -150,7 +151,7 @@ export function assertSafeConsumerPath({
   if (path.resolve(rejectedPath) === path.resolve(workspaceRoot)) {
     throw new Error(`${label} is unsafe: path must not equal the workspace root ${workspaceRoot}.`);
   }
-  if (isSameOrInsidePath(rejectedPath, templateRepoRoot)) {
+  if (!allowTemplateRepoConsumer && isSameOrInsidePath(rejectedPath, templateRepoRoot)) {
     throw new Error(`${label} is unsafe: path must not equal or be inside the Structor template repo ${templateRepoRoot}.`);
   }
   if (outputRoot && isSameOrInsidePath(rejectedPath, outputRoot)) {
@@ -173,6 +174,7 @@ export async function assertConfirmedConsumerRepository({
   workspaceRoot,
   outputRoot = null,
   repoRoot: templateRepoRoot = repoRoot,
+  allowTemplateRepoConsumer = false,
 }) {
   const label = `Consumer path for ${consumerName}`;
   const info = await lstatIfExists(consumerRoot);
@@ -195,7 +197,7 @@ export async function assertConfirmedConsumerRepository({
   }
 
   const canonicalTemplateRepoRoot = await canonicalPathForWrite(templateRepoRoot);
-  if (isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
+  if (!allowTemplateRepoConsumer && isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
     throw new Error(
       `${label} is unsafe: resolved path must not equal or be inside the Structor template repo ${canonicalTemplateRepoRoot}.`,
     );
@@ -345,6 +347,7 @@ export async function resolveHarnessConfig(config, {
   repoRoot: templateRepoRoot = repoRoot,
   allowAbsoluteOutput = false,
   requireExistingConsumers = false,
+  allowTemplateRepoConsumer = false,
 } = {}) {
   const errors = await validateConfigShape(config, label);
   if (errors.length > 0) {
@@ -363,6 +366,7 @@ export async function resolveHarnessConfig(config, {
         consumerPath: consumer.path,
         workspaceRoot,
         repoRoot: templateRepoRoot,
+        allowTemplateRepoConsumer,
       }));
     } catch (error) {
       errors.push(configResolutionMessage(label, error));
@@ -398,6 +402,7 @@ export async function resolveHarnessConfig(config, {
         workspaceRoot,
         outputRoot,
         repoRoot: templateRepoRoot,
+        allowTemplateRepoConsumer,
       });
       const confirmedRoot = requireExistingConsumers
         ? await assertConfirmedConsumerRepository({
@@ -406,6 +411,7 @@ export async function resolveHarnessConfig(config, {
           workspaceRoot,
           outputRoot,
           repoRoot: templateRepoRoot,
+          allowTemplateRepoConsumer,
         })
         : null;
       const canonicalConsumerRoot = confirmedRoot ?? await canonicalPathForWrite(consumerRoot);
@@ -415,7 +421,7 @@ export async function resolveHarnessConfig(config, {
             `Consumer path for ${consumer.name} is unsafe: resolved path escapes workspace ${canonicalWorkspaceRoot}: ${canonicalConsumerRoot}.`,
           );
         }
-        if (isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
+        if (!allowTemplateRepoConsumer && isSameOrInsidePath(canonicalConsumerRoot, canonicalTemplateRepoRoot)) {
           throw new Error(
             `Consumer path for ${consumer.name} is unsafe: resolved path must not equal or be inside the Structor template repo ${canonicalTemplateRepoRoot}.`,
           );
