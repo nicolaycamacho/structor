@@ -1,109 +1,26 @@
 #!/usr/bin/env node
 
 import path from "node:path";
-import { exists, failIfErrors, repoRoot } from "./lib.mjs";
+import { collectFiles, exists, failIfErrors, repoRoot } from "./lib.mjs";
+import {
+  generatedHarnessContractErrors,
+  generatedHarnessTemplatePaths,
+} from "./generated-harness-contract.mjs";
 
-const requiredFiles = [
-  "template/AGENTS.md.tpl",
-  "template/CLAUDE.md.tpl",
-  "template/.claude/CLAUDE.md.tpl",
-  "template/.claude/rules/harness-client-surfaces.md.tpl",
-  "template/.claude/settings.json.tpl",
-  "template/.codex/hooks.json.tpl",
-  "template/README.md.tpl",
-  "template/ai/AGENTS.md.tpl",
-  "template/ai/HUB.md.tpl",
-  "template/ai/context.md.tpl",
-  "template/ai/HARNESS.md.tpl",
-  "template/ai/HARNESS-ENGINEERING.md.tpl",
-  "template/ai/READINESS.md.tpl",
-  "template/ai/QUALITY.md.tpl",
-  "template/ai/DECISIONS.md.tpl",
-  "template/ai/PRODUCT-SUMMARY.md.tpl",
-  "template/ai/PRODUCT.md.tpl",
-  "template/ai/ARCHITECTURE.md.tpl",
-  "template/ai/DESIGN.md.tpl",
-  "template/ai/WORKFLOW.md.tpl",
-  "template/ai/VERSIONING.md.tpl",
-  "template/ai/CODEX-HOOKS.md.tpl",
-  "template/ai/RUNNER-SAFETY.md.tpl",
-  "template/ai/RUNNER-READINESS.md.tpl",
-  "template/ai/AGENT-GARBAGE-COLLECTION.md.tpl",
-  "template/ai/knowledge-manifest.json.tpl",
-  "template/ai/workspace/REPOS.md.tpl",
-  "template/ai/workspace/SYSTEM-MAP.md.tpl",
-  "template/ai/workspace/SESSION-BOOTSTRAP.md.tpl",
-  "template/ai/workspace/LOCAL-STACK.md.tpl",
-  "template/ai/workspace/TEST-STRATEGY.md.tpl",
-  "template/ai/model-overlays/openai/AGENTS.md.tpl",
-  "template/ai/model-overlays/anthropic/CLAUDE.md.tpl",
-  "template/consumer/AGENTS.md.tpl",
-  "template/consumer/CLAUDE.md.tpl",
-  "template/consumer/.claude/CLAUDE.md.tpl",
-  "template/workspace/AGENTS.md.tpl",
-  "template/workspace/CLAUDE.md.tpl",
-  "template/workspace/.claude/CLAUDE.md.tpl",
-  "template/workspace/.claude/rules/harness-client-surfaces.md.tpl",
-  "template/workspace/.claude/settings.json.tpl",
-  "template/ai/contracts/README.md.tpl",
-  "template/ai/contracts/repo-boundaries.md.tpl",
-  "template/ai/contracts/app-legibility.md.tpl",
-  "template/ai/contracts/api-boundary.md.tpl",
-  "template/ai/contracts/security-boundary.md.tpl",
-  "template/ai/contracts/repo-boundaries.contract.json.tpl",
-  "template/ai/contracts/app-legibility.contract.json.tpl",
-  "template/ai/contracts/api-boundary.contract.json.tpl",
-  "template/ai/contracts/security-boundary.contract.json.tpl",
-  "template/ai/contracts/codex-hooks.md.tpl",
-  "template/ai/contracts/codex-hooks.contract.json.tpl",
-  "template/ai/contracts/release-flow.md.tpl",
-  "template/ai/contracts/release-flow.contract.json.tpl",
-  "template/ai/contracts/github-safety.md.tpl",
-  "template/ai/contracts/github-safety.contract.json.tpl",
-  "template/ai/templates/README.md.tpl",
-  "template/ai/templates/task-brief-template.md.tpl",
-  "template/ai/templates/issue-template.md.tpl",
-  "template/ai/templates/fixtures/issues/valid-ready.md.tpl",
-  "template/ai/templates/fixtures/issues/invalid-placeholder.md.tpl",
-  "template/ai/templates/fixtures/issues/invalid-protected-surface.md.tpl",
-  "template/ai/specs/README.md.tpl",
-  "template/ai/skills/README.md.tpl",
-  "template/ai/skills/review-architecture.md.tpl",
-  "template/ai/skills/review-security.md.tpl",
-  "template/ai/skills/review-contract-drift.md.tpl",
-  "template/ai/skills/review-governance-drift.md.tpl",
-  "template/ai/plans/README.md.tpl",
-  "template/ai/plans/tech-debt.md.tpl",
-  "template/scripts/validate-governance.mjs.tpl",
-  "template/scripts/check-template-governance.mjs.tpl",
-  "template/scripts/check-readiness.mjs.tpl",
-  "template/scripts/check-task-template.mjs.tpl",
-  "template/scripts/check-issue-template.mjs.tpl",
-  "template/scripts/check-knowledge-manifest.mjs.tpl",
-  "template/scripts/check-plans.mjs.tpl",
-  "template/scripts/check-review-skills.mjs.tpl",
-  "template/scripts/check-garbage-collection.mjs.tpl",
-  "template/scripts/check-contract-manifests.mjs.tpl",
-  "template/scripts/generate-html-views.mjs.tpl",
-  "template/scripts/check-html-views.mjs.tpl",
-  "template/scripts/check-codex-hooks.mjs.tpl",
-  "template/scripts/check-claude-compatibility.mjs.tpl",
-  "template/scripts/check-overlay-drift.mjs.tpl",
-  "template/scripts/bootstrap-codex-worktree.mjs.tpl",
-  "template/scripts/check-worktrees.mjs.tpl",
-  "template/scripts/check-worktree-bootstrap-fixtures.mjs.tpl",
-  "template/scripts/lib/worktree-bootstrap.mjs.tpl",
-  "template/scripts/fixtures/worktrees/README.md.tpl",
-  "template/scripts/bootstrap-workspace.mjs.tpl",
-  "template/scripts/check-workspace.mjs.tpl",
-  "template/scripts/hooks/codex-hook.mjs.tpl",
-  "template/scripts/hooks/lib/codex-hooks-core.mjs.tpl"
-];
+const requiredFiles = generatedHarnessTemplatePaths();
+const declared = new Set(requiredFiles);
+const actualTemplateFiles = await collectFiles("template", (relativePath) => relativePath.endsWith(".tpl"));
+const errors = generatedHarnessContractErrors();
 
-const errors = [];
 for (const relativePath of requiredFiles) {
   if (!(await exists(path.join(repoRoot, relativePath)))) {
     errors.push(`missing ${relativePath}`);
+  }
+}
+
+for (const relativePath of actualTemplateFiles) {
+  if (!declared.has(relativePath)) {
+    errors.push(`${relativePath} is not declared in scripts/generated-harness-contract.mjs`);
   }
 }
 

@@ -6,6 +6,15 @@ import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
 import path from "node:path";
 import { repoRoot } from "./lib.mjs";
+import {
+  artifactEnabled,
+  artifactTargetPath,
+  consumerEntrypointsForSettings,
+  generatedHarnessArtifacts,
+  requiredHarnessRepoFilesForWorkspaceCheck,
+  requiredWorkspaceFilesForWorkspaceCheck,
+  validationPlanForSettings,
+} from "./generated-harness-contract.mjs";
 
 const cases = [
   {
@@ -35,11 +44,6 @@ const initHarnessScript = "scripts/init-harness.mjs";
 const nodeCommand = "node";
 const lintCommand = "npm run lint";
 const testCommand = "npm test";
-const openaiRootEntrypoint = "AGENTS.md";
-const openaiCodexConfig = ".codex/hooks.json";
-const claudeRootEntrypoint = "CLAUDE.md";
-const claudeMemoryEntrypoint = ".claude/CLAUDE.md";
-const claudeRulesEntrypoint = ".claude/rules/harness-client-surfaces.md";
 
 function run(command, args, cwd) {
   execFileSync(command, args, { cwd, stdio: "pipe" });
@@ -111,10 +115,59 @@ async function writeConfig(workspaceRoot, smokeCase, overrides = {}) {
   return configPath;
 }
 
+function settingsForSmokeCase(smokeCase) {
+  return {
+    models: smokeCase.models,
+    clientSupport: {
+      codexHooks: smokeCase.models.openai,
+      claudeRules: smokeCase.models.anthropic,
+      claudeHooks: false,
+      claudeSkills: false,
+    },
+  };
+}
+
+function findEntrypoint(entrypoints, predicate, label) {
+  const entrypoint = entrypoints.find(predicate);
+  if (!entrypoint) throw new Error(`Generated harness contract is missing ${label}.`);
+  return entrypoint;
+}
+
+function assertContractSurfaces({ smokeCase, workspaceRoot, harnessRoot }) {
+  const settings = settingsForSmokeCase(smokeCase);
+  for (const relativePath of requiredHarnessRepoFilesForWorkspaceCheck(settings)) {
+    assertExists(path.join(harnessRoot, relativePath), `${smokeCase.name} contract repo file ${relativePath}`);
+  }
+  for (const relativePath of requiredWorkspaceFilesForWorkspaceCheck(settings)) {
+    assertExists(path.join(workspaceRoot, relativePath), `${smokeCase.name} contract workspace file ${relativePath}`);
+  }
+  for (const artifact of generatedHarnessArtifacts.filter((item) => item.generated && !artifactEnabled(item, settings))) {
+    assertMissing(path.join(harnessRoot, artifactTargetPath(artifact)), `${smokeCase.name} disabled contract artifact ${artifactTargetPath(artifact)}`);
+  }
+  for (const consumer of smokeCase.consumers) {
+    const consumerRoot = path.join(workspaceRoot, consumer.name);
+    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+      assertExists(path.join(consumerRoot, entrypoint.path), `${consumer.name} contract entrypoint ${entrypoint.path}`);
+    }
+  }
+
+  const plan = validationPlanForSettings(settings);
+  if (settings.clientSupport.codexHooks) {
+    const codexDependencies = plan.checkDependencies["scripts/check-codex-hooks.mjs"] ?? [];
+    for (const dependency of ["scripts/hooks/codex-hook.mjs", "scripts/hooks/lib/codex-hooks-core.mjs"]) {
+      if (!codexDependencies.includes(dependency)) {
+        throw new Error(`Codex hook validation must trust generated dependency ${dependency}.`);
+      }
+    }
+  }
+}
+
 async function validateCase(smokeCase) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}${smokeCase.name}-`));
   const configPath = await writeConfig(workspaceRoot, smokeCase);
   const harnessRoot = path.join(workspaceRoot, `${smokePrefix}${smokeCase.name}-structor`);
+  const settings = settingsForSmokeCase(smokeCase);
+  const consumerEntrypoints = consumerEntrypointsForSettings(settings);
 
   run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--dry-run"], repoRoot);
   run(
@@ -127,69 +180,7 @@ async function validateCase(smokeCase) {
   run(nodeCommand, ["scripts/bootstrap-workspace.mjs", "--dry-run"], harnessRoot);
   run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], harnessRoot);
   run(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot);
-
-  if (smokeCase.models.openai) {
-    assertExists(path.join(harnessRoot, "workspace/AGENTS.md"), `${smokeCase.name} generated workspace AGENTS`);
-    assertExists(path.join(workspaceRoot, "AGENTS.md"), `${smokeCase.name} workspace AGENTS`);
-  } else {
-    assertMissing(path.join(harnessRoot, "workspace/AGENTS.md"), `${smokeCase.name} generated workspace AGENTS`);
-    assertMissing(path.join(workspaceRoot, "AGENTS.md"), `${smokeCase.name} workspace AGENTS`);
-  }
-  if (smokeCase.models.anthropic) {
-    assertExists(path.join(harnessRoot, "workspace/CLAUDE.md"), `${smokeCase.name} generated workspace CLAUDE`);
-    assertExists(path.join(harnessRoot, "workspace/.claude/CLAUDE.md"), `${smokeCase.name} generated workspace Claude memory`);
-    assertExists(path.join(harnessRoot, "workspace/.claude/settings.json"), `${smokeCase.name} generated workspace Claude settings`);
-    assertExists(path.join(workspaceRoot, "CLAUDE.md"), `${smokeCase.name} workspace CLAUDE`);
-    assertExists(path.join(workspaceRoot, ".claude/CLAUDE.md"), `${smokeCase.name} workspace Claude memory`);
-    assertExists(path.join(workspaceRoot, ".claude/settings.json"), `${smokeCase.name} workspace Claude settings`);
-  } else {
-    assertMissing(path.join(harnessRoot, "workspace/CLAUDE.md"), `${smokeCase.name} generated workspace CLAUDE`);
-    assertMissing(path.join(harnessRoot, "workspace/.claude/CLAUDE.md"), `${smokeCase.name} generated workspace Claude memory`);
-    assertMissing(path.join(harnessRoot, "workspace/.claude/settings.json"), `${smokeCase.name} generated workspace Claude settings`);
-    assertMissing(path.join(workspaceRoot, "CLAUDE.md"), `${smokeCase.name} workspace CLAUDE`);
-    assertMissing(path.join(workspaceRoot, ".claude/CLAUDE.md"), `${smokeCase.name} workspace Claude memory`);
-    assertMissing(path.join(workspaceRoot, ".claude/settings.json"), `${smokeCase.name} workspace Claude settings`);
-  }
-
-  if (smokeCase.models.openai) {
-    assertExists(path.join(harnessRoot, openaiRootEntrypoint), `${smokeCase.name} OpenAI root entrypoint`);
-    assertExists(path.join(harnessRoot, openaiCodexConfig), `${smokeCase.name} Codex hook config`);
-    assertExists(path.join(harnessRoot, "scripts/check-codex-hooks.mjs"), `${smokeCase.name} Codex hook validator`);
-    assertExists(path.join(harnessRoot, "scripts/hooks/codex-hook.mjs"), `${smokeCase.name} Codex hook script`);
-    assertExists(
-      path.join(harnessRoot, "ai/model-overlays/openai/AGENTS.md"),
-      `${smokeCase.name} OpenAI overlay`,
-    );
-  } else {
-    assertMissing(path.join(harnessRoot, openaiRootEntrypoint), `${smokeCase.name} OpenAI root entrypoint`);
-    assertMissing(path.join(harnessRoot, ".codex/hooks.json"), `${smokeCase.name} Codex hook config`);
-  }
-
-  if (smokeCase.models.anthropic) {
-    assertExists(path.join(harnessRoot, claudeRootEntrypoint), `${smokeCase.name} Claude root entrypoint`);
-    assertExists(path.join(harnessRoot, claudeMemoryEntrypoint), `${smokeCase.name} Claude memory`);
-    assertExists(path.join(harnessRoot, claudeRulesEntrypoint), `${smokeCase.name} Claude rule`);
-    assertExists(
-      path.join(harnessRoot, "scripts/check-claude-compatibility.mjs"),
-      `${smokeCase.name} Claude compatibility validator`,
-    );
-    assertExists(
-      path.join(harnessRoot, "ai/model-overlays/anthropic/CLAUDE.md"),
-      `${smokeCase.name} Claude overlay`,
-    );
-  } else {
-    assertMissing(path.join(harnessRoot, claudeRootEntrypoint), `${smokeCase.name} Claude root entrypoint`);
-    assertMissing(path.join(harnessRoot, claudeRulesEntrypoint), `${smokeCase.name} Claude rule`);
-  }
-
-  for (const consumer of smokeCase.consumers) {
-    const consumerRoot = path.join(workspaceRoot, consumer.name);
-    if (smokeCase.models.openai) assertExists(path.join(consumerRoot, "AGENTS.md"), `${consumer.name} AGENTS.md`);
-    if (smokeCase.models.anthropic) {
-      assertExists(path.join(consumerRoot, claudeRootEntrypoint), `${consumer.name} CLAUDE.md`);
-      assertExists(path.join(consumerRoot, claudeMemoryEntrypoint), `${consumer.name} .claude/CLAUDE.md`);
-    }
-  }
+  assertContractSurfaces({ smokeCase, workspaceRoot, harnessRoot });
 
   const readme = await readFile(path.join(harnessRoot, "README.md"), "utf8");
   if (!readme.includes("workspace")) {
@@ -198,15 +189,32 @@ async function validateCase(smokeCase) {
 
   const firstConsumerRoot = path.join(workspaceRoot, smokeCase.consumers[0].name);
   if (smokeCase.models.openai) {
-    const agentsPath = path.join(firstConsumerRoot, openaiRootEntrypoint);
+    const agentsPath = path.join(
+      firstConsumerRoot,
+      findEntrypoint(consumerEntrypoints, (entrypoint) => entrypoint.model === "openai", "OpenAI consumer entrypoint").path,
+    );
     await writeFile(agentsPath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
     assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only pointer`, "does not contain a resolvable");
     await writeFile(agentsPath, `Read /tmp/${path.basename(harnessRoot)}/AGENTS.md before editing.\n`);
     assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale pointer`, "instead of");
   }
   if (smokeCase.models.anthropic && !smokeCase.models.openai) {
-    const claudePath = path.join(firstConsumerRoot, claudeRootEntrypoint);
-    const claudeMemoryPath = path.join(firstConsumerRoot, claudeMemoryEntrypoint);
+    const claudePath = path.join(
+      firstConsumerRoot,
+      findEntrypoint(
+        consumerEntrypoints,
+        (entrypoint) => entrypoint.model === "anthropic" && entrypoint.routing === "harness",
+        "Claude consumer entrypoint",
+      ).path,
+    );
+    const claudeMemoryPath = path.join(
+      firstConsumerRoot,
+      findEntrypoint(
+        consumerEntrypoints,
+        (entrypoint) => entrypoint.model === "anthropic" && entrypoint.routing === "claude-memory",
+        "Claude memory consumer entrypoint",
+      ).path,
+    );
     await writeFile(claudePath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
     assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only Claude pointer`, "does not contain a resolvable");
     await writeFile(claudePath, `Read /tmp/${path.basename(harnessRoot)}/CLAUDE.md before editing.\n`);
@@ -415,13 +423,18 @@ await validateNegativeConfigCase({
   const harnessRoot = path.join(workspaceRoot, "smoke-worktree-pointer-symlink-structor");
   const consumerRoot = path.join(workspaceRoot, "product-app");
   const outsideRoot = path.join(workspaceRoot, "outside-pointer");
-  const outsidePointer = path.join(outsideRoot, "AGENTS.md");
+  const openaiEntrypoint = findEntrypoint(
+    consumerEntrypointsForSettings(settingsForSmokeCase(smokeCase)),
+    (entrypoint) => entrypoint.model === "openai",
+    "OpenAI consumer entrypoint",
+  );
+  const outsidePointer = path.join(outsideRoot, openaiEntrypoint.path);
   await mkdir(outsideRoot);
   await writeFile(outsidePointer, "Read /tmp/other-structor/AGENTS.md before editing.\n");
 
   run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath], repoRoot);
   run("git", ["init"], consumerRoot);
-  await symlink(outsidePointer, path.join(consumerRoot, "AGENTS.md"));
+  await symlink(outsidePointer, path.join(consumerRoot, openaiEntrypoint.path));
 
   assertFails(
     nodeCommand,
@@ -443,7 +456,12 @@ await validateNegativeConfigCase({
     consumers: [{ name: "product-app", purpose: "Application repository" }],
   };
   const configPath = await writeConfig(workspaceRoot, smokeCase);
-  const agentsPath = path.join(workspaceRoot, "product-app", openaiRootEntrypoint);
+  const openaiEntrypoint = findEntrypoint(
+    consumerEntrypointsForSettings(settingsForSmokeCase(smokeCase)),
+    (entrypoint) => entrypoint.model === "openai",
+    "OpenAI consumer entrypoint",
+  );
+  const agentsPath = path.join(workspaceRoot, "product-app", openaiEntrypoint.path);
   await writeFile(agentsPath, "OLD");
 
   run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);

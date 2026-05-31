@@ -4,7 +4,7 @@ import { access, constants as fsConstants, readFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const models = {
@@ -14,31 +14,7 @@ const models = {
 const clientSupport = {
   codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
 };
-const mandatoryChecks = [
-  "scripts/check-readiness.mjs",
-  "scripts/check-issue-template.mjs",
-  "scripts/check-knowledge-manifest.mjs",
-  "scripts/check-plans.mjs",
-  "scripts/check-review-skills.mjs",
-  "scripts/check-garbage-collection.mjs",
-  "scripts/check-contract-manifests.mjs",
-  "scripts/check-html-views.mjs",
-  "scripts/check-worktree-bootstrap-fixtures.mjs",
-];
-const optionalChecks = [
-  "scripts/check-repo-name-consistency.mjs",
-  "scripts/check-linear-contract.mjs",
-  "scripts/check-contract-conformance.mjs",
-  "scripts/check-domain-contract-matrix.mjs",
-];
-const checkCodexHooksScript = "scripts/check-codex-hooks.mjs";
-const checkClaudeCompatibilityScript = "scripts/check-claude-compatibility.mjs";
-const checkOverlayDriftScript = "scripts/check-overlay-drift.mjs";
-const checkDependencies = {
-  "scripts/check-html-views.mjs": ["scripts/generate-html-views.mjs"],
-  "scripts/check-worktree-bootstrap-fixtures.mjs": ["scripts/lib/worktree-bootstrap.mjs"],
-  [checkCodexHooksScript]: ["scripts/hooks/codex-hook.mjs", "scripts/hooks/lib/codex-hooks-core.mjs"],
-};
+const generatedContractScript = "scripts/generated-harness-contract.mjs";
 const generatedScriptHashes = {{GENERATED_SCRIPT_HASHES_JSON}};
 
 function sha256(content) {
@@ -87,7 +63,7 @@ async function assertTrustedCheck(relativePath) {
 
 async function runCheck(relativePath) {
   await assertTrustedCheck(relativePath);
-  for (const dependency of checkDependencies[relativePath] ?? []) {
+  for (const dependency of validationPlan.checkDependencies[relativePath] ?? []) {
     await assertTrustedCheck(dependency);
   }
 
@@ -97,29 +73,22 @@ async function runCheck(relativePath) {
   });
 }
 
-await runCheck("scripts/check-template-governance.mjs");
-await runCheck("scripts/check-task-template.mjs");
+await assertTrustedCheck(generatedContractScript);
+const { validationPlanForSettings } = await import(pathToFileURL(path.join(repoRoot, generatedContractScript)).href);
+const validationPlan = validationPlanForSettings({ models, clientSupport });
 
-for (const check of mandatoryChecks) {
+for (const check of validationPlan.requiredChecks) {
   await runCheck(check);
 }
 
-for (const optionalCheck of optionalChecks) {
+for (const optionalCheck of validationPlan.optionalChecks) {
   if (await exists(optionalCheck)) {
     await runCheck(optionalCheck);
   }
 }
 
-if (clientSupport.codexHooks) {
-  await runCheck(checkCodexHooksScript);
-}
-
-if (models.anthropic) {
-  await runCheck(checkClaudeCompatibilityScript);
-}
-
-if (models.openai || models.anthropic) {
-  await runCheck(checkOverlayDriftScript);
+for (const check of validationPlan.conditionalChecks) {
+  await runCheck(check);
 }
 
 console.log("Governance validation passed.");

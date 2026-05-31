@@ -5,6 +5,7 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { execFileSync } from "node:child_process";
+import { workspaceEntrypointsForSettings } from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(repoRoot, "..");
@@ -16,6 +17,7 @@ const models = {
 const clientSupport = {
   claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
 };
+const workspaceEntrypoints = workspaceEntrypointsForSettings({ models, clientSupport });
 
 function parseArgs(argv) {
   return {
@@ -145,20 +147,8 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   await verifyConsumers();
 
-  if (models.openai) {
-    await copyIfAllowed("workspace/AGENTS.md", "AGENTS.md", options);
-  }
-  if (models.anthropic) {
-    await copyIfAllowed("workspace/CLAUDE.md", "CLAUDE.md", options);
-    await copyIfAllowed("workspace/.claude/CLAUDE.md", ".claude/CLAUDE.md", options);
-    await copyIfAllowed("workspace/.claude/settings.json", ".claude/settings.json", options);
-    if (clientSupport.claudeRules) {
-      await copyIfAllowed(
-        "workspace/.claude/rules/harness-client-surfaces.md",
-        ".claude/rules/harness-client-surfaces.md",
-        options,
-      );
-    }
+  for (const entrypoint of workspaceEntrypoints) {
+    await copyIfAllowed(entrypoint.source, entrypoint.path, options);
   }
 
   if (!options.dryRun) {

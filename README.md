@@ -372,6 +372,11 @@ development and CI: config examples, required template files, task template
 structure, contract manifest schema, placeholder hygiene, and model overlay
 thinness.
 
+Generated harness files are declared in `scripts/generated-harness-contract.mjs`.
+That contract is the source of truth for render gates, trusted generated
+scripts, validation check dependencies, workspace-required files, and
+consumer/workspace entrypoint participation.
+
 The placeholder check has no hardcoded private project names. If you are
 extracting a harness from a private codebase, opt into leak detection with a
 comma-separated list:

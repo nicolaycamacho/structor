@@ -14,6 +14,12 @@ import {
   validateConfigShape,
   workspaceRootForConfig,
 } from "./lib.mjs";
+import {
+  clientSupportForConfig,
+  freshRenderScriptTemplatesForSettings,
+  shouldRenderTemplate as shouldRenderContractTemplate,
+  trustedGeneratedScriptTemplatesForSettings,
+} from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -24,14 +30,6 @@ const dryRunArg = "--dry-run";
 const forceArg = "--force";
 const installConsumerEntrypointsArg = "--install-consumer-entrypoints";
 const allowAbsoluteOutputArg = "--allow-absolute-output";
-
-const consumerPathPrefix = "consumer/";
-const anthropicPathPrefix = ".claude/";
-const codexHookPathPrefix = ".codex/";
-const scriptRulesPath = "scripts/check-claude-compatibility.mjs.tpl";
-const scriptCodexPath = "scripts/check-codex-hooks.mjs.tpl";
-const scriptHtmlViewsPath = "scripts/generate-html-views.mjs.tpl";
-const scriptHooksPath = "scripts/hooks/";
 
 export function parseArgs(argv) {
   const options = {
@@ -121,40 +119,8 @@ function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
-function clientSupport(config) {
-  return {
-    codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
-    claudeRules: config.models.anthropic && (config.clientSupport?.claude?.rules ?? true),
-    claudeHooks: config.models.anthropic && (config.clientSupport?.claude?.hooks ?? false),
-    claudeSkills: config.models.anthropic && (config.clientSupport?.claude?.skills ?? false),
-  };
-}
-
 export function shouldRenderTemplate(sourceRelative, config) {
-  const support = clientSupport(config);
-  const claudePath = "workspace/.claude/";
-  const openaiWorkspacePath = "workspace/AGENTS.md.tpl";
-  const claudeWorkspacePath = "workspace/CLAUDE.md.tpl";
-
-  if (sourceRelative.startsWith(consumerPathPrefix)) return false;
-  if (!config.models.anthropic && sourceRelative.startsWith(anthropicPathPrefix)) return false;
-  if (!support.claudeRules && sourceRelative.startsWith(`${anthropicPathPrefix}rules/`)) return false;
-  if (!support.claudeHooks && sourceRelative.startsWith(`${anthropicPathPrefix}hooks/`)) return false;
-  if (!support.claudeSkills && sourceRelative.startsWith(`${anthropicPathPrefix}skills/`)) return false;
-  if (!support.codexHooks && sourceRelative.startsWith(codexHookPathPrefix)) return false;
-  if (!support.codexHooks && sourceRelative.startsWith(scriptHooksPath)) return false;
-  if (!support.codexHooks && sourceRelative === scriptCodexPath) return false;
-  if (!support.codexHooks && sourceRelative === "ai/contracts/codex-hooks.contract.json.tpl") return false;
-  if (!config.models.anthropic && sourceRelative === scriptRulesPath) return false;
-  if (!config.models.openai && sourceRelative === openaiWorkspacePath) return false;
-  if (!config.models.anthropic && sourceRelative === claudeWorkspacePath) return false;
-  if (!config.models.anthropic && sourceRelative.startsWith(claudePath)) return false;
-  if (!support.claudeRules && sourceRelative.startsWith(`${claudePath}rules/`)) return false;
-  if (!config.models.openai && sourceRelative === "AGENTS.md.tpl") return false;
-  if (!config.models.anthropic && sourceRelative === "CLAUDE.md.tpl") return false;
-  if (!config.models.openai && sourceRelative.startsWith("ai/model-overlays/openai/")) return false;
-  if (!config.models.anthropic && sourceRelative.startsWith("ai/model-overlays/anthropic/")) return false;
-  return true;
+  return shouldRenderContractTemplate(sourceRelative, config);
 }
 
 async function collectTemplateFiles() {
@@ -180,12 +146,10 @@ async function collectTemplateFiles() {
 
 async function generatedScriptHashes(templateFiles, config, values) {
   const hashes = {};
+  const trustedScriptTemplates = new Set(trustedGeneratedScriptTemplatesForSettings(config));
 
   for (const sourceRelative of templateFiles) {
-    if (!sourceRelative.startsWith("scripts/")) continue;
-    if (!sourceRelative.endsWith(".mjs.tpl")) continue;
-    if (sourceRelative === "scripts/validate-governance.mjs.tpl") continue;
-    if (!shouldRenderTemplate(sourceRelative, config)) continue;
+    if (!trustedScriptTemplates.has(sourceRelative)) continue;
 
     const sourcePath = path.join(repoRoot, "template", sourceRelative);
     const targetRelative = sourceRelative.replace(/\.tpl$/, "");
@@ -323,7 +287,7 @@ async function main() {
       repoRoot,
     });
   }
-  const support = clientSupport(config);
+  const support = clientSupportForConfig(config);
   const values = {
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
@@ -339,16 +303,18 @@ async function main() {
     CLIENT_CLAUDE_RULES_ENABLED: booleanLiteral(support.claudeRules),
     CLIENT_CLAUDE_HOOKS_ENABLED: booleanLiteral(support.claudeHooks),
     CLIENT_CLAUDE_SKILLS_ENABLED: booleanLiteral(support.claudeSkills),
+    GENERATED_HARNESS_CONTRACT_MODULE: await readFile(path.join(repoRoot, "scripts/generated-harness-contract.mjs"), "utf8"),
   };
 
   const templateFiles = await collectTemplateFiles();
   values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, config, values);
+  const freshRenderScriptTemplates = new Set(freshRenderScriptTemplatesForSettings(config));
 
   let renderedHtmlViewsScript = false;
   for (const sourceRelative of templateFiles) {
     if (!shouldRenderTemplate(sourceRelative, config)) continue;
     const result = await writeRenderedFile(sourceRelative, outputRoot, values, options);
-    if (sourceRelative === scriptHtmlViewsPath && result.rendered) {
+    if (freshRenderScriptTemplates.has(sourceRelative) && result.rendered) {
       renderedHtmlViewsScript = true;
     }
   }
