@@ -109,6 +109,7 @@ test("parseArgs uses safe defaults", () => {
   assert.equal(options.force, false);
   assert.equal(options.installConsumerEntrypoints, false);
   assert.equal(options.allowAbsoluteOutput, false);
+  assert.equal(options.allowTemplateRepoConsumer, false);
 });
 
 test("parseArgs reads flags and valued options", () => {
@@ -118,12 +119,14 @@ test("parseArgs reads flags and valued options", () => {
     "--force",
     "--install-consumer-entrypoints",
     "--allow-absolute-output",
+    "--allow-template-repo-consumer",
   ]);
   assert.equal(options.config, "custom.json");
   assert.equal(options.dryRun, true);
   assert.equal(options.force, true);
   assert.equal(options.installConsumerEntrypoints, true);
   assert.equal(options.allowAbsoluteOutput, true);
+  assert.equal(options.allowTemplateRepoConsumer, true);
 });
 
 test("parseArgs rejects unknown arguments", () => {
@@ -304,6 +307,58 @@ test("writeRenderedFile rejects forced symlinked leaf targets", async () => {
       /Generated harness file sample\.md is unsafe: symlinked write targets/,
     );
     assert.equal(await readFile(path.join(outsideRoot, "sample.md"), "utf8"), "OUTSIDE");
+  });
+});
+
+test("init harness writes a passive generation manifest", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+
+    assertSuccess(
+      runInitHarness(configPath, ["--install-consumer-entrypoints"]),
+      "generator should write generation manifest",
+    );
+
+    const manifest = JSON.parse(await readFile(path.join(outputRoot, ".structor", "manifest.json"), "utf8"));
+
+    assert.equal(manifest.generatorName, "@structor-dev/cli");
+    assert.equal(manifest.generatorVersion, "0.1.0");
+    assert.ok(Date.parse(manifest.generatedAt));
+    assert.equal(manifest.config.path, "harness.config.json");
+    assert.match(manifest.config.sha256, /^[a-f0-9]{64}$/);
+    assert.deepEqual(manifest.config.project, {
+      name: "Test Project",
+      slug: "test-project",
+      harnessRepoName: "test-structor",
+    });
+    assert.deepEqual(manifest.config.models, { openai: true, anthropic: false });
+    assert.equal(manifest.config.consumers[0].name, "product-app");
+    assert.ok(manifest.files.some((file) => file.path === "README.md" && file.action === "created"));
+    assert.ok(!manifest.files.some((file) => file.path === ".structor/manifest.json"));
+    assert.ok(
+      manifest.consumerEntrypoints.some(
+        (entrypoint) =>
+          entrypoint.consumer === "product-app" &&
+          entrypoint.consumerPath === "./product-app" &&
+          entrypoint.path === "AGENTS.md" &&
+          entrypoint.action === "wrote" &&
+          entrypoint.rendered === true,
+      ),
+    );
+
+    assertSuccess(runValidateGovernance(outputRoot), "generated validators should tolerate .structor");
+  });
+});
+
+test("init harness dry-run does not write a generation manifest", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+
+    assertSuccess(runInitHarness(configPath, ["--dry-run"]), "dry run should not write generation manifest");
+
+    await assert.rejects(readFile(path.join(outputRoot, ".structor", "manifest.json"), "utf8"));
   });
 });
 

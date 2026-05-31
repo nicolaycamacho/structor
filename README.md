@@ -398,9 +398,14 @@ npm run validate
 ```
 
 `npm run check:ci` covers the cheap structural checks that feed both local
-development and CI: config examples, required template files, task template
-structure, contract manifest schema, placeholder hygiene, and model overlay
-thinness.
+development and CI: config examples, active shipped schemas, required template
+files, task template structure, contract manifest schema, placeholder hygiene,
+and model overlay thinness.
+
+The active shipped schemas are `schemas/harness-config.schema.json` and
+`schemas/contract-manifest.schema.json`. Task brief validation is intentionally
+Markdown/template based through `scripts/check-task-template.mjs`, not a shipped
+JSON Schema contract.
 
 Generated harness files are declared in `scripts/generated-harness-contract.mjs`.
 That contract is the source of truth for render gates, trusted generated
