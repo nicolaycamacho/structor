@@ -17,7 +17,9 @@ requires_human_approval: false
 
 ## Summary
 
-Describe the work in one short paragraph.
+Write a scannable implementation summary in 250 words or fewer. Include the
+problem being solved, the intended change, the main implementation surfaces,
+and the key validation expectation.
 
 ## Context
 
