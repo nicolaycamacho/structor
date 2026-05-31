@@ -456,12 +456,8 @@ async function init(options) {
     ], defaultModelIndex);
 
     section("Customization");
-    await askChoice(rl, "How much should Structor customize from consumer repos?", [
-      { label: "Starter only", value: "starter", note: "available now" },
-      { label: "Light scan", value: "starter", note: "coming soon" },
-      { label: "Deep scan", value: "starter", note: "coming soon" },
-    ]);
     note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
+    note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
 
     section("Consumer repos");
     note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
