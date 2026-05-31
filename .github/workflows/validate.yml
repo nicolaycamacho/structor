@@ -5,6 +5,27 @@ on:
   pull_request:
 
 jobs:
+  linked-issue:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Require linked issue
+        env:
+          PR_BODY: ${{ github.event.pull_request.body }}
+        run: |
+          shopt -s nocasematch
+
+          if [[ "${PR_BODY}" =~ (^|[^[:alnum:]_])(close|closes|closed|fix|fixes|fixed|resolve|resolves|resolved)[[:space:]]+(#[0-9]+|${GITHUB_REPOSITORY}#[0-9]+|https://github[.]com/${GITHUB_REPOSITORY}/issues/[0-9]+)([^0-9]|$) ]]; then
+            exit 0
+          fi
+
+          echo "Pull requests must link the issue they complete with a closing keyword, for example: Closes #123"
+          exit 1
+
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
