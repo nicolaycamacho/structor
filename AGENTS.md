@@ -20,3 +20,15 @@ harnesses for consumer repos.
 - Do not add project-specific product content to active templates.
 - Validate with `npm run validate` after changing scripts, schemas, examples,
   or template files.
+
+## GitHub Labels
+
+When creating or updating GitHub issues and PRs, prefer the structured labels:
+
+- Add one `type:*` label: `feature`, `bug`, `docs`, `test`, or `refactor`.
+- Add one or more `area:*` labels: `cli`, `templates`, `schemas`,
+  `validation`, `docs`, `contributor-workflow`, or `release`.
+- Add one `risk:*` label: `low`, `medium`, or `high`.
+- Add a `status:*` label only when the workflow state is known:
+  `ready-for-agent`, `needs-fix`, `human-review`, `blocked`, or `pr-ready`.
+- Add `priority: high` or `priority: low` only when priority is explicit.
