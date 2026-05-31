@@ -1,13 +1,24 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { assertSafeConsumerPath } from "../scripts/lib.mjs";
+import {
+  assertSafeConsumerPath,
+  hasConsumerRepositorySignal,
+  resolveHarnessConfig,
+  validateConfigShape,
+} from "../scripts/lib.mjs";
+import {
+  consumerEntrypointsForSettings,
+  requiredHarnessRepoFilesForWorkspaceCheck,
+  requiredWorkspaceFilesForWorkspaceCheck,
+  workspaceEntrypointsForSettings,
+} from "../scripts/generated-harness-contract.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
@@ -127,7 +138,7 @@ function assertNoUnknownCommandFlags(command, options) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor doctor\n\nCommands:\n  init      Guided local setup for a Structor workspace.\n  generate  Render a generated harness from an existing config.\n  doctor    Planned diagnostic and repair command.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init      Guided local setup for a Structor workspace.\n  generate  Render a generated harness from an existing config.\n  doctor    Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -410,6 +421,312 @@ export function nextValidationCommands(config) {
   return commands;
 }
 
+function cleanHarnessReference(rawReference) {
+  return rawReference.trim().replace(/^[`'"]+/, "").replace(/[`'",;:.)\]}]+$/, "");
+}
+
+function extractHarnessReferences(content, harnessRepoName) {
+  const escapedName = harnessRepoName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const pattern = new RegExp("(?:\\.\\.?/|/)[^`'\"\\s)<\\]}]*(?:" + escapedName + ")[^`'\"\\s)<\\]}]*", "g");
+  return [...new Set((content.match(pattern) ?? []).map(cleanHarnessReference).filter(Boolean))];
+}
+
+function resolveHarnessReferenceTarget({ reference: rawReference, basePath, harnessRepoName }) {
+  const reference = cleanHarnessReference(rawReference);
+  const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(basePath, reference);
+  const parts = absoluteReference.split(path.sep);
+  if (parts.lastIndexOf(harnessRepoName) === -1) return null;
+  return absoluteReference;
+}
+
+function resolveHarnessReferenceRoot({ reference: rawReference, basePath, harnessRepoName }) {
+  const target = resolveHarnessReferenceTarget({ reference: rawReference, basePath, harnessRepoName });
+  if (!target) return null;
+  const parts = target.split(path.sep);
+  const index = parts.lastIndexOf(harnessRepoName);
+  return parts.slice(0, index + 1).join(path.sep) || path.sep;
+}
+
+async function isFileTarget(targetPath) {
+  try {
+    return (await stat(targetPath)).isFile();
+  } catch {
+    return false;
+  }
+}
+
+async function canonicalExistingPath(targetPath) {
+  try {
+    return await realpath(targetPath);
+  } catch {
+    return path.resolve(targetPath);
+  }
+}
+
+async function validateHarnessReferences({
+  pointerPath,
+  pointerContent,
+  basePath,
+  expectedHarnessRoot,
+  harnessRepoName,
+  models,
+  requireHarnessReference = true,
+}) {
+  const references = extractHarnessReferences(pointerContent, harnessRepoName);
+  if (references.length === 0) {
+    return requireHarnessReference
+      ? [`${pointerPath} does not contain a resolvable ${harnessRepoName} path.`]
+      : [];
+  }
+
+  const issues = [];
+  for (const reference of references) {
+    const target = resolveHarnessReferenceTarget({ reference, basePath, harnessRepoName });
+    const referenceRoot = resolveHarnessReferenceRoot({ reference, basePath, harnessRepoName });
+    if (!target || !referenceRoot) {
+      issues.push(`${pointerPath} does not contain a resolvable ${harnessRepoName} path.`);
+      continue;
+    }
+    const canonicalReferenceRoot = await canonicalExistingPath(referenceRoot);
+    const canonicalExpectedHarnessRoot = await canonicalExistingPath(expectedHarnessRoot);
+    if (canonicalReferenceRoot !== canonicalExpectedHarnessRoot) {
+      issues.push(`${pointerPath} points at ${referenceRoot} instead of ${expectedHarnessRoot}.`);
+      continue;
+    }
+
+    const relativeTarget = path.relative(referenceRoot, target).replaceAll(path.sep, "/");
+    if (!models.openai && relativeTarget === "AGENTS.md") {
+      issues.push(`${pointerPath} must not reference ${relativeTarget} when OpenAI support is disabled.`);
+    } else if (!models.anthropic && relativeTarget === "CLAUDE.md") {
+      issues.push(`${pointerPath} must not reference ${relativeTarget} when Anthropic support is disabled.`);
+    } else if (relativeTarget === "" || !(await isFileTarget(target))) {
+      issues.push(`${pointerPath} references missing generated-harness file ${relativeTarget || "."}.`);
+    }
+  }
+  return issues;
+}
+
+async function readIfExists(filePath) {
+  if (!(await exists(filePath))) return null;
+  return readFile(filePath, "utf8");
+}
+
+async function collectEntrypointRoutingIssues({
+  label,
+  basePath,
+  entrypoints,
+  expectedHarnessRoot,
+  harnessRepoName,
+  models,
+}) {
+  const issues = [];
+  for (const entrypoint of entrypoints) {
+    const pointerPath = path.join(basePath, entrypoint.path);
+    const pointerContent = await readIfExists(pointerPath);
+    if (pointerContent === null) {
+      issues.push(`${label}:${entrypoint.path} missing.`);
+      continue;
+    }
+    if (entrypoint.routing === "claude-memory") {
+      if (!pointerContent.includes("../CLAUDE.md")) {
+        issues.push(`${label}:${entrypoint.path} must route through ../CLAUDE.md.`);
+      }
+      const referenceIssues = await validateHarnessReferences({
+        pointerPath: `${label}:${entrypoint.path}`,
+        pointerContent,
+        basePath,
+        expectedHarnessRoot,
+        harnessRepoName,
+        models,
+        requireHarnessReference: false,
+      });
+      issues.push(...referenceIssues);
+      continue;
+    }
+    const referenceIssues = await validateHarnessReferences({
+      pointerPath: `${label}:${entrypoint.path}`,
+      pointerContent,
+      basePath,
+      expectedHarnessRoot,
+      harnessRepoName,
+      models,
+    });
+    issues.push(...referenceIssues);
+  }
+  return issues;
+}
+
+function printDoctorCheck(results, status, label, detail = "") {
+  results.push({ status, label, detail });
+  const renderedStatus =
+    status === "OK" ? color("green", "OK") :
+    status === "WARN" ? color("yellow", "WARN") :
+    color("red", "FAIL");
+  console.log(`${renderedStatus} ${label}${detail ? ` - ${detail}` : ""}`);
+}
+
+async function doctor(options) {
+  const results = [];
+  const workspaceRoot = path.resolve(options.workspace ?? process.cwd());
+  const configPath = path.resolve(workspaceRoot, options.config ?? configFileName);
+  section("Structor doctor");
+  note("Diagnosis only. No files will be repaired or written.");
+
+  let config = null;
+  if (await exists(configPath)) {
+    printDoctorCheck(results, "OK", "config file exists", configPath);
+    try {
+      config = await readJson(configPath);
+      printDoctorCheck(results, "OK", "config file parses");
+    } catch (error) {
+      printDoctorCheck(results, "FAIL", "config file parses", error instanceof Error ? error.message : String(error));
+    }
+  } else {
+    printDoctorCheck(results, "FAIL", "config file exists", configPath);
+  }
+
+  let resolvedConfig = null;
+  if (config) {
+    const shapeErrors = await validateConfigShape(config, configPath);
+    if (shapeErrors.length === 0) {
+      printDoctorCheck(results, "OK", "config shape is valid");
+    } else {
+      for (const error of shapeErrors) printDoctorCheck(results, "FAIL", "config shape is valid", error);
+    }
+
+    if (shapeErrors.length === 0) {
+      try {
+        resolvedConfig = await resolveHarnessConfig(config, {
+          label: configPath,
+          configPath,
+          outputPath: config.output.path,
+        });
+        printDoctorCheck(results, "OK", "output root is safe", resolvedConfig.outputRoot);
+      } catch (error) {
+        printDoctorCheck(results, "FAIL", "output root is safe", error instanceof Error ? error.message : String(error));
+      }
+    }
+  }
+
+  if (resolvedConfig) {
+    const { outputRoot, workspaceRoot: resolvedWorkspaceRoot, consumers, support } = resolvedConfig;
+    const settings = { models: config.models, clientSupport: support };
+    const harnessRepoName = config.project.harnessRepoName;
+    const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);
+    const workspaceRequiredFiles = requiredWorkspaceFilesForWorkspaceCheck(settings);
+    const workspaceRoutingEntrypoints = workspaceEntrypointsForSettings(settings).filter(
+      (entrypoint) => entrypoint.routing !== "presence",
+    );
+    const consumerRoutingEntrypoints = consumerEntrypointsForSettings(settings);
+
+    if (path.basename(outputRoot) === harnessRepoName) {
+      printDoctorCheck(results, "OK", "generated harness folder name matches config", harnessRepoName);
+    } else {
+      printDoctorCheck(results, "FAIL", "generated harness folder name matches config", `expected ${harnessRepoName}, found ${path.basename(outputRoot)}`);
+    }
+
+    if (await isDirectory(outputRoot)) {
+      printDoctorCheck(results, "OK", "generated harness output directory exists", outputRoot);
+    } else {
+      printDoctorCheck(results, "FAIL", "generated harness output directory exists", outputRoot);
+    }
+
+    const missingRepoFiles = [];
+    for (const relativePath of repoRequiredFiles) {
+      if (!(await exists(path.join(outputRoot, relativePath)))) missingRepoFiles.push(relativePath);
+    }
+    if (missingRepoFiles.length === 0) {
+      printDoctorCheck(results, "OK", "generated harness required files exist");
+    } else {
+      for (const relativePath of missingRepoFiles) {
+        printDoctorCheck(results, "FAIL", "generated harness required file exists", relativePath);
+      }
+    }
+
+    const missingWorkspaceFiles = [];
+    for (const relativePath of workspaceRequiredFiles) {
+      if (!(await exists(path.join(resolvedWorkspaceRoot, relativePath)))) missingWorkspaceFiles.push(relativePath);
+    }
+    if (missingWorkspaceFiles.length === 0) {
+      printDoctorCheck(results, "OK", "workspace entrypoint files exist");
+    } else {
+      for (const relativePath of missingWorkspaceFiles) {
+        printDoctorCheck(results, "FAIL", "workspace entrypoint file exists", relativePath);
+      }
+    }
+
+    const workspaceRoutingIssues = await collectEntrypointRoutingIssues({
+      label: "workspace",
+      basePath: resolvedWorkspaceRoot,
+      entrypoints: workspaceRoutingEntrypoints,
+      expectedHarnessRoot: outputRoot,
+      harnessRepoName,
+      models: config.models,
+    });
+    if (workspaceRoutingIssues.length === 0) {
+      printDoctorCheck(results, "OK", "workspace pointer files route to generated harness");
+    } else {
+      for (const issue of workspaceRoutingIssues) printDoctorCheck(results, "FAIL", "workspace pointer file routes to generated harness", issue);
+    }
+
+    for (const consumer of consumers) {
+      const consumerRoot = consumer.root;
+      if (await isDirectory(consumerRoot)) {
+        if (await hasConsumerRepositorySignal(consumerRoot)) {
+          printDoctorCheck(results, "OK", `consumer repo exists: ${consumer.config.name}`, consumerRoot);
+        } else {
+          printDoctorCheck(results, "FAIL", `consumer repo exists: ${consumer.config.name}`, `missing repository signal at ${consumerRoot}`);
+        }
+      } else {
+        printDoctorCheck(results, "FAIL", `consumer repo exists: ${consumer.config.name}`, consumerRoot);
+        continue;
+      }
+
+      if (Object.values(consumer.config.validation ?? {}).some((value) => typeof value === "string" && value.trim() !== "")) {
+        printDoctorCheck(results, "OK", `consumer validation command documented: ${consumer.config.name}`);
+      } else {
+        printDoctorCheck(results, "WARN", `consumer validation command documented: ${consumer.config.name}`, "no validation commands configured");
+      }
+
+      const consumerRoutingIssues = await collectEntrypointRoutingIssues({
+        label: `consumer:${consumer.config.name}`,
+        basePath: consumerRoot,
+        entrypoints: consumerRoutingEntrypoints,
+        expectedHarnessRoot: outputRoot,
+        harnessRepoName,
+        models: config.models,
+      });
+      if (consumerRoutingIssues.length === 0) {
+        printDoctorCheck(results, "OK", `consumer pointer files route to generated harness: ${consumer.config.name}`);
+      } else {
+        for (const issue of consumerRoutingIssues) {
+          printDoctorCheck(results, "FAIL", `consumer pointer file routes to generated harness: ${consumer.config.name}`, issue);
+        }
+      }
+    }
+
+    const manifestPath = path.join(outputRoot, ".structor/manifest.json");
+    if (await exists(manifestPath)) {
+      try {
+        await readJson(manifestPath);
+        printDoctorCheck(results, "OK", "manifest is present and parses", manifestPath);
+      } catch (error) {
+        printDoctorCheck(results, "WARN", "manifest is present but does not parse", error instanceof Error ? error.message : String(error));
+      }
+    } else {
+      printDoctorCheck(results, "WARN", "manifest is present", "optional in doctor v1");
+    }
+  }
+
+  const failures = results.filter((result) => result.status === "FAIL").length;
+  const warnings = results.filter((result) => result.status === "WARN").length;
+  if (failures > 0) {
+    fail(`Structor doctor found ${failures} failure(s) and ${warnings} warning(s).`);
+    process.exit(1);
+  }
+  success(`Structor doctor passed with ${warnings} warning(s).`);
+}
+
 function printNextSteps(config) {
   section("Next validation commands");
   note("Run these from the workspace after generation to prove harness policy and workspace routing are healthy.");
@@ -582,13 +899,8 @@ async function main() {
   }
   if (command === "doctor") {
     assertNoUnknownCommandFlags(command, options);
-    note("structor doctor is planned but not implemented yet.");
-    note("It will diagnose and repair drift in an existing Structor workspace:");
-    note("  - stale or missing consumer entrypoints");
-    note("  - moved harness or consumer folders");
-    note("  - unsafe output paths");
-    note("Track progress: docs/issues/0001-structor-doctor.md");
-    process.exit(1);
+    await doctor(options);
+    return;
   }
   throw new Error(`Unknown command: ${command}`);
 }
