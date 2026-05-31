@@ -3,6 +3,7 @@
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { assertSafeWriteTarget } from "./lib/path-safety.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const args = process.argv.slice(2);
@@ -181,6 +182,14 @@ const outputs = {
   "quality.html": await qualityView(),
   "workspace.html": await workspaceView(),
 };
+
+for (const [name] of Object.entries(outputs)) {
+  await assertSafeWriteTarget({
+    targetPath: path.join(viewsDir, name),
+    rootPath: outputRoot,
+    label: `HTML view ${path.join("ai/views", name)}`,
+  });
+}
 
 await mkdir(viewsDir, { recursive: true });
 for (const [name, content] of Object.entries(outputs)) {

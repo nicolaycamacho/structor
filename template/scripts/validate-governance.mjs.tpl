@@ -35,8 +35,8 @@ const checkCodexHooksScript = "scripts/check-codex-hooks.mjs";
 const checkClaudeCompatibilityScript = "scripts/check-claude-compatibility.mjs";
 const checkOverlayDriftScript = "scripts/check-overlay-drift.mjs";
 const checkDependencies = {
-  "scripts/check-html-views.mjs": ["scripts/generate-html-views.mjs"],
-  "scripts/check-worktree-bootstrap-fixtures.mjs": ["scripts/lib/worktree-bootstrap.mjs"],
+  "scripts/check-html-views.mjs": ["scripts/generate-html-views.mjs", "scripts/lib/path-safety.mjs"],
+  "scripts/check-worktree-bootstrap-fixtures.mjs": ["scripts/lib/path-safety.mjs", "scripts/lib/worktree-bootstrap.mjs"],
   [checkCodexHooksScript]: ["scripts/hooks/codex-hook.mjs", "scripts/hooks/lib/codex-hooks-core.mjs"],
 };
 const generatedScriptHashes = {{GENERATED_SCRIPT_HASHES_JSON}};
