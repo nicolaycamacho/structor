@@ -63,9 +63,11 @@ const repoBaseFiles = [
   "scripts/check-contract-manifests.mjs",
   "scripts/generate-html-views.mjs",
   "scripts/check-html-views.mjs",
+  "scripts/lib/path-safety.mjs",
   "scripts/bootstrap-codex-worktree.mjs",
   "scripts/check-worktrees.mjs",
   "scripts/check-worktree-bootstrap-fixtures.mjs",
+  "scripts/lib/worktree-bootstrap.mjs",
 ];
 const openaiRepoFiles = ["AGENTS.md", "ai/model-overlays/openai/AGENTS.md", "scripts/check-overlay-drift.mjs"];
 const anthopicRepoFiles = [

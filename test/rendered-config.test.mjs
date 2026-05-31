@@ -94,7 +94,12 @@ test("harnessTemplateValues centralizes sink-aware config rendering", () => {
     claudeSkills: false,
   };
 
-  const values = harnessTemplateValues(config, support, "/workspace", "/workspace/example-structor");
+  const values = harnessTemplateValues(
+    config,
+    support,
+    [{ config: config.consumers[0], root: "/workspace/example-app" }],
+    "/workspace/example-structor",
+  );
 
   assert.ok(values.PROJECT_NAME.includes("\\#\\# injected"));
   assert.equal(values.PROJECT_NAME_CODE, "`Unsafe ${literal}\\n## injected`");

@@ -57,10 +57,9 @@ function consumerNames(consumers) {
   return consumers.map((consumer) => rawSlug(consumer.name, "consumer.name"));
 }
 
-function consumerConfig(consumers, workspaceRoot, outputRoot) {
+function consumerConfig(resolvedConsumers, outputRoot) {
   const generatedWorkspaceRoot = path.dirname(outputRoot);
-  return consumers.map((consumer) => {
-    const consumerRoot = path.resolve(workspaceRoot, consumer.path);
+  return resolvedConsumers.map(({ config: consumer, root: consumerRoot }) => {
     return {
       ...consumer,
       name: rawSlug(consumer.name, "consumer.name"),
@@ -73,7 +72,7 @@ export function renderedGeneratedScriptHashes(hashes) {
   return jsonLiteral(hashes);
 }
 
-export function harnessTemplateValues(config, support, workspaceRoot, outputRoot) {
+export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot) {
   return {
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_CODE: markdownCodeSpan(config.project.name),
@@ -82,7 +81,7 @@ export function harnessTemplateValues(config, support, workspaceRoot, outputRoot
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
     CONSUMER_REPOS_LIST: consumerList(config.consumers),
     CONSUMER_REPO_NAMES_JSON: javascriptLiteral(consumerNames(config.consumers)),
-    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(config.consumers, workspaceRoot, outputRoot)),
+    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(resolvedConsumers, outputRoot)),
     PRIMARY_CONSUMER_NAME: rawSlug(config.consumers[0].name, "consumer.name"),
     MODEL_OPENAI_ENABLED: javascriptBoolean(config.models.openai),
     MODEL_ANTHROPIC_ENABLED: javascriptBoolean(config.models.anthropic),
