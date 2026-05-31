@@ -26,6 +26,7 @@
   },
   "files": [
     "bin/",
+    "contrib/",
     "docs/",
     "examples/",
     "harness.config.example.json",
@@ -52,7 +53,8 @@
     "validate:governance": "node scripts/validate-governance.mjs",
     "init": "node bin/structor.mjs init",
     "generate": "node bin/structor.mjs generate",
-    "init:harness": "node scripts/init-harness.mjs"
+    "init:harness": "node scripts/init-harness.mjs",
+    "setup:contributor": "node scripts/setup-contributor.mjs"
   },
   "engines": {
     "node": ">=20"
