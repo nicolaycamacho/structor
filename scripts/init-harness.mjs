@@ -6,13 +6,10 @@ import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  assertConfirmedConsumerRepository,
-  assertSafeConsumerPath,
-  assertSafeOutputRoot,
   assertSafeWriteTarget,
   exists,
-  validateConfigShape,
-  workspaceRootForConfig,
+  resolveClientSupport,
+  resolveHarnessConfig,
 } from "./lib.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -97,10 +94,9 @@ function consumerNames(consumers) {
   return JSON.stringify(consumers.map((consumer) => consumer.name));
 }
 
-function consumerConfig(consumers, workspaceRoot, outputRoot) {
+function consumerConfig(resolvedConsumers, outputRoot) {
   const generatedWorkspaceRoot = path.dirname(outputRoot);
-  const normalizedConsumers = consumers.map((consumer) => {
-    const consumerRoot = path.resolve(workspaceRoot, consumer.path);
+  const normalizedConsumers = resolvedConsumers.map(({ config: consumer, root: consumerRoot }) => {
     return {
       ...consumer,
       workspacePath: path.relative(generatedWorkspaceRoot, consumerRoot).replaceAll(path.sep, "/") || ".",
@@ -121,17 +117,8 @@ function sha256(content) {
   return createHash("sha256").update(content).digest("hex");
 }
 
-function clientSupport(config) {
-  return {
-    codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
-    claudeRules: config.models.anthropic && (config.clientSupport?.claude?.rules ?? true),
-    claudeHooks: config.models.anthropic && (config.clientSupport?.claude?.hooks ?? false),
-    claudeSkills: config.models.anthropic && (config.clientSupport?.claude?.skills ?? false),
-  };
-}
-
 export function shouldRenderTemplate(sourceRelative, config) {
-  const support = clientSupport(config);
+  const support = resolveClientSupport(config);
   const claudePath = "workspace/.claude/";
   const openaiWorkspacePath = "workspace/AGENTS.md.tpl";
   const claudeWorkspacePath = "workspace/CLAUDE.md.tpl";
@@ -223,25 +210,12 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
   return { action: existed ? "wrote" : "created", rendered: true, targetPath, targetRelative };
 }
 
-async function installConsumerEntrypoints(config, harnessRoot, options) {
-  const configDir = path.dirname(path.resolve(options.config));
-  const workspaceRoot = options.workspaceRoot ?? workspaceRootForConfig(configDir, repoRoot);
+async function installConsumerEntrypoints(resolvedConfig, options) {
+  const { config, outputRoot: harnessRoot, consumers } = resolvedConfig;
 
-  for (const consumer of config.consumers) {
-    const consumerRoot = assertSafeConsumerPath({
-      consumerName: consumer.name,
-      consumerPath: consumer.path,
-      workspaceRoot,
-      outputRoot: harnessRoot,
-      repoRoot,
-    });
-    await assertConfirmedConsumerRepository({
-      consumerName: consumer.name,
-      consumerRoot,
-      workspaceRoot,
-      outputRoot: harnessRoot,
-      repoRoot,
-    });
+  for (const resolvedConsumer of consumers) {
+    const consumer = resolvedConsumer.config;
+    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
 
     const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
     const values = {
@@ -289,41 +263,15 @@ async function main() {
   const options = parseArgs(process.argv.slice(2));
   const configPath = path.resolve(options.config);
   const config = JSON.parse(await readFile(configPath, "utf8"));
-  const errors = await validateConfigShape(config, options.config);
-  if (errors.length > 0) {
-    throw new Error(errors.join("\n"));
-  }
-
-  const configDir = path.dirname(configPath);
   const outputPath = options.output ?? config.output.path;
-  const requestedOutputRoot = path.resolve(configDir, outputPath);
-  const workspaceRoot = workspaceRootForConfig(configDir, repoRoot);
-  const consumerRepos = config.consumers.map((consumer) =>
-    assertSafeConsumerPath({
-      consumerName: consumer.name,
-      consumerPath: consumer.path,
-      workspaceRoot,
-      repoRoot,
-    }),
-  );
-  const outputRoot = await assertSafeOutputRoot({
+  const resolvedConfig = await resolveHarnessConfig(config, {
+    label: options.config,
+    configPath,
     outputPath,
-    outputRoot: requestedOutputRoot,
-    repoRoot,
-    workspaceRoot,
-    consumerRepos,
     allowAbsoluteOutput: options.allowAbsoluteOutput,
+    requireExistingConsumers: options.installConsumerEntrypoints,
   });
-  for (const consumer of config.consumers) {
-    assertSafeConsumerPath({
-      consumerName: consumer.name,
-      consumerPath: consumer.path,
-      workspaceRoot,
-      outputRoot,
-      repoRoot,
-    });
-  }
-  const support = clientSupport(config);
+  const { outputRoot, support } = resolvedConfig;
   const values = {
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
@@ -331,7 +279,7 @@ async function main() {
     HARNESS_REPO_NAME: config.project.harnessRepoName,
     CONSUMER_REPOS_LIST: consumerList(config.consumers),
     CONSUMER_REPO_NAMES_JSON: consumerNames(config.consumers),
-    CONSUMER_CONFIG_JSON: consumerConfig(config.consumers, workspaceRoot, outputRoot),
+    CONSUMER_CONFIG_JSON: consumerConfig(resolvedConfig.consumers, outputRoot),
     PRIMARY_CONSUMER_NAME: config.consumers[0].name,
     MODEL_OPENAI_ENABLED: booleanLiteral(config.models.openai),
     MODEL_ANTHROPIC_ENABLED: booleanLiteral(config.models.anthropic),
@@ -363,7 +311,7 @@ async function main() {
   }
 
   if (options.installConsumerEntrypoints) {
-    await installConsumerEntrypoints(config, outputRoot, { ...options, config: configPath, workspaceRoot });
+    await installConsumerEntrypoints(resolvedConfig, { ...options, config: configPath });
   }
 }
 
