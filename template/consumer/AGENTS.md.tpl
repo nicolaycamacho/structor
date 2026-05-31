@@ -7,10 +7,10 @@ harness.
 
 Read the harness first:
 
-1. `{{HARNESS_RELATIVE_PATH}}/AGENTS.md`
-2. `{{HARNESS_RELATIVE_PATH}}/ai/AGENTS.md`
-3. `{{HARNESS_RELATIVE_PATH}}/ai/HUB.md`
-4. `{{HARNESS_RELATIVE_PATH}}/ai/context.md`
+1. Root guide: {{HARNESS_AGENTS_PATH}}
+2. Shared guide: {{HARNESS_AI_AGENTS_PATH}}
+3. Hub: {{HARNESS_AI_HUB_PATH}}
+4. Context: {{HARNESS_AI_CONTEXT_PATH}}
 
 ## Local Purpose
 

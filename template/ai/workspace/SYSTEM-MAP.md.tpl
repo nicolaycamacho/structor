@@ -1,7 +1,7 @@
 # System Map
 
-`{{PROJECT_NAME}}` is organized around a separate harness repo and one or more
-consumer repos.
+Project {{PROJECT_NAME_CODE}} is organized around a separate harness repo and
+one or more consumer repos.
 
 ## Relationship
 

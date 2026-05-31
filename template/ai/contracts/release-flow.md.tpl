@@ -1,6 +1,6 @@
 # Release Flow Contract
 
-This contract defines harness release safety for `{{PROJECT_NAME}}`.
+This contract defines harness release safety for {{PROJECT_NAME_CODE}}.
 
 ## Requirements
 

@@ -14,6 +14,11 @@ import {
   validateConfigShape,
   workspaceRootForConfig,
 } from "./lib.mjs";
+import {
+  consumerEntrypointValues,
+  harnessTemplateValues,
+  renderedGeneratedScriptHashes,
+} from "./rendered-config.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -64,57 +69,6 @@ export function render(content, values) {
     }
     return values[key];
   });
-}
-
-function markdownText(value) {
-  const normalized = String(value).replace(/\s+/g, " ").trim();
-  const escaped = normalized.replace(/[\\`*_{}\[\]<>()#+!|>~]/g, "\\$&");
-  return escaped.replace(/^([-+]) /, "\\$1 ").replace(/^(\d+)([.)]) /, "$1\\$2 ");
-}
-
-function markdownCodeSpan(value) {
-  const text = String(value)
-    .replace(/\r/g, "\\r")
-    .replace(/\n/g, "\\n")
-    .replace(/\t/g, "\\t");
-  const longestBacktickRun = Math.max(0, ...Array.from(text.matchAll(/`+/g), (match) => match[0].length));
-  const delimiter = "`".repeat(longestBacktickRun + 1);
-  const padding = text.startsWith("`") || text.endsWith("`") || text.startsWith(" ") || text.endsWith(" ") ? " " : "";
-  return `${delimiter}${padding}${text}${padding}${delimiter}`;
-}
-
-function consumerList(consumers) {
-  return consumers.map((consumer) => `- ${markdownCodeSpan(consumer.name)}: ${markdownText(consumer.purpose)}`).join("\n");
-}
-
-function validationList(validation) {
-  const entries = Object.entries(validation ?? {});
-  if (entries.length === 0) return "- No local validation commands documented yet.";
-  return entries.map(([name, command]) => `- ${markdownText(name)}: ${markdownCodeSpan(command)}`).join("\n");
-}
-
-function consumerNames(consumers) {
-  return JSON.stringify(consumers.map((consumer) => consumer.name));
-}
-
-function consumerConfig(consumers, workspaceRoot, outputRoot) {
-  const generatedWorkspaceRoot = path.dirname(outputRoot);
-  const normalizedConsumers = consumers.map((consumer) => {
-    const consumerRoot = path.resolve(workspaceRoot, consumer.path);
-    return {
-      ...consumer,
-      workspacePath: path.relative(generatedWorkspaceRoot, consumerRoot).replaceAll(path.sep, "/") || ".",
-    };
-  });
-  return JSON.stringify(normalizedConsumers, null, 2);
-}
-
-function booleanLiteral(value) {
-  return value ? "true" : "false";
-}
-
-function javascriptLiteral(value) {
-  return JSON.stringify(value);
 }
 
 function sha256(content) {
@@ -192,7 +146,7 @@ async function generatedScriptHashes(templateFiles, config, values) {
     hashes[targetRelative] = sha256(render(await readFile(sourcePath, "utf8"), values));
   }
 
-  return JSON.stringify(hashes, null, 2);
+  return renderedGeneratedScriptHashes(hashes);
 }
 
 export async function writeRenderedFile(sourceRelative, targetRoot, values, options, templateRoot = path.join(repoRoot, "template")) {
@@ -244,13 +198,7 @@ async function installConsumerEntrypoints(config, harnessRoot, options) {
     });
 
     const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
-    const values = {
-      PROJECT_NAME: markdownText(config.project.name),
-      CONSUMER_NAME: markdownText(consumer.name),
-      CONSUMER_PURPOSE: markdownText(consumer.purpose),
-      CONSUMER_VALIDATION_LIST: validationList(consumer.validation),
-      HARNESS_RELATIVE_PATH: harnessRelativePath,
-    };
+    const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
 
     const entrypoints = [];
     if (config.models.openai) entrypoints.push(["AGENTS.md", "AGENTS.md.tpl"]);
@@ -324,22 +272,7 @@ async function main() {
     });
   }
   const support = clientSupport(config);
-  const values = {
-    PROJECT_NAME: markdownText(config.project.name),
-    PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
-    PROJECT_SLUG: config.project.slug,
-    HARNESS_REPO_NAME: config.project.harnessRepoName,
-    CONSUMER_REPOS_LIST: consumerList(config.consumers),
-    CONSUMER_REPO_NAMES_JSON: consumerNames(config.consumers),
-    CONSUMER_CONFIG_JSON: consumerConfig(config.consumers, workspaceRoot, outputRoot),
-    PRIMARY_CONSUMER_NAME: config.consumers[0].name,
-    MODEL_OPENAI_ENABLED: booleanLiteral(config.models.openai),
-    MODEL_ANTHROPIC_ENABLED: booleanLiteral(config.models.anthropic),
-    CLIENT_CODEX_HOOKS_ENABLED: booleanLiteral(support.codexHooks),
-    CLIENT_CLAUDE_RULES_ENABLED: booleanLiteral(support.claudeRules),
-    CLIENT_CLAUDE_HOOKS_ENABLED: booleanLiteral(support.claudeHooks),
-    CLIENT_CLAUDE_SKILLS_ENABLED: booleanLiteral(support.claudeSkills),
-  };
+  const values = harnessTemplateValues(config, support, workspaceRoot, outputRoot);
 
   const templateFiles = await collectTemplateFiles();
   values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, config, values);
