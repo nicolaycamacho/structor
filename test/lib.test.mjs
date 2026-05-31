@@ -14,6 +14,7 @@ import {
   pathContainsSegment,
   resolveHarnessConfig,
   validateConfigShape,
+  validateJsonSchema,
   workspaceRootForConfig,
 } from "../scripts/lib.mjs";
 
@@ -363,6 +364,48 @@ test("validateConfigShape rejects unknown top-level keys", async () => {
   config.unexpected = true;
   const errors = await validateConfigShape(config, "config");
   assert.ok(errors.some((error) => /not allowed/.test(error)));
+});
+
+test("validateJsonSchema enforces enum values", () => {
+  const validErrors = [];
+  validateJsonSchema("ready", { type: "string", enum: ["ready", "done"] }, "brief.status", validErrors);
+  assert.deepEqual(validErrors, []);
+
+  const invalidErrors = [];
+  validateJsonSchema("running", { type: "string", enum: ["ready", "done"] }, "brief.status", invalidErrors);
+  assert.ok(invalidErrors.some((error) => /brief\.status must be one of "ready", "done"/.test(error)));
+});
+
+test("validateJsonSchema rejects unsupported schema keywords", () => {
+  const errors = [];
+  validateJsonSchema(
+    { status: "ready" },
+    {
+      type: "object",
+      properties: {
+        status: { type: "string", enum: ["ready"], default: "ready" },
+      },
+    },
+    "brief",
+    errors,
+  );
+
+  assert.ok(errors.some((error) => /brief\.status schema uses unsupported keyword default/.test(error)));
+});
+
+test("validateJsonSchema rejects schema-valued additionalProperties", () => {
+  const errors = [];
+  validateJsonSchema(
+    { priority: 1 },
+    {
+      type: "object",
+      additionalProperties: { type: "number", minimum: 1 },
+    },
+    "brief",
+    errors,
+  );
+
+  assert.ok(errors.some((error) => /brief\.additionalProperties must be a boolean/.test(error)));
 });
 
 function resolvableConfig(overrides = {}) {
