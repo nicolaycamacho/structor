@@ -14,6 +14,7 @@ import {
   writeRenderedFile,
 } from "../scripts/init-harness.mjs";
 import {
+  consumerEntrypointsForSettings,
   generatedHarnessContractScript,
   validationPlanForSettings,
 } from "../scripts/generated-harness-contract.mjs";
@@ -174,6 +175,27 @@ test("validation contract declares trusted generated check dependencies", () => 
   ]);
   assert.ok(plan.checkDependencies["scripts/check-template-governance.mjs"].includes(generatedHarnessContractScript));
   assert.ok(plan.conditionalChecks.includes("scripts/check-codex-hooks.mjs"));
+});
+
+test("consumer entrypoint contract exposes installable templates", () => {
+  const entrypoints = consumerEntrypointsForSettings({
+    models: { openai: true, anthropic: true },
+    clientSupport: {
+      codexHooks: false,
+      claudeRules: false,
+      claudeHooks: false,
+      claudeSkills: false,
+    },
+  });
+
+  assert.deepEqual(
+    entrypoints.map((entrypoint) => [entrypoint.path, entrypoint.template]),
+    [
+      ["AGENTS.md", "consumer/AGENTS.md.tpl"],
+      ["CLAUDE.md", "consumer/CLAUDE.md.tpl"],
+      [".claude/CLAUDE.md", "consumer/.claude/CLAUDE.md.tpl"],
+    ],
+  );
 });
 
 test("writeRenderedFile dry-run writes nothing", async () => {

@@ -6,7 +6,7 @@
     "harnessRepoName": "multi-model-product-structor"
   },
   "output": {
-    "path": "../../generated/multi-model-product-structor"
+    "path": "../../../generated/multi-model-product-structor"
   },
   "models": {
     "openai": true,

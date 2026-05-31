@@ -296,6 +296,7 @@ function entrypointsForSettings(input, key) {
     .filter((artifactContract) => artifactEnabled(artifactContract, input) && artifactContract[key])
     .map((artifactContract) => ({
       source: artifactTargetPath(artifactContract),
+      template: artifactContract.template,
       ...artifactContract[key],
     }));
 }
