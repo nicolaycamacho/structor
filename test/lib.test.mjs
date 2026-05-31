@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, realpath, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -12,6 +12,7 @@ import {
   canonicalPathForWrite,
   isSameOrInsidePath,
   pathContainsSegment,
+  resolveHarnessConfig,
   validateConfigShape,
   workspaceRootForConfig,
 } from "../scripts/lib.mjs";
@@ -362,4 +363,143 @@ test("validateConfigShape rejects unknown top-level keys", async () => {
   config.unexpected = true;
   const errors = await validateConfigShape(config, "config");
   assert.ok(errors.some((error) => /not allowed/.test(error)));
+});
+
+function resolvableConfig(overrides = {}) {
+  return {
+    project: { name: "Demo", slug: "demo", harnessRepoName: "demo-structor" },
+    output: { path: "./demo-structor" },
+    models: { openai: true, anthropic: false },
+    consumers: [
+      {
+        name: "demo-app",
+        path: "./demo-app",
+        purpose: "App repo",
+        validation: { lint: "npm run lint" },
+      },
+    ],
+    ...overrides,
+  };
+}
+
+test("resolveHarnessConfig returns support defaults and safe generation paths for valid config", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    await mkdir(workspaceRoot, { recursive: true });
+    const configPath = path.join(workspaceRoot, "harness.config.json");
+    const templateRepoRoot = path.join(root, "structor");
+    const resolved = await resolveHarnessConfig(resolvableConfig(), {
+      label: "config",
+      configPath,
+      repoRoot: templateRepoRoot,
+    });
+
+    assert.equal(resolved.workspaceRoot, workspaceRoot);
+    assert.equal(resolved.outputRoot, path.join(await realpath(workspaceRoot), "demo-structor"));
+    assert.equal(resolved.consumers[0].root, path.join(await realpath(workspaceRoot), "demo-app"));
+    assert.equal(resolved.consumers[0].requestedRoot, path.join(workspaceRoot, "demo-app"));
+    assert.deepEqual(resolved.support, {
+      codexHooks: true,
+      claudeRules: false,
+      claudeHooks: false,
+      claudeSkills: false,
+    });
+  });
+});
+
+test("resolveHarnessConfig rejects no enabled models and duplicate consumer names", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    await mkdir(workspaceRoot, { recursive: true });
+    const configPath = path.join(workspaceRoot, "harness.config.json");
+
+    await assert.rejects(
+      () =>
+        resolveHarnessConfig(resolvableConfig({ models: { openai: false, anthropic: false } }), {
+          label: "config",
+          configPath,
+          repoRoot: path.join(root, "structor"),
+        }),
+      /at least one model provider/,
+    );
+
+    const duplicateConfig = resolvableConfig();
+    duplicateConfig.consumers.push({ ...duplicateConfig.consumers[0] });
+    await assert.rejects(
+      () =>
+        resolveHarnessConfig(duplicateConfig, {
+          label: "config",
+          configPath,
+          repoRoot: path.join(root, "structor"),
+        }),
+      /duplicated/,
+    );
+  });
+});
+
+test("resolveHarnessConfig rejects unsafe consumer and output paths", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const templateRepoRoot = path.join(workspaceRoot, "structor");
+    await mkdir(templateRepoRoot, { recursive: true });
+    const configPath = path.join(workspaceRoot, "harness.config.json");
+
+    const unsafeConsumerConfig = resolvableConfig();
+    unsafeConsumerConfig.consumers[0].path = "./structor";
+    await assert.rejects(
+      () =>
+        resolveHarnessConfig(unsafeConsumerConfig, {
+          label: "config",
+          configPath,
+          repoRoot: templateRepoRoot,
+        }),
+      /Structor template repo/,
+    );
+
+    await assert.rejects(
+      () =>
+        resolveHarnessConfig(resolvableConfig({ output: { path: "./demo-app/generated" } }), {
+          label: "config",
+          configPath,
+          repoRoot: templateRepoRoot,
+        }),
+      /configured consumer repo/,
+    );
+  });
+});
+
+test("resolveHarnessConfig derives workspace root for template-local configs", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const templateRepoRoot = path.join(workspaceRoot, "structor");
+    await mkdir(templateRepoRoot, { recursive: true });
+    const configPath = path.join(templateRepoRoot, "harness.config.json");
+    const resolved = await resolveHarnessConfig(validConfig(), {
+      label: "config",
+      configPath,
+      repoRoot: templateRepoRoot,
+    });
+
+    assert.equal(resolved.workspaceRoot, workspaceRoot);
+    assert.equal(resolved.outputRoot, path.join(await realpath(workspaceRoot), "demo-structor"));
+    assert.equal(resolved.consumers[0].root, path.join(await realpath(workspaceRoot), "demo-app"));
+  });
+});
+
+test("resolveHarnessConfig can require confirmed consumer repositories", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const consumerRoot = path.join(workspaceRoot, "demo-app");
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "demo-app" })}\n`);
+
+    const resolved = await resolveHarnessConfig(resolvableConfig(), {
+      label: "config",
+      configPath: path.join(workspaceRoot, "harness.config.json"),
+      repoRoot: path.join(root, "structor"),
+      requireExistingConsumers: true,
+    });
+
+    assert.equal(resolved.consumers[0].confirmedRoot, await realpath(consumerRoot));
+  });
 });
