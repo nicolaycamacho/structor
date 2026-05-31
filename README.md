@@ -11,7 +11,56 @@ review, and validation.
 It is a generator, not a runtime. Structor scaffolds the harness; it never runs
 agents, polls sessions, automates pull requests, or touches external services.
 
-## Quick Start
+## Contributing To Structor
+
+The recommended contributor path for this repository is:
+
+```sh
+npx @structor-dev/cli contribute structor
+```
+
+Run it from the local folder you want to use as a contributor workspace. It
+creates or reuses this layout:
+
+```text
+workspace/
+  structor/       # source repo contributors edit
+  structor-self/  # generated Structor Self-Harness
+```
+
+Before an agent edits Structor, Structor creates the repo-specific guidance
+layer that teaches the agent how to work here. The command may perform one
+network-read-only `git clone` when no usable local checkout exists, then it
+generates the sibling self-harness, wires missing local entrypoint pointers, and
+runs self-harness validation.
+
+This command does not create forks, push branches, open pull requests, edit
+issues, require GitHub authentication, run agents, or become a runner. After the
+local workspace is ready, use normal GitHub workflows for forks, branches,
+pushes, and PRs from `workspace/structor`.
+
+The conventional manual path remains available:
+
+```sh
+git clone https://github.com/nicolaycamacho/structor.git
+cd structor
+npm install
+npm run setup:contributor
+```
+
+Before opening a PR, run:
+
+```sh
+npm run validate
+cd ../structor-self
+node scripts/validate-governance.mjs
+node scripts/check-workspace.mjs
+```
+
+For options, safety details, and troubleshooting, see
+`docs/CONTRIBUTOR-SETUP.md`.
+
+## Quick Start: Target Repos
 
 Run Structor from the workspace folder that contains your consumer repos:
 
@@ -29,32 +78,6 @@ confirm. No network calls, no LLM calls, no installs.
 `structor init` remains the normal setup flow for users creating generated
 harnesses for their own target repositories. Contributing to Structor itself is
 a separate workflow.
-
-## Structor Contributor Model
-
-The recommended Structor contributor path should become:
-
-```sh
-npx @structor-dev/cli contribute structor
-```
-
-That future contributor bootstrap creates or refreshes a contributor workspace:
-a local Structor source checkout plus a sibling Structor self-harness whose
-consumer repository is Structor itself. The self-harness is repo-local guidance
-for working on Structor; it does not change the generic generated harness model
-for other projects.
-
-The contributor bootstrap may clone local repositories when preparing that
-workspace, but v1 must not fork repositories, push branches, open pull requests,
-mutate GitHub or other external services, run agents, or become a runner.
-
-The manual contributor setup path remains the clone-first fallback:
-
-```sh
-git clone https://github.com/nicolaycamacho/structor.git
-cd structor
-npm run setup:contributor
-```
 
 ## What You Get
 
