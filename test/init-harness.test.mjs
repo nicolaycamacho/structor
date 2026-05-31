@@ -543,7 +543,7 @@ test("init harness treats project name as data in executable JavaScript template
 
 test("init harness keeps generated JavaScript valid for project names with syntax metacharacters", async () => {
   await withTempDir(async (root) => {
-    const projectName = 'Quotes "double" and <tag> plus `backticks` and ${literal}';
+    const projectName = 'Quotes "double" and <tag> plus `backticks` and ${literal}\nand newline';
     const configPath = await writeMinimalConfig(root, "./test-structor", { projectName });
     const outputRoot = path.join(root, "test-structor");
 
@@ -554,7 +554,8 @@ test("init harness keeps generated JavaScript valid for project names with synta
     assertSyntaxChecks(path.join(outputRoot, "scripts/lib/worktree-bootstrap.mjs"));
 
     const indexHtml = await readFile(path.join(outputRoot, "ai/views/index.html"), "utf8");
-    assert.ok(indexHtml.includes("Quotes &quot;double&quot; and &lt;tag&gt; plus `backticks` and ${literal} Harness Views"));
+    assert.ok(indexHtml.includes("Quotes &quot;double&quot; and &lt;tag&gt; plus `backticks` and ${literal}"));
+    assert.ok(indexHtml.includes("and newline Harness Views"));
   });
 });
 
@@ -582,8 +583,9 @@ test("init harness renders Markdown-sensitive config values as data", async () =
         'node -e "console.log(`tick`)"',
       ].join("\n"),
     };
-    const configPath = await writeMinimalConfig(root, "./test-structor", { projectName, consumerPurpose, validation });
-    const outputRoot = path.join(root, "test-structor");
+    const outputFolder = "test-```structor";
+    const configPath = await writeMinimalConfig(root, `./${outputFolder}`, { projectName, consumerPurpose, validation });
+    const outputRoot = path.join(root, outputFolder);
 
     assertSuccess(
       runInitHarness(configPath, ["--install-consumer-entrypoints"]),
@@ -592,9 +594,12 @@ test("init harness renders Markdown-sensitive config values as data", async () =
 
     const rootAgent = await readFile(path.join(outputRoot, "AGENTS.md"), "utf8");
     const contextDoc = await readFile(path.join(outputRoot, "ai/context.md"), "utf8");
+    const systemMap = await readFile(path.join(outputRoot, "ai/workspace/SYSTEM-MAP.md"), "utf8");
+    const localStack = await readFile(path.join(outputRoot, "ai/workspace/LOCAL-STACK.md"), "utf8");
+    const releaseFlow = await readFile(path.join(outputRoot, "ai/contracts/release-flow.md"), "utf8");
     const consumerAgent = await readFile(path.join(root, "product-app/AGENTS.md"), "utf8");
 
-    for (const content of [rootAgent, contextDoc, consumerAgent]) {
+    for (const content of [rootAgent, contextDoc, systemMap, localStack, releaseFlow, consumerAgent]) {
       assert.doesNotMatch(content, /^## Injected Project Policy/m);
       assert.doesNotMatch(content, /^## Injected Purpose Policy/m);
       assert.doesNotMatch(content, /^## Injected Validation Policy/m);
@@ -605,6 +610,7 @@ test("init harness renders Markdown-sensitive config values as data", async () =
 
     assert.ok(rootAgent.includes("\\#\\# Injected Project Policy"));
     assert.ok(consumerAgent.includes("\\#\\# Injected Purpose Policy"));
+    assert.match(consumerAgent, /^1\. Root guide: ````.*test-```structor\/AGENTS\.md````$/m);
 
     const lintLine = consumerAgent.split("\n").find((line) => line.startsWith("- lint: "));
     assert.ok(lintLine);

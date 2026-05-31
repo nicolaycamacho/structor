@@ -1,6 +1,6 @@
 # Codex Hooks
 
-Codex hooks provide lightweight local guardrails for `{{PROJECT_NAME}}`.
+Codex hooks provide lightweight local guardrails for {{PROJECT_NAME_CODE}}.
 
 ## Scope
 
