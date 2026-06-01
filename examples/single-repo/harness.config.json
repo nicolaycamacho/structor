@@ -1,12 +1,12 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
   "project": {
-    "name": "Single Repo Product",
-    "slug": "single-repo-product",
-    "harnessRepoName": "single-repo-product-structor"
+    "name": "Example Frontend",
+    "slug": "example-frontend",
+    "harnessRepoName": "example-frontend-structor"
   },
   "output": {
-    "path": "../../../generated/single-repo-product-structor"
+    "path": "../../../generated/example-frontend-structor"
   },
   "models": {
     "openai": true,
@@ -14,9 +14,9 @@
   },
   "consumers": [
     {
-      "name": "single-repo-app",
-      "path": "./single-repo-app",
-      "purpose": "Application repository",
+      "name": "example-frontend",
+      "path": "./example-frontend",
+      "purpose": "Frontend application repository",
       "validation": {
         "lint": "npm run lint",
         "test": "npm test"

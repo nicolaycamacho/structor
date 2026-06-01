@@ -1,0 +1,26 @@
+{
+  "$schema": "../../schemas/harness-config.schema.json",
+  "project": {
+    "name": "Example API",
+    "slug": "example-api",
+    "harnessRepoName": "example-api-structor"
+  },
+  "output": {
+    "path": "../../../generated/example-api-structor"
+  },
+  "models": {
+    "openai": false,
+    "anthropic": true
+  },
+  "consumers": [
+    {
+      "name": "example-api",
+      "path": "./example-api",
+      "purpose": "Backend API repository",
+      "validation": {
+        "lint": "npm run lint",
+        "test": "npm test"
+      }
+    }
+  ]
+}
