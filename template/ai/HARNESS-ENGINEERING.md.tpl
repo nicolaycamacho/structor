@@ -13,8 +13,11 @@ instead of chat history or human memory.
 - The harness defines what must be true.
 - A runner decides when and how work executes.
 - The harness owns policy, contracts, templates, quality, and validation.
-- Runtime state, polling, PR automation, dashboards, auto-merge, and repair
-  loops belong outside the canonical docs layer unless explicitly authorized.
+- Runtime state, polling, PR automation, live dashboards, auto-merge, repair
+  loops, and orchestration UI belong outside the canonical docs layer unless
+  explicitly authorized.
+- Read-only generated Harness Cockpit views are allowed when they are derived
+  from canonical local files and do not execute validation or workflows.
 
 ## System Of Record
 

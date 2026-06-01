@@ -611,7 +611,8 @@ test("init harness treats project name as data in executable JavaScript template
     assertSuccess(runInitHarness(configPath), "generator should not execute project.name as JavaScript");
 
     const indexHtml = await readFile(path.join(outputRoot, "ai/views/index.html"), "utf8");
-    assert.ok(indexHtml.includes("Unsafe ${(() =&gt; { throw new Error(&quot;project name executed&quot;); })()} Harness Views"));
+    assert.ok(indexHtml.includes("Unsafe ${(() =&gt; { throw new Error(&quot;project name executed&quot;); })()} Harness Cockpit"));
+    assert.ok(indexHtml.includes("Topology Diagram"));
 
     const worktreeBootstrap = await readFile(path.join(outputRoot, "scripts/lib/worktree-bootstrap.mjs"), "utf8");
     assert.ok(worktreeBootstrap.includes(`const projectName = ${JSON.stringify(projectName)};`));
@@ -632,7 +633,8 @@ test("init harness keeps generated JavaScript valid for project names with synta
 
     const indexHtml = await readFile(path.join(outputRoot, "ai/views/index.html"), "utf8");
     assert.ok(indexHtml.includes("Quotes &quot;double&quot; and &lt;tag&gt; plus `backticks` and ${literal}"));
-    assert.ok(indexHtml.includes("and newline Harness Views"));
+    assert.ok(indexHtml.includes("and newline Harness Cockpit"));
+    assert.ok(indexHtml.includes("node scripts/check-html-views.mjs"));
   });
 });
 
