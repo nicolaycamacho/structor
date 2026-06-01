@@ -3,20 +3,45 @@
 > Experimental. Early infrastructure for harness engineering. The API,
 > generated layout, and config shape may change.
 
-Structor generates a repository-local AI engineering harness for your project:
-a versioned policy layer that gives Codex, Claude Code, and similar agents a
-shared, enforceable set of rules for context routing, contracts, task shape,
-review, and validation.
+Structor is a local harness-engineering toolkit. It generates a
+repository-local AI engineering harness for your project: a versioned policy
+layer that gives Codex, Claude Code, and similar agents a shared, enforceable
+set of rules for context routing, contracts, task shape, review, and
+validation.
 
 It is a generator, not a runtime. Structor scaffolds the harness; it never runs
 agents, polls sessions, automates pull requests, or touches external services.
 The open-source generator is local-only: no telemetry, no LLM calls, and no
 network calls during `init` or `generate`.
 
+Structor is for teams that want agent guidance to live next to their code,
+review history, and validation commands instead of in scattered chat prompts.
+It is useful when a project has multiple repos, multiple agent clients, or
+repeatable review and validation expectations that should be checked
+mechanically.
+
 Structor is MIT-licensed so teams can generate, modify, and use harness
 artifacts inside private or commercial repositories. Commercial policy packs,
 private templates, tailored rollout support, or hosted services may be licensed
 separately.
+
+## First Minute
+
+- **What it is:** a local generator for repository-local AI engineering
+  harnesses.
+- **Who it is for:** teams that want Codex, Claude Code, and similar agents to
+  share reviewed project policy, task shape, and validation expectations.
+- **Why not just a rules file:** Structor gives the rules a repeatable
+  generated structure, thin client entrypoints, and validators that catch drift.
+- **What it creates:** a sibling harness repo with canonical `ai/*` policy,
+  Codex and Claude entrypoints, contracts, task templates, review guidance, and
+  local validation scripts.
+- **What it does not do:** run agents, coordinate sessions, open pull requests,
+  host services, call LLM APIs, install packages, or mutate external systems.
+- **How to try it:** run `npx @structor-dev/cli init` from the workspace folder
+  that contains your consumer repos.
+- **How validation is split:** `npm run check:ci` is the fast structural path;
+  `npm run validate` adds tests and smoke-tested generated-harness flows.
 
 ## Quick Start
 
@@ -30,38 +55,14 @@ During local development from a clone of this repo, use
 `node ./structor/bin/structor.mjs init` from the parent workspace instead.
 
 `init` is local-only and deterministic. It detects sibling repos, asks a few
-questions, previews every file it would write, and generates nothing until you
-confirm. No network calls, no LLM calls, no telemetry, no installs.
+questions, writes `harness.config.json` only after confirmation, previews every
+generated file with a dry run, and generates nothing until you confirm. No
+network calls, no LLM calls, no telemetry, no package installs, and no remote
+service mutation.
 
 `structor init` remains the normal setup flow for users creating generated
 harnesses for their own target repositories. Contributing to Structor itself is
 a separate workflow.
-
-## Structor Contributor Model
-
-The recommended Structor contributor path should become:
-
-```sh
-npx @structor-dev/cli contribute structor
-```
-
-That future contributor bootstrap creates or refreshes a contributor workspace:
-a local Structor source checkout plus a sibling Structor self-harness whose
-consumer repository is Structor itself. The self-harness is repo-local guidance
-for working on Structor; it does not change the generic generated harness model
-for other projects.
-
-The contributor bootstrap may clone local repositories when preparing that
-workspace, but v1 must not fork repositories, push branches, open pull requests,
-mutate GitHub or other external services, run agents, or become a runner.
-
-The manual contributor setup path remains the clone-first fallback:
-
-```sh
-git clone https://github.com/nicolaycamacho/structor.git
-cd structor
-npm run setup:contributor
-```
 
 ## What You Get
 
@@ -87,6 +88,18 @@ scripts/            validation that mechanically enforces the rules above
 Optional consumer repo pointer files can route agents back to the generated
 harness from each code repo.
 
+## Why Not Just Use A Rules File?
+
+A single `AGENTS.md`, `CLAUDE.md`, or prompt file can tell an agent what to do,
+but it cannot easily keep project facts, model-specific overlays, contracts,
+task templates, review guidance, and validation policy synchronized across a
+workspace.
+
+Structor keeps canonical policy in the generated harness, keeps consumer
+entrypoints thin, and ships validators that check the structure. The result is
+still plain files in your repository; Structor just gives those files a stable
+shape and a way to detect drift.
+
 ## Why It Exists
 
 Most AI coding workflow tooling is a pile of prompts and rules with nothing
@@ -107,6 +120,17 @@ npx @structor-dev/cli generate --config harness.config.json --install-consumer-e
 
 See `docs/INIT.md` for the exact safety model, read/write behavior, and
 recovery expectations.
+
+## How Structor Differs From A Runner
+
+Structor creates files and validation scripts. A runner executes or coordinates
+agent work over time.
+
+Structor does not start agent sessions, poll threads, assign tasks, open pull
+requests, shepherd CI, auto-repair code, merge branches, or host dashboards.
+Those behaviors belong in a separate runner or orchestration layer. Generated
+Codex hooks are local policy guardrails only; they are not a general execution
+runtime or a complete security boundary.
 
 ## Codex And Claude Support
 
@@ -404,9 +428,11 @@ npm run check:ci
 npm run validate
 ```
 
-`npm run check:ci` covers the cheap structural checks that feed both local
-development and CI: config examples, active shipped schemas, required template
-files, task template structure, contract manifest schema, placeholder hygiene,
+Validation is split into fast structural checks and the full local smoke suite.
+
+`npm run check:ci` covers the cheap checks that feed both local development and
+CI: config examples, active shipped schemas, required template files, task
+template structure, contract manifest schema, placeholder hygiene,
 public-release hygiene, and model overlay thinness.
 
 The active shipped schemas are `schemas/harness-config.schema.json` and
@@ -445,6 +471,32 @@ For a real project config, require configured consumer repo paths to exist:
 
 ```sh
 node scripts/check-config.mjs --config harness.config.json --require-existing-consumers
+```
+
+## Structor Contributor Model
+
+The recommended Structor contributor path should become:
+
+```sh
+npx @structor-dev/cli contribute structor
+```
+
+That future contributor bootstrap creates or refreshes a contributor workspace:
+a local Structor source checkout plus a sibling Structor self-harness whose
+consumer repository is Structor itself. The self-harness is repo-local guidance
+for working on Structor; it does not change the generic generated harness model
+for other projects.
+
+The contributor bootstrap may clone local repositories when preparing that
+workspace, but v1 must not fork repositories, push branches, open pull requests,
+mutate GitHub or other external services, run agents, or become a runner.
+
+The manual contributor setup path remains the clone-first fallback:
+
+```sh
+git clone https://github.com/nicolaycamacho/structor.git
+cd structor
+npm run setup:contributor
 ```
 
 ## Non-Goals
