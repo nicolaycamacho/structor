@@ -10,6 +10,13 @@ review, and validation.
 
 It is a generator, not a runtime. Structor scaffolds the harness; it never runs
 agents, polls sessions, automates pull requests, or touches external services.
+The open-source generator is local-only: no telemetry, no LLM calls, and no
+network calls during `init` or `generate`.
+
+Structor is MIT-licensed so teams can generate, modify, and use harness
+artifacts inside private or commercial repositories. Commercial policy packs,
+private templates, tailored rollout support, or hosted services may be licensed
+separately.
 
 ## Quick Start
 
@@ -24,7 +31,7 @@ During local development from a clone of this repo, use
 
 `init` is local-only and deterministic. It detects sibling repos, asks a few
 questions, previews every file it would write, and generates nothing until you
-confirm. No network calls, no LLM calls, no installs.
+confirm. No network calls, no LLM calls, no telemetry, no installs.
 
 `structor init` remains the normal setup flow for users creating generated
 harnesses for their own target repositories. Contributing to Structor itself is
@@ -400,7 +407,7 @@ npm run validate
 `npm run check:ci` covers the cheap structural checks that feed both local
 development and CI: config examples, active shipped schemas, required template
 files, task template structure, contract manifest schema, placeholder hygiene,
-and model overlay thinness.
+public-release hygiene, and model overlay thinness.
 
 The active shipped schemas are `schemas/harness-config.schema.json` and
 `schemas/contract-manifest.schema.json`. Task brief validation is intentionally
@@ -412,9 +419,9 @@ That contract is the source of truth for render gates, trusted generated
 scripts, validation check dependencies, workspace-required files, and
 consumer/workspace entrypoint participation.
 
-The placeholder check has no hardcoded private project names. If you are
-extracting a harness from a private codebase, opt into leak detection with a
-comma-separated list:
+The placeholder and public hygiene checks have no hardcoded private project
+names. If you are extracting a harness from a private codebase, opt into leak
+detection with a comma-separated list:
 
 ```sh
 HARNESS_FORBIDDEN_PROJECT_TERMS="Internal Product,private-api" npm run check:placeholders
