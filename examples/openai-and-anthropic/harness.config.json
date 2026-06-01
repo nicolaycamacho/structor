@@ -1,12 +1,12 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
   "project": {
-    "name": "Multi Model Product",
-    "slug": "multi-model-product",
-    "harnessRepoName": "multi-model-product-structor"
+    "name": "Example Worker",
+    "slug": "example-worker",
+    "harnessRepoName": "example-worker-structor"
   },
   "output": {
-    "path": "../../../generated/multi-model-product-structor"
+    "path": "../../../generated/example-worker-structor"
   },
   "models": {
     "openai": true,
@@ -14,9 +14,9 @@
   },
   "consumers": [
     {
-      "name": "multi-model-app",
-      "path": "./multi-model-app",
-      "purpose": "Application repository used by both OpenAI and Anthropic agents",
+      "name": "example-worker",
+      "path": "./example-worker",
+      "purpose": "Worker repository used by both OpenAI and Anthropic agents",
       "validation": {
         "install": "npm install",
         "lint": "npm run lint",

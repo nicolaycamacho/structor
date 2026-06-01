@@ -1,12 +1,12 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
   "project": {
-    "name": "Frontend Backend Product",
-    "slug": "frontend-backend-product",
-    "harnessRepoName": "frontend-backend-product-structor"
+    "name": "Example Platform",
+    "slug": "example-platform",
+    "harnessRepoName": "example-platform-structor"
   },
   "output": {
-    "path": "../../../generated/frontend-backend-product-structor"
+    "path": "../../../generated/example-platform-structor"
   },
   "models": {
     "openai": true,
@@ -14,8 +14,8 @@
   },
   "consumers": [
     {
-      "name": "product-frontend",
-      "path": "./product-frontend",
+      "name": "example-frontend",
+      "path": "./example-frontend",
       "purpose": "Frontend application repository",
       "validation": {
         "lint": "npm run lint",
@@ -23,8 +23,8 @@
       }
     },
     {
-      "name": "product-backend",
-      "path": "./product-backend",
+      "name": "example-api",
+      "path": "./example-api",
       "purpose": "Backend API repository",
       "validation": {
         "lint": "npm run lint",
