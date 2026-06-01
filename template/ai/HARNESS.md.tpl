@@ -24,12 +24,15 @@ It does not implement product behavior and it is not a runner.
 - long-running polling
 - agent session lifecycle
 - PR lifecycle automation
-- dashboards
+- live dashboards or orchestration UI
 - auto-merge
 - production autonomous execution
 - runtime state stores
 - repair-loop daemons
 - external client automation that is not validated as a local harness guardrail
+
+Read-only generated Harness Cockpit views under `ai/views/*` are allowed when
+they summarize canonical local files and do not execute workflows.
 
 ## Harness vs Runner
 

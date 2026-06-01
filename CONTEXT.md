@@ -21,6 +21,18 @@ The repository produced by Structor that owns AI guidance, contracts, review
 templates, validation scripts, and routing policy for one project workspace.
 _Avoid_: Template repo, consumer repo, runner
 
+**Harness Cockpit**:
+A read-only generated review view under `ai/views/*` that visualizes workspace
+wiring, generated harness surfaces, consumer entrypoints, contracts, and
+validation/readiness expectations from canonical local files.
+_Avoid_: Live dashboard, control plane, runner
+
+**Topology Diagram**:
+A static generated SVG view showing how the generated harness, consumer
+repositories, client surfaces, consumer entrypoints, contract groups, and
+validation expectations relate.
+_Avoid_: Runtime diagram, Mermaid dependency, live status map
+
 **Consumer Repository**:
 A product or application repository governed by a generated harness while still
 owning its implementation, runtime behavior, tests, and deployment checks.

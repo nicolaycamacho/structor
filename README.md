@@ -179,6 +179,8 @@ These boundaries are intentional in the current template:
 - Claude skills are deferred. Keep `clientSupport.claude.skills` false or omit
   it until committed `.claude/skills/*/SKILL.md` templates and validation are
   added.
+- Read-only generated Harness Cockpit views under `ai/views/*` are allowed
+  when they are derived from canonical local files and do not execute workflows.
 - The initializer creates a repo-shaped harness folder, but it does not run
   `git init`, create remotes, install dependencies, publish branches, or modify
   external services.
@@ -187,9 +189,9 @@ These boundaries are intentional in the current template:
   The generated workspace
   bootstrap script installs workspace-level pointers and verifies consumer
   routing; it does not repair missing consumer pointers after initialization.
-- Runner behavior remains out of scope. Polling, PR automation, dashboards,
-  auto-merge, repair loops, and CI shepherding belong in a separate runner or
-  orchestration layer.
+- Runner behavior remains out of scope. Polling, PR automation, live
+  dashboards, auto-merge, repair loops, and CI shepherding belong in a separate
+  runner or orchestration layer.
 
 ## Out-of-the-Box Flow
 
@@ -452,6 +454,10 @@ node scripts/check-config.mjs --config harness.config.json --require-existing-co
 - No runner or orchestration runtime.
 - No Linear, GitHub, Claude hook, or CI automation.
 - No Codex runner automation beyond local harness hook guardrails.
-- No dashboards, polling loops, session control, auto-merge, or repair daemons.
+- No live dashboards, polling loops, session control, auto-merge, repair
+  daemons, or orchestration UI.
+- Read-only generated Harness Cockpit views are allowed when they summarize
+  canonical local files and do not execute validation, mutate state, or control
+  workflows.
 - No consumer implementation logic.
 - No source-project or other project-specific content in active templates.
