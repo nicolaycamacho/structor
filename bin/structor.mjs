@@ -139,9 +139,9 @@ export function parseArgs(argv) {
     else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
     else if (arg === "--preserve-existing-guidance") options.preserveExistingGuidance = true;
     else if (arg === "--force") options.force = true;
-    else if (arg === "--dry-run") options.dryRun = true;
+    else if (arg === "--dry-run" && command === "contribute") options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
-    else if (arg === "--repo-url") options.repoUrl = rest[++index];
+    else if (arg === "--repo-url" && command === "contribute") options.repoUrl = rest[++index];
     else if (arg === "--config") options.config = rest[++index];
     else options._.push(arg);
   }
@@ -154,6 +154,16 @@ function assertNoUnknownCommandFlags(command, options) {
 
   const noun = unknownFlags.length === 1 ? "argument" : "arguments";
   throw new Error(`Unknown ${noun} for structor ${command}: ${unknownFlags.join(", ")}`);
+}
+
+function assertKnownOptionKeys(command, options, allowedKeys) {
+  const unknownOptions = Object.keys(options)
+    .filter((key) => key !== "_" && !allowedKeys.includes(key))
+    .map((key) => `--${key.replace(/[A-Z]/g, (letter) => `-${letter.toLowerCase()}`)}`);
+  if (unknownOptions.length === 0) return;
+
+  const noun = unknownOptions.length === 1 ? "argument" : "arguments";
+  throw new Error(`Unknown ${noun} for structor ${command}: ${unknownOptions.join(", ")}`);
 }
 
 function printHelp() {
@@ -1600,6 +1610,7 @@ async function main() {
     if (target !== "structor") {
       throw new Error("Unknown contribute target. Supported target: structor");
     }
+    assertKnownOptionKeys(command, options, ["workspace", "repoUrl", "yes", "dryRun", "force"]);
     await contributeStructor(options);
     return;
   }

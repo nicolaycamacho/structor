@@ -196,6 +196,22 @@ test("init and doctor reject unknown flags before running command behavior", () 
   }
 });
 
+test("init and doctor reject contributor-only flags", () => {
+  for (const command of ["init", "doctor"]) {
+    for (const flag of ["--dry-run", "--repo-url"]) {
+      const result = runCli([command, flag, "fixture"]);
+      assert.notEqual(result.status, 0, `${command} should reject ${flag}.`);
+      assert.match(`${result.stdout}\n${result.stderr}`, new RegExp(`Unknown argument for structor ${command}: ${flag}`));
+    }
+  }
+});
+
+test("contribute structor rejects unrelated command flags", () => {
+  const result = runCli(["contribute", "structor", "--config", "fixture", "--dry-run"]);
+  assert.notEqual(result.status, 0);
+  assert.match(outputText(result), /Unknown argument for structor contribute: --config/);
+});
+
 test("generate still passes generator-specific flags through", () => {
   const result = runCli(["generate", "--dry-run", "--config", "harness.config.example.json"]);
   assert.equal(result.status, 0, `generate passthrough failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
