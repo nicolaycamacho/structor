@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { readdir, readFile } from "node:fs/promises";
+import { readdir, readFile, stat } from "node:fs/promises";
 import path from "node:path";
 import { exists, failIfErrors, repoRoot } from "./lib.mjs";
 
@@ -18,18 +18,65 @@ const skippedDirectories = new Set([
   "temp",
 ]);
 
-const scannedExtensions = new Set([
-  ".cjs",
-  ".js",
-  ".json",
-  ".md",
-  ".mjs",
-  ".sh",
-  ".tpl",
-  ".txt",
-  ".yaml",
-  ".yml",
+// Hygiene scanning is deny-list based: every publishable file is scanned for
+// secrets unless its extension is known-binary. An allow-list of extensions
+// silently skipped extensionless files (e.g. `prod-private-key`) that npm pack
+// would still publish, so we invert the check.
+const binaryExtensions = new Set([
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".gif",
+  ".webp",
+  ".ico",
+  ".bmp",
+  ".tiff",
+  ".pdf",
+  ".woff",
+  ".woff2",
+  ".ttf",
+  ".otf",
+  ".eot",
+  ".zip",
+  ".gz",
+  ".tgz",
+  ".tar",
+  ".bz2",
+  ".xz",
+  ".7z",
+  ".rar",
+  ".jar",
+  ".mp3",
+  ".mp4",
+  ".mov",
+  ".avi",
+  ".wav",
+  ".webm",
+  ".wasm",
+  ".node",
+  ".bin",
+  ".exe",
+  ".dll",
+  ".so",
+  ".dylib",
+  ".class",
 ]);
+
+// Patterns for high-confidence secret material that must never be published.
+const secretPatterns = [
+  {
+    pattern: /-----BEGIN (?:RSA |EC |DSA |OPENSSH |PGP |ENCRYPTED )?PRIVATE KEY-----/,
+    description: "a private key block",
+  },
+  { pattern: /\bsk_live_[A-Za-z0-9]{16,}/, description: "a Stripe live secret key" },
+  { pattern: /\brk_live_[A-Za-z0-9]{16,}/, description: "a Stripe live restricted key" },
+  { pattern: /\bAKIA[0-9A-Z]{16}\b/, description: "an AWS access key id" },
+  { pattern: /\bghp_[A-Za-z0-9]{36}\b/, description: "a GitHub personal access token" },
+  { pattern: /\bgithub_pat_[A-Za-z0-9_]{40,}/, description: "a GitHub fine-grained token" },
+  { pattern: /\bxox[baprs]-[A-Za-z0-9-]{10,}/, description: "a Slack token" },
+  { pattern: /\bAIza[0-9A-Za-z_-]{35}\b/, description: "a Google API key" },
+  { pattern: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/, description: "a JWT" },
+];
 
 const allowedRepositoryUrls = new Set([
   "https://github.com/nicolaycamacho/structor",
@@ -48,7 +95,7 @@ const forbiddenProjectTermPatterns = [...new Set(configuredForbiddenProjectTerms
 
 await checkCommittedGeneratedOutput();
 
-const activeFiles = await collectPublicFiles(".");
+const activeFiles = await collectPublishableFiles();
 for (const relativePath of activeFiles) {
   const content = await readFile(path.join(repoRoot, relativePath), "utf8");
   checkContent(relativePath, content);
@@ -81,29 +128,43 @@ function shouldScanFile(relativePath) {
   if (relativePath === "package-lock.json") {
     return false;
   }
-  return scannedExtensions.has(path.extname(relativePath));
+  return !binaryExtensions.has(path.extname(relativePath).toLowerCase());
 }
 
-async function collectPublicFiles(baseRelativePath) {
-  const files = [];
+// Scan exactly the set of files npm would publish (the package.json `files`
+// allow-list plus the always-included package.json), so extensionless secret
+// files inside published directories are caught while local-only files such as
+// `.git` or `*.local.json` are not falsely flagged.
+async function collectPublishableFiles() {
+  const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+  const entries = new Set(["package.json", ...(Array.isArray(pkg.files) ? pkg.files : [])]);
+  const files = new Set();
 
   async function walk(currentRelativePath) {
-    const currentAbsolutePath = path.join(repoRoot, currentRelativePath);
-    const entries = await readdir(currentAbsolutePath, { withFileTypes: true });
-    for (const entry of entries) {
-      const relativePath = path.posix.join(currentRelativePath, entry.name).replace(/^\.\//, "");
+    const dirEntries = await readdir(path.join(repoRoot, currentRelativePath), { withFileTypes: true });
+    for (const entry of dirEntries) {
+      const relativePath = path.posix.join(currentRelativePath, entry.name);
       if (entry.isDirectory()) {
-        if (!skippedDirectories.has(entry.name)) {
-          await walk(relativePath);
-        }
+        if (!skippedDirectories.has(entry.name)) await walk(relativePath);
       } else if (entry.isFile() && shouldScanFile(relativePath)) {
-        files.push(relativePath);
+        files.add(relativePath);
       }
     }
   }
 
-  await walk(baseRelativePath);
-  return files.sort();
+  for (const entry of entries) {
+    const normalized = entry.replace(/\/+$/, "");
+    const absolute = path.join(repoRoot, normalized);
+    if (!(await exists(absolute))) continue;
+    const stats = await stat(absolute);
+    if (stats.isDirectory()) {
+      await walk(normalized);
+    } else if (shouldScanFile(normalized)) {
+      files.add(normalized);
+    }
+  }
+
+  return [...files].sort();
 }
 
 function checkContent(relativePath, content) {
@@ -117,6 +178,12 @@ function checkContent(relativePath, content) {
 
   if (/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/i.test(content)) {
     errors.push(`${relativePath} contains an email address.`);
+  }
+
+  for (const { pattern, description } of secretPatterns) {
+    if (pattern.test(content)) {
+      errors.push(`${relativePath} contains ${description}.`);
+    }
   }
 
   for (const repoUrl of findRepositoryUrls(content)) {

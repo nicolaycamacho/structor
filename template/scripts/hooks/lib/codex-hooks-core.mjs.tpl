@@ -18,10 +18,15 @@ const commandFailurePattern = /fail|timeout|error/i;
 const finalMessagePattern = /commands run|validation|files changed/i;
 const allowedActionAllow = "allow";
 
+// `[^\n;|&]*?` allows git global options (e.g. `-C /repo`, `--git-dir=...`)
+// between `git` and the subcommand without spilling across a compound command
+// boundary, so `git -C /repo reset --hard` is denied just like `git reset --hard`.
+const gitGlobalOptions = "(?:\\s+(?:-C\\s+\\S+|--git-dir(?:=|\\s+)\\S+|--work-tree(?:=|\\s+)\\S+|-c\\s+\\S+|-[A-Za-z]+|--[A-Za-z-]+(?:=\\S+)?))*";
+
 export const denyRules = [
   {
     id: "destructive-git-reset",
-    pattern: /\bgit\s+reset\s+--hard\b/i,
+    pattern: new RegExp(`\\bgit${gitGlobalOptions}\\s+reset\\s+--hard\\b`, "i"),
     prevents: "discarding local work without explicit human approval",
     remediation: "stop and ask for approval before destructive git operations",
     policyDocs: ["ai/WORKFLOW.md", "ai/RUNNER-SAFETY.md"],
@@ -29,7 +34,12 @@ export const denyRules = [
   },
   {
     id: "force-push",
-    pattern: /\bgit\s+push\b.*\s--force(?:-with-lease)?\b/i,
+    // Covers `--force`, `--force-with-lease`, the short `-f` form, and force
+    // refspecs such as `git push origin +main`.
+    pattern: new RegExp(
+      `\\bgit${gitGlobalOptions}\\s+push\\b[^\\n;|&]*?(?:--force(?:-with-lease)?\\b|\\s-[A-Za-z]*f[A-Za-z]*\\b|\\s\\+[\\w./-]+)`,
+      "i",
+    ),
     prevents: "rewriting remote history without explicit human approval",
     remediation: "use a normal push or ask for approval with the exact branch and reason",
     policyDocs: ["ai/WORKFLOW.md", "ai/RUNNER-SAFETY.md"],
@@ -37,7 +47,8 @@ export const denyRules = [
   },
   {
     id: "secret-read",
-    pattern: /\b(?:cat|sed|grep|rg|less|tail|head)\b.*(?:\.env|secret|token|credential)/i,
+    pattern:
+      /\b(?:cat|sed|awk|grep|rg|less|more|tail|head|xxd|od|strings|printenv|env|export)\b[^\n;|&]*(?:\.env|secret|token|credential|password|api[_-]?key|private[_-]?key)/i,
     prevents: "unnecessary secret exposure in agent context",
     remediation: "read documented env var names instead of secret values",
     policyDocs: ["ai/RUNNER-SAFETY.md", "ai/contracts/security-boundary.md"],

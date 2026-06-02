@@ -511,6 +511,11 @@ async function canonicalExistingPath(targetPath) {
   }
 }
 
+function isWithinRoot(root, candidate) {
+  if (candidate === root) return true;
+  return candidate.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
+}
+
 async function validateHarnessReferences({
   pointerPath,
   pointerContent,
@@ -549,6 +554,14 @@ async function validateHarnessReferences({
       issues.push(`${pointerPath} must not reference ${relativeTarget} when Anthropic support is disabled.`);
     } else if (relativeTarget === "" || !(await isFileTarget(target))) {
       issues.push(`${pointerPath} references missing generated-harness file ${relativeTarget || "."}.`);
+    } else {
+      // The lexical reference root can match while the target file resolves,
+      // via a symlink, to policy outside the harness. Require the canonical
+      // (realpath-resolved) target to stay under the canonical harness root.
+      const canonicalTarget = await canonicalExistingPath(target);
+      if (!isWithinRoot(canonicalExpectedHarnessRoot, canonicalTarget)) {
+        issues.push(`${pointerPath} resolves to ${canonicalTarget} outside the generated harness ${canonicalExpectedHarnessRoot}.`);
+      }
     }
   }
   return issues;
