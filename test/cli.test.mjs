@@ -244,6 +244,50 @@ test("init customization step explains starter-only mode without scan selection"
   }
 });
 
+test("init defaults to generating the harness after the dry-run preview", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-generate-default-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    const harnessRoot = path.join(workspaceRoot, `${slugify(path.basename(workspaceRoot))}-structor`);
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Generate harness now\? \[Y\/n\]/);
+    assert.equal(existsSync(path.join(harnessRoot, "AGENTS.md")), true);
+    assert.equal(existsSync(path.join(consumerRoot, "AGENTS.md")), true);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("doctor reports a healthy generated workspace", async () => {
   const { workspaceRoot } = await createDoctorWorkspace();
   const result = runCli(["doctor", "--workspace", workspaceRoot]);

@@ -1029,7 +1029,7 @@ async function init(options) {
     printCommandOutput(dryRun);
     if (dryRun.status !== 0) throw new Error("Generator dry-run failed.");
 
-    const apply = options.yes || await askYesNo(rl, "Generate harness now?", false);
+    const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
     if (!apply) {
       warn("Stopped after dry-run preview.");
       printNextSteps(config);
