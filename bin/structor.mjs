@@ -23,6 +23,7 @@ import {
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
 const configFileName = "harness.config.json";
+const structorRepoUrlDefault = "https://github.com/nicolaycamacho/structor.git";
 const reset = "\x1b[0m";
 const styles = {
   bold: "\x1b[1m",
@@ -122,7 +123,9 @@ export function parseArgs(argv) {
     else if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
     else if (arg === "--force") options.force = true;
+    else if (arg === "--dry-run") options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
+    else if (arg === "--repo-url") options.repoUrl = rest[++index];
     else if (arg === "--config") options.config = rest[++index];
     else options._.push(arg);
   }
@@ -138,7 +141,7 @@ function assertNoUnknownCommandFlags(command, options) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init      Guided local setup for a Structor workspace.\n  generate  Render a generated harness from an existing config.\n  doctor    Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -234,6 +237,51 @@ async function isDirectory(filePath) {
   } catch {
     return false;
   }
+}
+
+async function isEmptyDirectory(filePath) {
+  try {
+    return (await readdir(filePath)).length === 0;
+  } catch {
+    return false;
+  }
+}
+
+async function isUsableStructorCheckout(repoRoot) {
+  if (!(await isDirectory(repoRoot))) return false;
+  const packageJson = await maybeReadJson(path.join(repoRoot, "package.json"));
+  return (
+    packageJson?.name === "@structor-dev/cli" &&
+    await exists(path.join(repoRoot, "bin/structor.mjs")) &&
+    await exists(path.join(repoRoot, "scripts/setup-contributor.mjs")) &&
+    await exists(path.join(repoRoot, "contrib/self-harness/harness.config.json"))
+  );
+}
+
+export function contributorWorkspacePlan(options = {}, cwd = process.cwd()) {
+  const workspaceRoot = path.resolve(cwd, options.workspace ?? ".");
+  const sourceRoot = path.join(workspaceRoot, "structor");
+  const selfHarnessRoot = path.join(workspaceRoot, "structor-self");
+  return {
+    workspaceRoot,
+    sourceRoot,
+    selfHarnessRoot,
+    repoUrl: options.repoUrl ?? structorRepoUrlDefault,
+  };
+}
+
+function runCommand(command, args, cwd, stdio = "inherit") {
+  const result = spawnSync(command, args, {
+    cwd,
+    stdio,
+    encoding: stdio === "pipe" ? "utf8" : undefined,
+  });
+  if (result.error) throw result.error;
+  return result;
+}
+
+function commandText(command, args) {
+  return [command, ...args].join(" ");
 }
 
 export function shouldExcludeCandidate(name) {
@@ -735,6 +783,128 @@ function printNextSteps(config) {
   }
 }
 
+async function printContributorPlan(plan, options, sourceReady) {
+  section(options.dryRun ? "Contributor workspace preview" : "Contributor workspace");
+  console.log(`Workspace: ${plan.workspaceRoot}`);
+  console.log(`Structor source: ${plan.sourceRoot}`);
+  console.log(`Structor self-harness: ${plan.selfHarnessRoot}`);
+  console.log(`Repo URL: ${plan.repoUrl}`);
+  console.log(`Source checkout: ${sourceReady ? "reuse existing local checkout" : "clone required"}`);
+
+  section("Network reads");
+  if (sourceReady) {
+    console.log("  - none; existing local Structor checkout will be reused");
+  } else {
+    console.log(`  - ${commandText("git", ["clone", plan.repoUrl, plan.sourceRoot])}`);
+  }
+
+  section("Local filesystem writes");
+  if (!sourceReady) console.log(`  - create or use workspace folder ${plan.workspaceRoot}`);
+  if (!sourceReady) console.log(`  - create Structor checkout ${plan.sourceRoot}`);
+  console.log(`  - generate or refresh self-harness ${plan.selfHarnessRoot}`);
+  console.log("  - install missing source repo agent entrypoint pointers");
+  if (options.force) {
+    console.log("  - overwrite existing source repo agent entrypoint pointers because --force was provided");
+  } else {
+    console.log("  - skip existing source repo agent entrypoint pointers unless --force is provided");
+  }
+
+  section("Validation");
+  console.log(`  - ${commandText(process.execPath, ["scripts/setup-contributor.mjs", ...(options.dryRun ? ["--dry-run"] : []), ...(options.force ? ["--force"] : [])])}`);
+  console.log(`  - ${commandText(process.execPath, ["scripts/validate-governance.mjs"])} in ${plan.selfHarnessRoot}`);
+  console.log(`  - ${commandText(process.execPath, ["scripts/check-workspace.mjs"])} in ${plan.selfHarnessRoot}`);
+  console.log(`  - deferred source validation: cd ${plan.sourceRoot} && npm run validate`);
+}
+
+async function confirmContributorRun(options, plan, sourceReady) {
+  if (options.yes || options.dryRun) return true;
+  const rl = await createPrompt();
+  try {
+    await printContributorPlan(plan, options, sourceReady);
+    return await askYesNo(rl, "Continue with local writes and any required clone read?", false);
+  } finally {
+    rl.close();
+  }
+}
+
+async function ensureStructorCheckout(plan, options) {
+  const sourceReady = await isUsableStructorCheckout(plan.sourceRoot);
+  if (sourceReady) return { sourceReady: true, cloned: false };
+
+  if (await exists(plan.sourceRoot) && !(await isEmptyDirectory(plan.sourceRoot))) {
+    throw new Error(
+      `Existing ${plan.sourceRoot} is not a usable Structor checkout. Move it, choose a different --workspace, or provide a workspace with a valid structor checkout.`,
+    );
+  }
+
+  if (options.dryRun) return { sourceReady: false, cloned: false };
+
+  await mkdir(plan.workspaceRoot, { recursive: true });
+  section("Clone Structor source");
+  note("Network read only: this clones source code and does not authenticate, fork, push, open PRs, or mutate remotes.");
+  const clone = runCommand("git", ["clone", plan.repoUrl, plan.sourceRoot], process.cwd());
+  if (clone.status !== 0) throw new Error(`Clone failed: ${commandText("git", ["clone", plan.repoUrl, plan.sourceRoot])}`);
+  if (!(await isUsableStructorCheckout(plan.sourceRoot))) {
+    throw new Error(`Clone completed but ${plan.sourceRoot} is not a usable Structor checkout.`);
+  }
+  return { sourceReady: false, cloned: true };
+}
+
+function runContributorValidation(plan) {
+  section("Validate self-harness");
+  const validationCommands = [
+    [process.execPath, ["scripts/validate-governance.mjs"]],
+    [process.execPath, ["scripts/check-workspace.mjs"]],
+  ];
+  for (const [command, args] of validationCommands) {
+    console.log(`$ ${commandText(command, args)}`);
+    const result = runCommand(command, args, plan.selfHarnessRoot);
+    if (result.status !== 0) {
+      throw new Error(`Validation failed in ${plan.selfHarnessRoot}: ${commandText(command, args)}`);
+    }
+  }
+}
+
+function printContributorSummary(plan, setupArgs, validationRan) {
+  section("Structor contributor workspace ready");
+  console.log(`Workspace: ${plan.workspaceRoot}`);
+  console.log(`Structor source: ${plan.sourceRoot}`);
+  console.log(`Structor self-harness: ${plan.selfHarnessRoot}`);
+  console.log(`Contributor setup: ${commandText(process.execPath, setupArgs)}`);
+  console.log(`Validation: ${validationRan ? "passed" : "preview only; no validation commands were run"}`);
+
+  section("Next agent prompt");
+  console.log(`Work in ${plan.sourceRoot} using the sibling self-harness at ${plan.selfHarnessRoot}. Read AGENTS.md, ai/HUB.md, and the relevant issue, then make the smallest Structor change with validation evidence.`);
+}
+
+async function contributeStructor(options) {
+  if (options._.length !== 1) {
+    throw new Error("Usage: structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]");
+  }
+  const plan = contributorWorkspacePlan(options);
+  const sourceReady = await isUsableStructorCheckout(plan.sourceRoot);
+  if (!(await confirmContributorRun(options, plan, sourceReady))) {
+    warn("Stopped before cloning, generating, or writing local files.");
+    return;
+  }
+
+  if (options.dryRun) {
+    await printContributorPlan(plan, options, sourceReady);
+    return;
+  }
+
+  await ensureStructorCheckout(plan, options);
+
+  section("Generate Structor self-harness");
+  const setupArgs = ["scripts/setup-contributor.mjs"];
+  if (options.force) setupArgs.push("--force");
+  const setup = runCommand(process.execPath, setupArgs, plan.sourceRoot);
+  if (setup.status !== 0) throw new Error(`Contributor setup failed: ${commandText(process.execPath, setupArgs)}`);
+
+  runContributorValidation(plan);
+  printContributorSummary(plan, setupArgs, true);
+}
+
 async function init(options) {
   const rl = await createPrompt();
   try {
@@ -891,6 +1061,14 @@ async function main() {
   }
   if (command === "generate") {
     passthroughGenerate(rawArgs);
+    return;
+  }
+  if (command === "contribute") {
+    const [target] = options._;
+    if (target !== "structor") {
+      throw new Error("Unknown contribute target. Supported target: structor");
+    }
+    await contributeStructor(options);
     return;
   }
   if (command === "doctor") {
