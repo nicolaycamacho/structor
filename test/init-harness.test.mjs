@@ -321,9 +321,10 @@ test("init harness writes a passive generation manifest", async () => {
     );
 
     const manifest = JSON.parse(await readFile(path.join(outputRoot, ".structor", "manifest.json"), "utf8"));
+    const packageJson = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
 
     assert.equal(manifest.generatorName, "@structor-dev/cli");
-    assert.equal(manifest.generatorVersion, "0.1.0");
+    assert.equal(manifest.generatorVersion, packageJson.version);
     assert.ok(Date.parse(manifest.generatedAt));
     assert.equal(manifest.config.path, "harness.config.json");
     assert.match(manifest.config.sha256, /^[a-f0-9]{64}$/);
