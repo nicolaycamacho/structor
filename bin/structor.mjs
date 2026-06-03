@@ -1092,7 +1092,15 @@ async function main() {
   throw new Error(`Unknown command: ${command}`);
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? "").href) {
+async function isDirectCliInvocation() {
+  if (!process.argv[1]) return false;
+
+  const invokedPath = await realpath(process.argv[1]).catch(() => path.resolve(process.argv[1]));
+  const modulePath = await realpath(fileURLToPath(import.meta.url)).catch(() => fileURLToPath(import.meta.url));
+  return pathToFileURL(invokedPath).href === pathToFileURL(modulePath).href;
+}
+
+if (await isDirectCliInvocation()) {
   main().catch((error) => {
     fail(error instanceof Error ? error.message : String(error));
     process.exit(1);

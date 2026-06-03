@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -381,6 +381,22 @@ test("help documents contribute structor", () => {
   const result = runCli(["help"]);
   assertSuccess(result, "structor help");
   assert.match(result.stdout, /contribute structor/);
+});
+
+test("cli runs when invoked through an npm-style bin symlink", async () => {
+  await withTempDir(async (root) => {
+    const linkedCliPath = path.join(root, "structor");
+    await symlink(cliPath, linkedCliPath);
+
+    const result = spawnSync(linkedCliPath, ["--help"], {
+      cwd: repoRoot,
+      encoding: "utf8",
+    });
+
+    assertSuccess(result, "structor symlink help");
+    assert.match(result.stdout, /Structor/);
+    assert.match(result.stdout, /structor init/);
+  });
 });
 
 test("contribute structor dry-run previews without writing", async () => {

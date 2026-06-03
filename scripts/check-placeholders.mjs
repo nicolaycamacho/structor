@@ -7,6 +7,8 @@ import { collectFiles, failIfErrors, repoRoot } from "./lib.mjs";
 const errors = [];
 const activeFiles = await collectFiles(".", (file) => {
   if (file.startsWith(".git/")) return false;
+  if (file.startsWith(".claude/worktrees/")) return false;
+  if (file.startsWith(".codex/worktrees/")) return false;
   if (file.startsWith("template/")) return false;
   return [".md", ".json", ".mjs"].some((suffix) => file.endsWith(suffix));
 });
