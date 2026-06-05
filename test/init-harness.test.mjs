@@ -343,7 +343,7 @@ test("init harness writes a passive generation manifest", async () => {
           entrypoint.consumer === "product-app" &&
           entrypoint.consumerPath === "./product-app" &&
           entrypoint.path === "AGENTS.md" &&
-          entrypoint.action === "wrote" &&
+          entrypoint.action === "created" &&
           entrypoint.rendered === true,
       ),
     );

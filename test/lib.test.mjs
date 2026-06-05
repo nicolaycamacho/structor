@@ -529,6 +529,29 @@ test("resolveHarnessConfig derives workspace root for template-local configs", a
   });
 });
 
+test("resolveHarnessConfig honors explicit workspace root semantics for harness-local configs", async () => {
+  await withTempDir(async (root) => {
+    const workspaceRoot = path.join(root, "workspace");
+    const harnessRoot = path.join(workspaceRoot, "demo-structor");
+    await mkdir(harnessRoot, { recursive: true });
+    const configPath = path.join(harnessRoot, "harness.config.json");
+    const config = resolvableConfig({
+      workspace: { root: ".." },
+      output: { path: "./demo-structor" },
+    });
+
+    const resolved = await resolveHarnessConfig(config, {
+      label: "config",
+      configPath,
+      repoRoot: path.join(root, "structor"),
+    });
+
+    assert.equal(await realpath(resolved.workspaceRoot), await realpath(workspaceRoot));
+    assert.equal(await realpath(resolved.outputRoot), await realpath(harnessRoot));
+    assert.equal(resolved.consumers[0].root, path.join(await realpath(workspaceRoot), "demo-app"));
+  });
+});
+
 test("resolveHarnessConfig can require confirmed consumer repositories", async () => {
   await withTempDir(async (root) => {
     const workspaceRoot = path.join(root, "workspace");

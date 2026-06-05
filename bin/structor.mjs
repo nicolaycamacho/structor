@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -13,6 +13,15 @@ import {
   resolveHarnessConfig,
   validateConfigShape,
 } from "../scripts/lib.mjs";
+import {
+  generateHarness,
+  installConsumerEntrypoints,
+  render,
+} from "../scripts/init-harness.mjs";
+import {
+  consumerEntrypointValues,
+  harnessTemplateValues,
+} from "../scripts/rendered-config.mjs";
 import {
   consumerEntrypointsForSettings,
   requiredHarnessRepoFilesForWorkspaceCheck,
@@ -453,9 +462,55 @@ async function loadExistingConfig(configPath) {
   }
 }
 
+async function discoverWorkspaceConfigPath(workspaceRoot, explicitConfigPath = null) {
+  if (explicitConfigPath) return path.resolve(workspaceRoot, explicitConfigPath);
+
+  const workspaceConfigPath = path.join(workspaceRoot, configFileName);
+  const entries = await readdir(workspaceRoot, { withFileTypes: true });
+  const matches = [];
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue;
+    const candidatePath = path.join(workspaceRoot, entry.name, configFileName);
+    const candidate = await maybeReadJson(candidatePath);
+    if (!candidate?.workspace?.root) continue;
+    const resolvedWorkspaceRoot = path.resolve(path.dirname(candidatePath), candidate.workspace.root);
+    if (resolvedWorkspaceRoot === workspaceRoot) {
+      matches.push(candidatePath);
+    }
+  }
+
+  return matches.length === 1 ? matches[0] : workspaceConfigPath;
+}
+
 async function writeConfig(configPath, config) {
   await mkdir(path.dirname(configPath), { recursive: true });
   await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
+}
+
+function configContent(config) {
+  return `${JSON.stringify(config, null, 2)}\n`;
+}
+
+function durableConfigPathFor(workspaceRoot, outputPath) {
+  return path.join(path.resolve(workspaceRoot, outputPath), configFileName);
+}
+
+function initConfigWithWorkspaceRoot(config, workspaceRoot) {
+  const configPath = durableConfigPathFor(workspaceRoot, config.output.path);
+  return {
+    workspace: {
+      root: relativeFrom(path.dirname(configPath), workspaceRoot),
+    },
+    ...config,
+  };
+}
+
+function initCompletionCommands(harnessRoot) {
+  return [
+    commandText(process.execPath, ["scripts/validate-governance.mjs"]),
+    commandText(process.execPath, ["scripts/check-workspace.mjs"]),
+    `Config: ${path.join(harnessRoot, configFileName)}`,
+  ];
 }
 
 export function nextValidationCommands(config) {
@@ -629,7 +684,7 @@ function printDoctorCheck(results, status, label, detail = "") {
 async function doctor(options) {
   const results = [];
   const workspaceRoot = path.resolve(options.workspace ?? process.cwd());
-  const configPath = path.resolve(workspaceRoot, options.config ?? configFileName);
+  const configPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
   section("Structor doctor");
   note("Diagnosis only. No files will be repaired or written.");
 
@@ -796,6 +851,153 @@ function printNextSteps(config) {
   }
 }
 
+function printSetupTransactionPreview(config, configPath) {
+  const settings = {
+    models: config.models,
+    clientSupport: {
+      codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
+      claudeRules: config.clientSupport?.claude?.rules ?? config.models.anthropic,
+      claudeHooks: false,
+      claudeSkills: false,
+    },
+  };
+
+  section("Setup transaction preview");
+  console.log(`Durable config: ${configPath}`);
+  console.log(`Generated harness: ${config.output.path}`);
+  console.log("Consumer entrypoints:");
+  for (const consumer of config.consumers) {
+    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+      console.log(`  - ${consumer.path}/${entrypoint.path}`);
+    }
+  }
+  console.log("Workspace entrypoints:");
+  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+    console.log(`  - ${entrypoint.path}`);
+  }
+  console.log("Completion gates:");
+  console.log("  - node scripts/validate-governance.mjs");
+  console.log("  - node scripts/check-workspace.mjs");
+}
+
+async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {
+  const result = spawnSync(process.execPath, [relativeScriptPath, ...args], {
+    cwd: harnessRoot,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  printCommandOutput(result);
+  if (result.status !== 0) {
+    throw new Error(failureLabel);
+  }
+}
+
+function assertGeneratedScriptsReady(generatedFiles, scriptPaths) {
+  const filesByPath = new Map(generatedFiles.map((file) => [file.targetRelative, file]));
+  const notReady = [];
+  for (const scriptPath of scriptPaths) {
+    const file = filesByPath.get(scriptPath);
+    if (!file || file.action === "skipped" || !file.rendered) {
+      notReady.push(scriptPath);
+    }
+  }
+
+  if (notReady.length > 0) {
+    throw new Error(
+      `Generated setup scripts were not refreshed or verified:\n${notReady.map((item) => `- ${item}`).join("\n")}\nInspect the existing files and re-run with --force if they should be replaced.`,
+    );
+  }
+}
+
+async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
+  if (force) return;
+
+  const settings = { models: config.models, clientSupport: resolvedConfig.support };
+  const conflicts = [];
+  const harnessValues = harnessTemplateValues(config, resolvedConfig.support, resolvedConfig.consumers, harnessRoot);
+
+  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+    const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);
+    if (!(await exists(targetPath))) continue;
+
+    const templatePath = path.join(packageRoot, "template", entrypoint.template);
+    const [actual, template] = await Promise.all([
+      readFile(targetPath, "utf8"),
+      readFile(templatePath, "utf8"),
+    ]);
+    const expected = render(template, harnessValues);
+    if (actual !== expected) {
+      conflicts.push(`workspace:${entrypoint.path}`);
+    }
+  }
+
+  for (const resolvedConsumer of resolvedConfig.consumers) {
+    const consumer = resolvedConsumer.config;
+    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
+    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
+
+    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+      const targetPath = path.join(consumerRoot, entrypoint.path);
+      if (!(await exists(targetPath))) continue;
+
+      const templatePath = path.join(packageRoot, "template", entrypoint.template);
+      const [actual, template] = await Promise.all([
+        readFile(targetPath, "utf8"),
+        readFile(templatePath, "utf8"),
+      ]);
+      const expected = render(template, values);
+      if (actual !== expected) {
+        conflicts.push(`consumer:${consumer.name}:${entrypoint.path}`);
+      }
+    }
+  }
+
+  if (conflicts.length > 0) {
+    throw new Error(
+      `Entrypoint conflicts detected before bootstrap:\n${conflicts.map((item) => `- ${item}`).join("\n")}\nRe-run with --force to overwrite known Structor pointer surfaces.`,
+    );
+  }
+}
+
+async function removeEmptyParents(startPath, stopPath) {
+  let current = path.dirname(startPath);
+  const resolvedStop = path.resolve(stopPath);
+  while (current.startsWith(resolvedStop) && current !== resolvedStop) {
+    try {
+      await rm(current);
+    } catch (error) {
+      if (error?.code === "ENOTEMPTY" || error?.code === "ENOENT") return;
+      throw error;
+    }
+    current = path.dirname(current);
+  }
+}
+
+async function cleanupFailedInit({
+  harnessRoot,
+  harnessRootExisted,
+  workspaceRoot,
+  workspaceCreatedPaths,
+  consumerCreatedPaths,
+  harnessCreatedPaths,
+}) {
+  for (const targetPath of [...workspaceCreatedPaths, ...consumerCreatedPaths]) {
+    await rm(targetPath, { force: true });
+    await removeEmptyParents(targetPath, workspaceRoot);
+  }
+
+  if (!harnessRootExisted) {
+    await rm(harnessRoot, { recursive: true, force: true });
+    return;
+  }
+
+  for (const targetPath of harnessCreatedPaths) {
+    await rm(targetPath, { force: true });
+    await removeEmptyParents(targetPath, harnessRoot);
+  }
+}
+
 async function printContributorPlan(plan, options, sourceReady) {
   section(options.dryRun ? "Contributor workspace preview" : "Contributor workspace");
   console.log(`Workspace: ${plan.workspaceRoot}`);
@@ -926,11 +1128,11 @@ async function init(options) {
 
     const workspaceDefault = options.workspace ? path.resolve(options.workspace) : process.cwd();
     const workspaceRoot = path.resolve(await askLine(rl, "Workspace folder", workspaceDefault));
-    const configPath = path.resolve(workspaceRoot, options.config ?? configFileName);
-    const existingConfig = await loadExistingConfig(configPath);
+    const legacyConfigPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
+    const existingConfig = await loadExistingConfig(legacyConfigPath);
     let startingConfig = null;
     if (existingConfig) {
-      printConfigSummary(existingConfig, configPath);
+      printConfigSummary(existingConfig, legacyConfigPath);
       if (await askYesNo(rl, "Use this existing config as the starting point?", true)) {
         startingConfig = existingConfig;
       } else {
@@ -1010,47 +1212,130 @@ async function init(options) {
       consumers,
     };
 
-    printConfigSummary(config, configPath);
+    const initConfig = initConfigWithWorkspaceRoot(config, workspaceRoot);
+    const configPath = durableConfigPathFor(workspaceRoot, initConfig.output.path);
+    printConfigSummary(initConfig, configPath);
     warnIfOutputIsNotWorkspaceChild(workspaceRoot, config.output.path);
-    note("harness.config.json is Structor's project-specific input: project facts, output path, agent clients, consumer repos, and validation commands.");
-    const canWriteConfig = existingConfig
-      ? await askYesNo(rl, "Replace existing harness.config.json with this config?", false)
-      : await askYesNo(rl, "Write harness.config.json?", true);
-    if (!canWriteConfig) {
-      warn("Stopped before writing config.");
+    note("harness.config.json will be persisted inside the generated harness so init can finish with a fully bootstrapped workspace.");
+    printSetupTransactionPreview(initConfig, configPath);
+    const canContinue = existingConfig
+      ? await askYesNo(rl, "Replace the generated harness config with this setup?", false)
+      : await askYesNo(rl, "Continue with this setup?", true);
+    if (!canContinue) {
+      warn("Stopped before generation.");
       return;
     }
-    await writeConfig(configPath, config);
-    success(`Wrote ${configPath}`);
 
     section("Dry-run preview");
-    note("The initializer dry-run renders the plan without writing harness or consumer files.");
-    const dryRun = runGenerator(["--config", configPath, "--dry-run"], workspaceRoot);
-    printCommandOutput(dryRun);
-    if (dryRun.status !== 0) throw new Error("Generator dry-run failed.");
+    note("The initializer dry-run renders the generated harness plan before any files are written.");
+    const renderedConfig = configContent(initConfig);
+    const dryRunGenerated = await generateHarness(initConfig, {
+      configPath,
+      configContent: renderedConfig,
+      requireExistingConsumers: true,
+      dryRun: true,
+    });
 
     const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
     if (!apply) {
       warn("Stopped after dry-run preview.");
-      printNextSteps(config);
       return;
     }
 
-    const generateArgs = ["--config", configPath];
-    if (options.force) generateArgs.push("--force");
-    const installEntrypoints = options.installConsumerEntrypoints || await askYesNo(
-      rl,
-      "Install consumer entrypoint pointer files? These are thin AGENTS.md/CLAUDE.md files that route agents to the generated Structor repo.",
-      true,
-    );
-    if (installEntrypoints) generateArgs.push("--install-consumer-entrypoints");
-
     section("Generate");
-    const result = runGenerator(generateArgs, workspaceRoot);
-    printCommandOutput(result);
-    if (result.status !== 0) throw new Error("Generation failed.");
+    const harnessRoot = path.dirname(configPath);
+    const harnessRootExisted = await exists(harnessRoot);
+    const workspaceCreatedPaths = [];
+    const consumerCreatedPaths = [];
+    const harnessCreatedPaths = [];
+
+    try {
+      await assertNoEntrypointConflicts({
+        config: initConfig,
+        resolvedConfig: dryRunGenerated.resolvedConfig,
+        harnessRoot,
+        force: options.force,
+      });
+
+      const generated = await generateHarness(initConfig, {
+        configPath,
+        configContent: renderedConfig,
+        requireExistingConsumers: true,
+        force: options.force,
+        dryRun: false,
+      });
+      harnessCreatedPaths.push(
+        ...generated.generatedFiles
+          .filter((file) => file.action === "created")
+          .map((file) => file.targetPath),
+      );
+      if (generated.manifestFile?.action === "created") {
+        harnessCreatedPaths.push(generated.manifestFile.targetPath);
+      }
+      assertGeneratedScriptsReady(generated.generatedFiles, [
+        "scripts/bootstrap-workspace.mjs",
+        "scripts/validate-governance.mjs",
+        "scripts/check-workspace.mjs",
+      ]);
+
+      const durableConfigExisted = await exists(configPath);
+      await writeConfig(configPath, initConfig);
+      success(`${durableConfigExisted ? "Updated" : "Wrote"} ${configPath}`);
+      if (!durableConfigExisted) harnessCreatedPaths.push(configPath);
+
+      const consumerEntrypoints = await installConsumerEntrypoints(generated.resolvedConfig, {
+        dryRun: false,
+        force: options.force,
+      });
+      consumerCreatedPaths.push(
+        ...consumerEntrypoints
+          .filter((entrypoint) => entrypoint.action === "created")
+          .map((entrypoint) => path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)),
+      );
+
+      const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
+      for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+        const targetPath = path.join(generated.resolvedConfig.workspaceRoot, entrypoint.path);
+        if (!(await exists(targetPath))) workspaceCreatedPaths.push(targetPath);
+      }
+
+      section("Workspace bootstrap");
+      await runGeneratedNodeScript({
+        harnessRoot,
+        relativeScriptPath: "scripts/bootstrap-workspace.mjs",
+        args: options.force ? ["--force"] : [],
+        failureLabel: "Workspace bootstrap failed.",
+      });
+
+      section("Completion gates");
+      await runGeneratedNodeScript({
+        harnessRoot,
+        relativeScriptPath: "scripts/validate-governance.mjs",
+        failureLabel: "Generated governance validation failed.",
+      });
+      await runGeneratedNodeScript({
+        harnessRoot,
+        relativeScriptPath: "scripts/check-workspace.mjs",
+        failureLabel: "Workspace completion check failed.",
+      });
+    } catch (error) {
+      await cleanupFailedInit({
+        harnessRoot,
+        harnessRootExisted,
+        workspaceRoot,
+        workspaceCreatedPaths,
+        consumerCreatedPaths,
+        harnessCreatedPaths,
+      });
+      throw error;
+    }
+
     success("Structor setup complete.");
-    printNextSteps(config);
+    section("Setup ready");
+    note("No post-success bootstrap steps are required.");
+    for (const command of initCompletionCommands(harnessRoot)) {
+      console.log(`  ${command}`);
+    }
   } finally {
     rl.close();
   }

@@ -6,6 +6,14 @@
   "required": ["project", "output", "models", "consumers"],
   "properties": {
     "$schema": { "type": "string" },
+    "workspace": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["root"],
+      "properties": {
+        "root": { "type": "string", "minLength": 1 }
+      }
+    },
     "project": {
       "type": "object",
       "additionalProperties": false,

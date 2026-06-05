@@ -102,6 +102,15 @@ export function workspaceRootForConfig(configDir, templateRepoRoot = repoRoot) {
     : resolvedConfigDir;
 }
 
+function resolveWorkspaceRoot(config, configDir, templateRepoRoot = repoRoot) {
+  const configuredRoot = config.workspace?.root;
+  if (typeof configuredRoot !== "string" || configuredRoot.trim() === "") {
+    return workspaceRootForConfig(configDir, templateRepoRoot);
+  }
+
+  return path.resolve(configDir, configuredRoot);
+}
+
 export async function canonicalPathForWrite(targetPath) {
   let currentPath = path.resolve(targetPath);
   const missingSegments = [];
@@ -355,9 +364,14 @@ export async function resolveHarnessConfig(config, {
   }
 
   const resolvedConfigDir = path.resolve(configDir);
-  const workspaceRoot = workspaceRootForConfig(resolvedConfigDir, templateRepoRoot);
-  const requestedOutputRoot = path.resolve(resolvedConfigDir, outputPath);
+  const workspaceRoot = resolveWorkspaceRoot(config, resolvedConfigDir, templateRepoRoot);
+  const topologyRoot = config.workspace?.root ? workspaceRoot : resolvedConfigDir;
+  const requestedOutputRoot = path.resolve(topologyRoot, outputPath);
   const consumerRoots = [];
+
+  if (!isSameOrInsidePath(resolvedConfigDir, workspaceRoot)) {
+    errors.push(`${label}: config path ${resolvedConfigDir} must stay inside the workspace root ${workspaceRoot}.`);
+  }
 
   for (const consumer of config.consumers) {
     try {
