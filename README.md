@@ -55,10 +55,11 @@ During local development from a clone of this repo, use
 `node ./structor/bin/structor.mjs init` from the parent workspace instead.
 
 `init` is local-only and deterministic. It detects sibling repos, asks a few
-questions, writes `harness.config.json` only after confirmation, previews every
-generated file with a dry run, and generates nothing until you confirm. No
-network calls, no LLM calls, no telemetry, no package installs, and no remote
-service mutation.
+questions, previews the full setup transaction with a dry run, persists
+`harness.config.json` inside the generated harness only after confirmation, and
+does not report success until consumer entrypoints, workspace entrypoints, and
+completion gates have passed. No network calls, no LLM calls, no telemetry, no
+package installs, and no remote service mutation.
 
 `structor init` remains the normal setup flow for users creating generated
 harnesses for their own target repositories. Contributing to Structor itself is
@@ -222,9 +223,9 @@ These boundaries are intentional in the current template:
 The supported happy path is:
 
 1. Clone this template repo into the same workspace folder as the consumer repos.
-2. Generate the project harness as a sibling of the consumer repos.
-3. Install consumer repo entrypoints during initialization.
-4. Run the generated harness workspace bootstrap script.
+2. Run `structor init` from the workspace folder.
+3. Let Structor generate the project harness as a sibling of the consumer repos.
+4. Let Structor install or verify consumer and workspace entrypoints before success.
 5. Start Codex or Claude Code from the workspace, generated harness, or a
    bootstrapped consumer repo.
 
@@ -241,10 +242,11 @@ workspace/
 
 With that layout, the current flow can bootstrap consumer repos out of the box
 when their agent pointer files are missing. For safety, existing consumer
-`AGENTS.md`, `CLAUDE.md`, and `.claude/CLAUDE.md` files are skipped unless
-`--force` is explicitly passed. If you generate the harness somewhere else,
-move or copy it into the sibling workspace layout before running the generated
-workspace bootstrap scripts.
+`AGENTS.md`, `CLAUDE.md`, and `.claude/CLAUDE.md` files must already match the
+expected Structor-managed pointer surfaces or `init` fails unless `--force` is
+explicitly passed. If you generate the harness somewhere else, move or copy it
+into the sibling workspace layout before running the generated workspace
+bootstrap scripts.
 
 ## Agent-Assisted Manual Setup
 

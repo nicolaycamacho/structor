@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -109,6 +109,26 @@ async function collectTemplateFiles() {
   return files.sort();
 }
 
+async function collectExistingFiles(basePath) {
+  const files = new Set();
+  if (!(await exists(basePath))) return files;
+
+  async function walk(currentPath) {
+    const entries = await readdir(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      const absolute = path.join(currentPath, entry.name);
+      if (entry.isDirectory()) {
+        await walk(absolute);
+      } else if (entry.isFile()) {
+        files.add(absolute);
+      }
+    }
+  }
+
+  await walk(basePath);
+  return files;
+}
+
 async function generatedScriptHashes(templateFiles, config, values) {
   const hashes = {};
   const trustedScriptTemplates = new Set(trustedGeneratedScriptTemplatesForSettings(config));
@@ -137,6 +157,11 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
   }
 
   if ((await exists(targetPath)) && !options.force) {
+    const actual = await readFile(targetPath, "utf8");
+    if (actual === content) {
+      console.log(`verified existing ${targetPath}`);
+      return { action: "verified", rendered: true, targetPath, targetRelative };
+    }
     console.log(`skipped existing ${targetPath}`);
     return { action: "skipped", rendered: false, targetPath, targetRelative };
   }
@@ -198,9 +223,10 @@ export async function installConsumerEntrypoints(resolvedConfig, options) {
         label: `Consumer entrypoint ${targetRelative}`,
       });
       await mkdir(path.dirname(targetPath), { recursive: true });
+      const existed = await exists(targetPath);
       await writeFile(targetPath, content);
       console.log(`wrote consumer entrypoint ${targetPath}`);
-      records.push({ ...record, action: "wrote", rendered: true });
+      records.push({ ...record, action: existed ? "wrote" : "created", rendered: true });
     }
   }
 
@@ -255,9 +281,16 @@ async function writeGenerationManifest({
     rootPath: outputRoot,
     label: "Generation manifest .structor/manifest.json",
   });
+  const existed = await exists(manifestPath);
   await mkdir(path.dirname(manifestPath), { recursive: true });
   await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
   console.log(`wrote ${manifestPath}`);
+  return {
+    action: existed ? "wrote" : "created",
+    rendered: true,
+    targetPath: manifestPath,
+    targetRelative: path.relative(outputRoot, manifestPath).replaceAll(path.sep, "/"),
+  };
 }
 
 export async function generateHarness(config, {
@@ -268,6 +301,7 @@ export async function generateHarness(config, {
   dryRun = false,
   force = false,
   installConsumerEntrypoints: shouldInstallConsumerEntrypoints = false,
+  requireExistingConsumers = false,
   allowAbsoluteOutput = false,
   allowTemplateRepoConsumer = false,
 } = {}) {
@@ -279,11 +313,15 @@ export async function generateHarness(config, {
     configDir,
     outputPath,
     allowAbsoluteOutput,
-    requireExistingConsumers: shouldInstallConsumerEntrypoints,
+    requireExistingConsumers: requireExistingConsumers || shouldInstallConsumerEntrypoints,
     allowTemplateRepoConsumer,
   });
   const { outputRoot, support } = resolvedConfig;
-  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, outputRoot);
+  const templateWorkspaceRoot = config.workspace?.root
+    ? path.resolve(configDir, config.workspace.root)
+    : path.resolve(configDir);
+  const templateOutputRoot = path.resolve(templateWorkspaceRoot, outputPath);
+  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, templateOutputRoot, templateWorkspaceRoot);
   values.GENERATED_HARNESS_CONTRACT_MODULE = await readFile(
     path.join(repoRoot, "scripts/generated-harness-contract.mjs"),
     "utf8",
@@ -304,11 +342,36 @@ export async function generateHarness(config, {
     }
   }
 
+  const htmlViewsRoot = path.join(outputRoot, "ai", "views");
+  const htmlViewFilesBefore = renderedHtmlViewsScript
+    ? await collectExistingFiles(htmlViewsRoot)
+    : new Set();
   if (!dryRun && renderedHtmlViewsScript) {
-    execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
-      cwd: outputRoot,
-      stdio: "inherit",
-    });
+    let htmlViewFilesAfter;
+    try {
+      execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
+        cwd: outputRoot,
+        stdio: "inherit",
+      });
+      htmlViewFilesAfter = await collectExistingFiles(htmlViewsRoot);
+    } catch (error) {
+      htmlViewFilesAfter = await collectExistingFiles(htmlViewsRoot);
+      for (const targetPath of htmlViewFilesAfter) {
+        if (!htmlViewFilesBefore.has(targetPath)) {
+          await rm(targetPath, { force: true });
+        }
+      }
+      throw error;
+    }
+    for (const targetPath of htmlViewFilesAfter) {
+      if (htmlViewFilesBefore.has(targetPath)) continue;
+      generatedFiles.push({
+        action: "created",
+        rendered: true,
+        targetPath,
+        targetRelative: path.relative(outputRoot, targetPath).replaceAll(path.sep, "/"),
+      });
+    }
   } else if (!dryRun) {
     console.log("skipped HTML view generation because scripts/generate-html-views.mjs was not freshly rendered");
   }
@@ -317,8 +380,8 @@ export async function generateHarness(config, {
     ? await installConsumerEntrypoints(resolvedConfig, { dryRun, force, config: configPath })
     : [];
 
-  if (!dryRun) {
-    await writeGenerationManifest({
+  const manifestFile = !dryRun
+    ? await writeGenerationManifest({
       config,
       configContent: manifestConfigContent,
       configPath,
@@ -327,10 +390,15 @@ export async function generateHarness(config, {
       outputRoot,
       resolvedConfig,
       support,
-    });
-  }
+    })
+    : null;
 
-  return resolvedConfig;
+  return {
+    resolvedConfig,
+    generatedFiles,
+    consumerEntrypoints,
+    manifestFile,
+  };
 }
 
 async function main() {

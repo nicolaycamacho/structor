@@ -57,13 +57,12 @@ function consumerNames(consumers) {
   return consumers.map((consumer) => rawSlug(consumer.name, "consumer.name"));
 }
 
-function consumerConfig(resolvedConsumers, outputRoot) {
-  const generatedWorkspaceRoot = path.dirname(outputRoot);
-  return resolvedConsumers.map(({ config: consumer, root: consumerRoot }) => {
+function consumerConfig(resolvedConsumers, workspaceRoot) {
+  return resolvedConsumers.map(({ config: consumer, requestedRoot, root: consumerRoot }) => {
     return {
       ...consumer,
       name: rawSlug(consumer.name, "consumer.name"),
-      workspacePath: path.relative(generatedWorkspaceRoot, consumerRoot).replaceAll(path.sep, "/") || ".",
+      workspacePath: path.relative(workspaceRoot, requestedRoot ?? consumerRoot).replaceAll(path.sep, "/") || ".",
     };
   });
 }
@@ -72,16 +71,20 @@ export function renderedGeneratedScriptHashes(hashes) {
   return jsonLiteral(hashes);
 }
 
-export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot) {
+export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot, workspaceRoot = path.dirname(outputRoot)) {
+  const workspaceHarnessPath = path.relative(workspaceRoot, outputRoot).replaceAll(path.sep, "/") || ".";
+
   return {
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_CODE: markdownCodeSpan(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
     PROJECT_SLUG: rawSlug(config.project.slug, "project.slug"),
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
+    WORKSPACE_HARNESS_PATH: workspaceHarnessPath.startsWith(".") ? workspaceHarnessPath : `./${workspaceHarnessPath}`,
+    WORKSPACE_ROOT_FROM_HARNESS_JSON: javascriptLiteral(path.relative(outputRoot, workspaceRoot).replaceAll(path.sep, "/") || "."),
     CONSUMER_REPOS_LIST: consumerList(config.consumers),
     CONSUMER_REPO_NAMES_JSON: javascriptLiteral(consumerNames(config.consumers)),
-    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(resolvedConsumers, outputRoot)),
+    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(resolvedConsumers, workspaceRoot)),
     PRIMARY_CONSUMER_NAME: rawSlug(config.consumers[0].name, "consumer.name"),
     MODEL_OPENAI_ENABLED: javascriptBoolean(config.models.openai),
     MODEL_ANTHROPIC_ENABLED: javascriptBoolean(config.models.anthropic),

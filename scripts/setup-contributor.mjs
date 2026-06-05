@@ -75,7 +75,7 @@ async function main() {
   console.log(`Workspace: ${workspaceRoot}`);
   console.log(`Preset: ${presetConfigPath}`);
 
-  const resolvedConfig = await generateHarness(config, {
+  const { resolvedConfig } = await generateHarness(config, {
     configPath: presetConfigPath,
     configDir: workspaceRoot,
     dryRun: options.dryRun,

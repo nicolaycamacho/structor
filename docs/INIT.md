@@ -33,10 +33,12 @@ The default first-run path is:
 1. Run `npx @structor-dev/cli init` from the parent workspace folder.
 2. Confirm the workspace, project name, generated harness path, agent clients,
    and consumer repos.
-3. Let Structor write `harness.config.json` only after reviewing the summary.
-4. Review the dry-run preview of generated harness and consumer pointer files.
+3. Review the setup summary, including the durable harness-local
+   `harness.config.json` path, entrypoint writes, and completion gates.
+4. Review the dry-run preview of the generated harness plan.
 5. Confirm generation only if the preview is correct.
-6. Run the next validation commands printed by the CLI.
+6. Let Structor install or verify consumer and workspace entrypoints, then run
+   generated governance and workspace completion gates before success.
 
 During development from this repository, the equivalent local command is
 `npm run init -- --workspace ..`.
@@ -59,13 +61,16 @@ service; generated files remain local until you review and commit them.
 
 Only after confirmation, it can write:
 
-- `harness.config.json` in the selected workspace.
+- `harness.config.json` inside the generated harness.
 - A generated Structor repo at the configured `output.path`.
-- Optional consumer entrypoint pointer files: `AGENTS.md`, `CLAUDE.md`, and
-  `.claude/CLAUDE.md`.
+- Required consumer entrypoint pointer files: `AGENTS.md`, `CLAUDE.md`, and
+  `.claude/CLAUDE.md` when the selected model support enables them.
+- Required workspace entrypoint pointer files owned by the generated harness
+  bootstrap contract.
 
-Existing generated harness files and consumer entrypoints are skipped by the
-underlying generator unless the user passes `--force`.
+Existing generated harness files and known Structor-managed pointer surfaces are
+updated only when they already match the expected content or the user passes
+`--force`. Conflicting user-owned or stale pointer files block setup.
 
 Consumer entrypoints are thin pointer files. They route Codex and Claude Code
 back to the generated harness; they are not copies of the canonical harness
@@ -118,14 +123,17 @@ implementation.
 
 `harness.config.json` is Structor's project-specific input file. It records:
 
+- workspace root semantics for workspace-relative topology paths when the
+  config lives inside the generated harness
 - project name, slug, and generated repo name
 - output path
 - Codex and Claude support flags
 - consumer repo paths, purposes, and validation commands
 
-Consumer repo paths are workspace-relative. The generator rejects absolute
-consumer paths, `..` traversal, symlinked consumer paths, and entrypoint writes
-to directories that do not look like repositories.
+Consumer repo paths and the durable init `output.path` remain workspace-relative
+even when the config is stored inside the generated harness. The generator
+rejects absolute consumer paths, `..` traversal, symlinked consumer paths, and
+entrypoint writes to directories that do not look like repositories.
 
 `structor generate --config harness.config.json` uses this file to render the
 generated harness deterministically.
