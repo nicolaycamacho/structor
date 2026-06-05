@@ -13,7 +13,7 @@ import {
 } from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workspaceRoot = path.resolve(repoRoot, "..");
+const workspaceRoot = path.resolve(repoRoot, {{WORKSPACE_ROOT_FROM_HARNESS_JSON}});
 const harnessRepoName = "{{HARNESS_REPO_NAME}}";
 const consumers = {{CONSUMER_CONFIG_JSON}};
 const models = {

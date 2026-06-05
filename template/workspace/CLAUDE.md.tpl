@@ -2,14 +2,14 @@
 
 This workspace is governed by the {{PROJECT_NAME}} engineering harness.
 
-@./{{HARNESS_REPO_NAME}}/ai/context.md
+@{{WORKSPACE_HARNESS_PATH}}/ai/context.md
 
 Read the harness first:
 
-1. `./{{HARNESS_REPO_NAME}}/CLAUDE.md`
-2. `./{{HARNESS_REPO_NAME}}/ai/AGENTS.md`
-3. `./{{HARNESS_REPO_NAME}}/ai/HUB.md`
-4. `./{{HARNESS_REPO_NAME}}/ai/context.md`
+1. `{{WORKSPACE_HARNESS_PATH}}/CLAUDE.md`
+2. `{{WORKSPACE_HARNESS_PATH}}/ai/AGENTS.md`
+3. `{{WORKSPACE_HARNESS_PATH}}/ai/HUB.md`
+4. `{{WORKSPACE_HARNESS_PATH}}/ai/context.md`
 
 Consumer repositories:
 

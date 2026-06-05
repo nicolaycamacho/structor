@@ -8,7 +8,7 @@ import { workspaceEntrypointsForSettings } from "./generated-harness-contract.mj
 import { assertSafeWriteTarget, exists } from "./lib/path-safety.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const workspaceRoot = path.resolve(repoRoot, "..");
+const workspaceRoot = path.resolve(repoRoot, {{WORKSPACE_ROOT_FROM_HARNESS_JSON}});
 const consumers = {{CONSUMER_CONFIG_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},

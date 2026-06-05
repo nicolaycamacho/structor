@@ -466,19 +466,29 @@ async function discoverWorkspaceConfigPath(workspaceRoot, explicitConfigPath = n
   if (explicitConfigPath) return path.resolve(workspaceRoot, explicitConfigPath);
 
   const workspaceConfigPath = path.join(workspaceRoot, configFileName);
-  const entries = await readdir(workspaceRoot, { withFileTypes: true });
   const matches = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory()) continue;
-    const candidatePath = path.join(workspaceRoot, entry.name, configFileName);
+  const skipDirectoryNames = new Set([".git", "node_modules"]);
+
+  async function visitDirectory(directoryPath, depth = 0) {
+    if (depth > 4) return;
+
+    const candidatePath = path.join(directoryPath, configFileName);
     const candidate = await maybeReadJson(candidatePath);
-    if (!candidate?.workspace?.root) continue;
-    const resolvedWorkspaceRoot = path.resolve(path.dirname(candidatePath), candidate.workspace.root);
+    const resolvedWorkspaceRoot = candidate?.workspace?.root
+      ? path.resolve(path.dirname(candidatePath), candidate.workspace.root)
+      : null;
     if (resolvedWorkspaceRoot === workspaceRoot) {
       matches.push(candidatePath);
     }
+
+    const entries = await readdir(directoryPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith(".") || skipDirectoryNames.has(entry.name)) continue;
+      await visitDirectory(path.join(directoryPath, entry.name), depth + 1);
+    }
   }
 
+  await visitDirectory(workspaceRoot);
   return matches.length === 1 ? matches[0] : workspaceConfigPath;
 }
 
@@ -914,7 +924,16 @@ async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot
 
   const settings = { models: config.models, clientSupport: resolvedConfig.support };
   const conflicts = [];
-  const harnessValues = harnessTemplateValues(config, resolvedConfig.support, resolvedConfig.consumers, harnessRoot);
+  const templateWorkspaceRoot = config.workspace?.root
+    ? path.resolve(harnessRoot, config.workspace.root)
+    : path.dirname(harnessRoot);
+  const harnessValues = harnessTemplateValues(
+    config,
+    resolvedConfig.support,
+    resolvedConfig.consumers,
+    harnessRoot,
+    templateWorkspaceRoot,
+  );
 
   for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
     const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);

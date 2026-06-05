@@ -317,7 +317,11 @@ export async function generateHarness(config, {
     allowTemplateRepoConsumer,
   });
   const { outputRoot, support } = resolvedConfig;
-  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, outputRoot);
+  const templateWorkspaceRoot = config.workspace?.root
+    ? path.resolve(configDir, config.workspace.root)
+    : path.resolve(configDir);
+  const templateOutputRoot = path.resolve(templateWorkspaceRoot, outputPath);
+  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, templateOutputRoot, templateWorkspaceRoot);
   values.GENERATED_HARNESS_CONTRACT_MODULE = await readFile(
     path.join(repoRoot, "scripts/generated-harness-contract.mjs"),
     "utf8",

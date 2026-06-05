@@ -556,6 +556,53 @@ test("doctor prefers the harness-local init config over a stale workspace config
   }
 });
 
+test("doctor discovers a harness-local init config in a nested output path", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-nested-config-discovery-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    const harnessRoot = path.join(workspaceRoot, "tools", "example-project-structor");
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          workspaceRoot,
+          "Example Project",
+          "example-project",
+          "example-project-structor",
+          "./tools/example-project-structor",
+          "2",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "",
+          "y",
+          "",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.equal(existsSync(path.join(harnessRoot, "harness.config.json")), true);
+
+    const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
+    assert.equal(doctor.status, 0, `doctor should discover nested harness-local config\nstdout:\n${doctor.stdout}\nstderr:\n${doctor.stderr}`);
+    assert.match(outputText(doctor), /OK config file exists/);
+    assert.match(outputText(doctor), /OK generated harness required files exist/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("doctor reports a healthy generated workspace", async () => {
   const { workspaceRoot } = await createDoctorWorkspace();
   const result = runCli(["doctor", "--workspace", workspaceRoot]);
