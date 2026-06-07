@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -14,6 +14,8 @@ import {
   validateConfigShape,
 } from "../scripts/lib.mjs";
 import {
+  collectConsumerRootGuidanceConflicts,
+  filesystemTimestamp,
   generateHarness,
   installConsumerEntrypoints,
   render,
@@ -131,6 +133,7 @@ export function parseArgs(argv) {
     if (arg === "--yes" || arg === "-y") options.yes = true;
     else if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
+    else if (arg === "--preserve-existing-guidance") options.preserveExistingGuidance = true;
     else if (arg === "--force") options.force = true;
     else if (arg === "--dry-run") options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
@@ -150,7 +153,7 @@ function assertNoUnknownCommandFlags(command, options) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -890,6 +893,90 @@ function printSetupTransactionPreview(config, configPath) {
   console.log("  - node scripts/check-workspace.mjs");
 }
 
+function groupedGuidanceConflicts(conflicts) {
+  const groups = new Map();
+  for (const conflict of conflicts) {
+    const current = groups.get(conflict.consumer) ?? {
+      consumer: conflict.consumer,
+      consumerPath: conflict.consumerPath,
+      consumerRoot: conflict.consumerRoot,
+      files: [],
+    };
+    current.files.push(conflict);
+    groups.set(conflict.consumer, current);
+  }
+  return [...groups.values()];
+}
+
+function preservedGuidancePlan(conflicts, timestamp) {
+  return Object.fromEntries(groupedGuidanceConflicts(conflicts).map((group) => [
+    group.consumer,
+    {
+      directory: `.structor/preserved-guidance/${timestamp}`,
+      files: group.files.map((file) => `.structor/preserved-guidance/${timestamp}/${file.path}`),
+    },
+  ]));
+}
+
+async function confirmPreserveExistingGuidance(rl, conflicts, timestamp, options) {
+  if (conflicts.length === 0) return true;
+  if (options.preserveExistingGuidance) return true;
+  if (options.yes) {
+    throw new Error(
+      `Existing root guidance files require explicit preservation consent:\n${conflicts.map((conflict) => `- ${conflict.targetPath}`).join("\n")}\nRe-run without --yes to choose interactively, or pass --yes --preserve-existing-guidance.`,
+    );
+  }
+
+  section("Existing root guidance files were found");
+  for (const conflict of conflicts) console.log(`  ${conflict.targetPath}`);
+  console.log("Structor needs to replace root guidance entrypoints so agents route through the generated harness.");
+  console.log("Structor will preserve your existing files as consumer-local source material before generating new root entrypoints.");
+  console.log("Preserved guidance will be stored at:");
+  for (const group of groupedGuidanceConflicts(conflicts)) {
+    console.log(`  ${path.join(group.consumerRoot, ".structor", "preserved-guidance", timestamp)}/`);
+  }
+  const choice = await askChoice(rl, "Continue?", [
+    { label: "Preserve existing guidance and generate Structor entrypoints", value: "preserve" },
+    { label: "Abort", value: "abort" },
+  ], 0);
+  if (choice !== "preserve") {
+    warn("Stopped before generation.");
+    return false;
+  }
+  return true;
+}
+
+function printInitReadinessSummary({ generated, harnessRoot, preservedGuidanceByConsumer }) {
+  success("Structor setup complete.");
+  console.log("setup_complete: true");
+  console.log("guidance_ready: false");
+
+  section("Generated root entrypoints");
+  for (const entrypoint of generated.consumerEntrypoints.filter((item) => item.path === "AGENTS.md" || item.path === "CLAUDE.md")) {
+    console.log(`  ${path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)}`);
+  }
+
+  const preservedFiles = Object.entries(preservedGuidanceByConsumer)
+    .flatMap(([consumerName, preserved]) => {
+      const consumer = generated.resolvedConfig.consumers.find((item) => item.config.name === consumerName);
+      const consumerRoot = consumer?.confirmedRoot ?? consumer?.root;
+      return consumerRoot ? preserved.files.map((file) => path.join(consumerRoot, file)) : [];
+    });
+  if (preservedFiles.length > 0) {
+    section("Preserved existing guidance");
+    for (const filePath of preservedFiles) console.log(`  ${filePath}`);
+  }
+
+  section("Generated harness");
+  console.log(`  ${harnessRoot}/`);
+
+  section("Next step");
+  console.log("Guidance migration is required before using this harness for real project work.");
+  console.log(`  Open ${path.join(harnessRoot, "ai/tasks/guidance-migration.md")}`);
+  console.log("  Run it locally with Codex or Claude.");
+  console.log("  Review the result before treating the harness as guidance-ready.");
+}
+
 async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {
   const result = spawnSync(process.execPath, [relativeScriptPath, ...args], {
     cwd: harnessRoot,
@@ -957,6 +1044,7 @@ async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
 
     for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+      if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
       const targetPath = path.join(consumerRoot, entrypoint.path);
       if (!(await exists(targetPath))) continue;
 
@@ -984,7 +1072,7 @@ async function removeEmptyParents(startPath, stopPath) {
   const resolvedStop = path.resolve(stopPath);
   while (current.startsWith(resolvedStop) && current !== resolvedStop) {
     try {
-      await rm(current);
+      await rmdir(current);
     } catch (error) {
       if (error?.code === "ENOTEMPTY" || error?.code === "ENOENT") return;
       throw error;
@@ -999,8 +1087,19 @@ async function cleanupFailedInit({
   workspaceRoot,
   workspaceCreatedPaths,
   consumerCreatedPaths,
+  consumerRestores,
+  consumerPreservationDirs,
   harnessCreatedPaths,
 }) {
+  for (const restore of consumerRestores) {
+    await writeFile(restore.targetPath, restore.content);
+  }
+
+  for (const preservePath of consumerPreservationDirs) {
+    await rm(preservePath, { recursive: true, force: true });
+    await removeEmptyParents(preservePath, workspaceRoot);
+  }
+
   for (const targetPath of [...workspaceCreatedPaths, ...consumerCreatedPaths]) {
     await rm(targetPath, { force: true });
     await removeEmptyParents(targetPath, workspaceRoot);
@@ -1254,10 +1353,16 @@ async function init(options) {
       requireExistingConsumers: true,
       dryRun: true,
     });
+    const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
+    const preservationTimestamp = filesystemTimestamp();
+    const preservedGuidanceByConsumer = preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp);
 
     const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
     if (!apply) {
       warn("Stopped after dry-run preview.");
+      return;
+    }
+    if (!(await confirmPreserveExistingGuidance(rl, rootGuidanceConflicts, preservationTimestamp, options))) {
       return;
     }
 
@@ -1266,6 +1371,8 @@ async function init(options) {
     const harnessRootExisted = await exists(harnessRoot);
     const workspaceCreatedPaths = [];
     const consumerCreatedPaths = [];
+    const consumerRestores = [];
+    const consumerPreservationDirs = [];
     const harnessCreatedPaths = [];
 
     try {
@@ -1282,6 +1389,7 @@ async function init(options) {
         requireExistingConsumers: true,
         force: options.force,
         dryRun: false,
+        preservedGuidanceByConsumer,
       });
       harnessCreatedPaths.push(
         ...generated.generatedFiles
@@ -1305,11 +1413,32 @@ async function init(options) {
       const consumerEntrypoints = await installConsumerEntrypoints(generated.resolvedConfig, {
         dryRun: false,
         force: options.force,
+        preserveExistingGuidance: rootGuidanceConflicts.length > 0,
+        preservationTimestamp,
+        preservedGuidanceByConsumer,
       });
+      generated.consumerEntrypoints = consumerEntrypoints;
       consumerCreatedPaths.push(
         ...consumerEntrypoints
           .filter((entrypoint) => entrypoint.action === "created")
           .map((entrypoint) => path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)),
+      );
+      consumerRestores.push(
+        ...consumerEntrypoints
+          .filter((entrypoint) => entrypoint.action === "wrote" && typeof entrypoint.previousContent === "string")
+          .map((entrypoint) => ({
+            targetPath: entrypoint.targetPath ?? path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path),
+            content: entrypoint.previousContent,
+          })),
+      );
+      consumerPreservationDirs.push(
+        ...new Set(consumerEntrypoints
+          .filter((entrypoint) => entrypoint.preservedGuidanceDirectory)
+          .map((entrypoint) => path.join(
+            generated.resolvedConfig.workspaceRoot,
+            entrypoint.consumerPath,
+            entrypoint.preservedGuidanceDirectory,
+          ))),
       );
 
       const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
@@ -1344,12 +1473,25 @@ async function init(options) {
         workspaceRoot,
         workspaceCreatedPaths,
         consumerCreatedPaths,
+        consumerRestores,
+        consumerPreservationDirs,
         harnessCreatedPaths,
       });
       throw error;
     }
 
-    success("Structor setup complete.");
+    const finalGenerated = {
+      resolvedConfig: dryRunGenerated.resolvedConfig,
+      consumerEntrypoints: consumerEntrypointsForSettings({
+        models: initConfig.models,
+        clientSupport: dryRunGenerated.resolvedConfig.support,
+      }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
+        consumer: consumer.name,
+        consumerPath: consumer.path,
+        path: entrypoint.path,
+      }))),
+    };
+    printInitReadinessSummary({ generated: finalGenerated, harnessRoot, preservedGuidanceByConsumer });
     section("Setup ready");
     note("No post-success bootstrap steps are required.");
     for (const command of initCompletionCommands(harnessRoot)) {
