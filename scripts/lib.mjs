@@ -112,21 +112,22 @@ function resolveWorkspaceRoot(config, configDir, templateRepoRoot = repoRoot) {
 }
 
 export async function canonicalPathForWrite(targetPath) {
-  let currentPath = path.resolve(targetPath);
-  const missingSegments = [];
+  const resolvedTarget = path.resolve(targetPath);
+  const pendingSegments = [];
+  let probePath = resolvedTarget;
 
-  while (true) {
-    if (await exists(currentPath)) {
-      return path.join(await realpath(currentPath), ...missingSegments);
+  for (;;) {
+    if (await exists(probePath)) {
+      return path.join(await realpath(probePath), ...pendingSegments);
     }
 
-    const parentPath = path.dirname(currentPath);
-    if (parentPath === currentPath) {
-      return path.join(currentPath, ...missingSegments);
+    const parentPath = path.dirname(probePath);
+    if (parentPath === probePath) {
+      return path.join(probePath, ...pendingSegments);
     }
 
-    missingSegments.unshift(path.basename(currentPath));
-    currentPath = parentPath;
+    pendingSegments.unshift(path.basename(probePath));
+    probePath = parentPath;
   }
 }
 
@@ -235,15 +236,15 @@ async function firstSymlinkUnderRoot(targetPath, rootPath) {
   const resolvedRoot = path.resolve(rootPath);
   if (!isSameOrInsidePath(resolvedTarget, resolvedRoot)) return null;
 
-  const relative = path.relative(resolvedRoot, resolvedTarget);
-  if (relative === "") return null;
+  const segments = path.relative(resolvedRoot, resolvedTarget).split(path.sep).filter(Boolean);
+  if (segments.length === 0) return null;
 
-  let currentPath = resolvedRoot;
-  for (const segment of relative.split(path.sep)) {
-    currentPath = path.join(currentPath, segment);
-    const info = await lstatIfExists(currentPath);
+  let candidate = resolvedRoot;
+  for (const segment of segments) {
+    candidate = path.join(candidate, segment);
+    const info = await lstatIfExists(candidate);
     if (info === null) return null;
-    if (info.isSymbolicLink()) return currentPath;
+    if (info.isSymbolicLink()) return candidate;
   }
 
   return null;

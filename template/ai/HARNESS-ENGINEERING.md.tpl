@@ -1,12 +1,13 @@
 # Harness Engineering Standard
 
-An engineering harness is the durable, versioned system of context, contracts,
-validation, review policy, quality tracking, and feedback loops that makes
-AI-assisted engineering reliable and repeatable.
+An engineering harness is the repo-local operating frame for AI-assisted
+engineering: it keeps context, contracts, validation expectations, review rules,
+quality signals, and learning loops in durable files that can be inspected and
+versioned.
 
-This harness is optimized for agent legibility: future agents should be able to
-discover intent, boundaries, and validation paths from repo-local artifacts
-instead of chat history or human memory.
+This harness should make the project readable to future agents. Intent,
+boundaries, and validation routes belong in committed artifacts, not in prior
+chat transcripts or unwritten team memory.
 
 ## Harness, Not Runner
 

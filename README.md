@@ -25,6 +25,14 @@ artifacts inside private or commercial repositories. Commercial policy packs,
 private templates, tailored rollout support, or hosted services may be licensed
 separately.
 
+## Provenance
+
+Structor is independently developed as a generalized, organization-agnostic
+harness-engineering toolkit. Public Structor templates, validators, examples,
+and documentation should avoid proprietary implementation details,
+organization-specific workflows, confidential architecture, secrets, and client-
+or employer-specific artifacts.
+
 ## First Minute
 
 - **What it is:** a local generator for repository-local AI engineering

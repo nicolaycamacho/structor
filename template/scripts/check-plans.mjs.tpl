@@ -14,52 +14,66 @@ const rulesHeading = "## Rules";
 const techDebtPath = "ai/plans/tech-debt.md";
 const openItemsHeading = "## Open Items";
 
-async function exists(relativePath) {
+function absolutePath(relativePath) {
+  return path.join(repoRoot, relativePath);
+}
+
+async function pathExists(relativePath) {
   try {
-    await access(path.join(repoRoot, relativePath), fsConstants.F_OK);
+    await access(absolutePath(relativePath), fsConstants.F_OK);
     return true;
   } catch {
     return false;
   }
 }
 
-async function read(relativePath) {
-  return readFile(path.join(repoRoot, relativePath), "utf8");
+async function readText(relativePath) {
+  return readFile(absolutePath(relativePath), "utf8");
 }
 
-async function markdownFiles(relativeDir) {
-  if (!(await exists(relativeDir))) return [];
-  const entries = await readdir(path.join(repoRoot, relativeDir), { withFileTypes: true });
-  return entries.filter((entry) => entry.isFile() && entry.name.endsWith(".md")).map((entry) => `${relativeDir}/${entry.name}`);
+async function listedPlanFiles(relativeDir) {
+  if (!(await pathExists(relativeDir))) return [];
+  const entries = await readdir(absolutePath(relativeDir), { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isFile())
+    .filter((entry) => entry.name.endsWith(".md"))
+    .map((entry) => `${relativeDir}/${entry.name}`)
+    .sort();
 }
 
-function sectionHasContent(content, heading) {
+function sectionBody(content, heading) {
   const match = content.match(new RegExp(`^## ${heading}\\s*\\n([\\s\\S]*?)(?=^## |$)`, "m"));
-  return Boolean(match?.[1]?.replace(/[-*\\s:]/g, "").trim());
+  return match?.[1] ?? "";
+}
+
+function hasMeaningfulText(markdownFragment) {
+  return markdownFragment.replace(/[-*\\s:]/g, "").trim().length > 0;
 }
 
 const errors = [];
-  for (const relativePath of await markdownFiles(plansDir)) {
-    const content = await read(relativePath);
-    for (const heading of headingRules) {
-      if (!sectionHasContent(content, heading)) errors.push(`${relativePath} has no ${heading} content.`);
+for (const relativePath of await listedPlanFiles(plansDir)) {
+  const content = await readText(relativePath);
+  for (const heading of headingRules) {
+    if (!hasMeaningfulText(sectionBody(content, heading))) {
+      errors.push(`${relativePath} has no ${heading} content.`);
     }
+  }
   for (const token of runtimeTokens) {
     if (content.includes(token)) errors.push(`${relativePath} references runtime state token '${token}'.`);
   }
 }
 
-  const readme = await read(readmePath);
-  const rulesRegex = new RegExp(`^${rulesHeading}\\s*$`, "m");
-  if (!rulesRegex.test(readme)) {
-    errors.push("ai/plans/README.md must include a Rules section.");
-  }
+const readme = await readText(readmePath);
+const rulesRegex = new RegExp(`^${rulesHeading}\\s*$`, "m");
+if (!rulesRegex.test(readme)) {
+  errors.push("ai/plans/README.md must include a Rules section.");
+}
 
-  const techDebt = await read(techDebtPath);
-  const openItemsRegex = new RegExp(`^${openItemsHeading}\\s*$`, "m");
-  if (!openItemsRegex.test(techDebt)) {
-    errors.push("ai/plans/tech-debt.md must include Open Items.");
-  }
+const techDebt = await readText(techDebtPath);
+const openItemsRegex = new RegExp(`^${openItemsHeading}\\s*$`, "m");
+if (!openItemsRegex.test(techDebt)) {
+  errors.push("ai/plans/tech-debt.md must include Open Items.");
+}
 
 if (errors.length > 0) {
   console.error("Plan check failed.");
