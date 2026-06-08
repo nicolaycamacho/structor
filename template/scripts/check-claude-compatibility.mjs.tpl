@@ -33,10 +33,6 @@ async function read(relativePath) {
   return readFile(path.join(repoRoot, relativePath), "utf8");
 }
 
-async function readJson(relativePath) {
-  return JSON.parse(await read(relativePath));
-}
-
 async function listMarkdownFiles(relativeRoot) {
   const absoluteRoot = path.join(repoRoot, relativeRoot);
   const files = [];
@@ -55,20 +51,6 @@ async function listMarkdownFiles(relativeRoot) {
 
 function requireIncludes(content, needle, label, errors) {
   if (!content.includes(needle)) errors.push(`${label} must include '${needle}'.`);
-}
-
-// Top-level keys the generated Claude settings file is allowed to declare.
-const allowedSettingsKeys = new Set(["permissions", "env", "hooks", "model", "$schema"]);
-const allowedPermissionsKeys = new Set(["allow", "deny", "ask", "defaultMode", "additionalDirectories"]);
-
-// An allow entry is dangerous when it grants an unrestricted scope (a bare tool
-// name, or a wildcard that matches everything). These must never appear in a
-// generated harness because they neutralise the deny list.
-function isDangerousAllowEntry(entry) {
-  if (typeof entry !== "string") return true;
-  const trimmed = entry.trim();
-  if (!/\(.*\)/.test(trimmed)) return true; // bare tool name, e.g. "Bash"
-  return /\((?:\*|\*\*(?:\/\*+)?)\)\s*$/.test(trimmed);
 }
 
 // Heuristic phrases that attempt to weaken or override harness safety policy.
@@ -102,50 +84,6 @@ if (errors.length === 0) {
   }
   checkUnsafePolicyText(rootClaude, "CLAUDE.md", errors);
 
-  const claudeProject = await read(".claude/CLAUDE.md");
-  requireIncludes(claudeProject, "root `CLAUDE.md`", ".claude/CLAUDE.md", errors);
-  checkUnsafePolicyText(claudeProject, ".claude/CLAUDE.md", errors);
-
-  const settings = await readJson(".claude/settings.json");
-  for (const key of Object.keys(settings)) {
-    if (!allowedSettingsKeys.has(key)) {
-      errors.push(`.claude/settings.json declares unexpected top-level key '${key}'.`);
-    }
-  }
-  if (!settings.permissions || !Array.isArray(settings.permissions.deny)) {
-    errors.push(".claude/settings.json must define permissions.deny.");
-  }
-  if (settings.permissions && typeof settings.permissions === "object") {
-    for (const key of Object.keys(settings.permissions)) {
-      if (!allowedPermissionsKeys.has(key)) {
-        errors.push(`.claude/settings.json permissions declares unexpected key '${key}'.`);
-      }
-    }
-  }
-  for (const denyPattern of ["Read(./.agent.env)", "Read(./.env)", "Read(./.env.*)"]) {
-    if (!settings.permissions?.deny?.includes(denyPattern)) {
-      errors.push(`.claude/settings.json permissions.deny must include ${denyPattern}.`);
-    }
-  }
-  if (Array.isArray(settings.permissions?.allow)) {
-    for (const entry of settings.permissions.allow) {
-      if (isDangerousAllowEntry(entry)) {
-        errors.push(`.claude/settings.json permissions.allow grants an unsafe broad scope: ${JSON.stringify(entry)}.`);
-      }
-    }
-  }
-  if (!claudeHooksEnabled && Object.hasOwn(settings, "hooks")) {
-    errors.push(".claude/settings.json must not configure Claude hooks unless clientSupport.claude.hooks is enabled.");
-  }
-
-  if (claudeRulesEnabled) {
-    const rule = await read(".claude/rules/harness-client-surfaces.md");
-    for (const token of ["paths:", "AGENTS.md", "CLAUDE.md", ".claude/**", "ai/model-overlays/**"]) {
-      requireIncludes(rule, token, ".claude/rules/harness-client-surfaces.md", errors);
-    }
-    checkUnsafePolicyText(rule, ".claude/rules/harness-client-surfaces.md", errors);
-  }
-
   if (claudeSkillsEnabled) {
     const skillFiles = await listMarkdownFiles(".claude/skills");
     const skillRoots = new Set(skillFiles.map((file) => file.match(/^\.claude\/skills\/([^/]+)\//)?.[1]).filter(Boolean));
@@ -166,8 +104,6 @@ if (errors.length > 0) {
 console.log("Claude compatibility check passed.");
 console.log("Supported Claude Code surface:");
 console.log("- CLAUDE.md");
-console.log("- .claude/CLAUDE.md");
-console.log("- .claude/settings.json");
-if (claudeRulesEnabled) console.log("- .claude/rules/harness-client-surfaces.md");
+if (claudeRulesEnabled) console.log("Deferred Claude Code surface: .claude/rules/**");
 if (!claudeHooksEnabled) console.log("Deferred Claude Code surface: .claude/hooks/**");
 if (!claudeSkillsEnabled) console.log("Deferred Claude Code surface: .claude/skills/**");

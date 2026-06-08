@@ -127,7 +127,7 @@ async function writeConfig(workspaceRoot, smokeCase, overrides = {}) {
     models: overrides.models ?? smokeCase.models,
     clientSupport: {
       codex: { hooks: smokeCase.models.openai },
-      claude: { rules: smokeCase.models.anthropic, hooks: false, skills: false },
+      claude: { rules: false, hooks: false, skills: false },
     },
     consumers: overrides.consumers ?? smokeCase.consumers.map((consumer) => ({
       name: consumer.name,
@@ -151,7 +151,7 @@ function settingsForSmokeCase(smokeCase) {
     models: smokeCase.models,
     clientSupport: {
       codexHooks: smokeCase.models.openai,
-      claudeRules: smokeCase.models.anthropic,
+      claudeRules: false,
       claudeHooks: false,
       claudeSkills: false,
     },
@@ -238,29 +238,10 @@ async function validateCase(smokeCase) {
         "Claude consumer entrypoint",
       ).path,
     );
-    const claudeMemoryPath = path.join(
-      firstConsumerRoot,
-      findEntrypoint(
-        consumerEntrypoints,
-        (entrypoint) => entrypoint.model === "anthropic" && entrypoint.routing === "claude-memory",
-        "Claude memory consumer entrypoint",
-      ).path,
-    );
     await writeFile(claudePath, `This mentions ${path.basename(harnessRoot)} but has no usable path.\n`);
     assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} substring-only Claude pointer`, "does not contain a resolvable");
     await writeFile(claudePath, `Read /tmp/${path.basename(harnessRoot)}/CLAUDE.md before editing.\n`);
     assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} stale Claude pointer`, "instead of");
-    await writeFile(
-      claudePath,
-      `Read ${path.join(harnessRoot, "CLAUDE.md")} before editing.\nRead ${path.join(harnessRoot, "ai/AGENTS.md")} before editing.\nRead ${path.join(harnessRoot, "ai/HUB.md")} before editing.\nRead ${path.join(harnessRoot, "ai/context.md")} before editing.\n`,
-    );
-    await writeFile(claudeMemoryPath, `@../CLAUDE.md\nRead ${path.join(harnessRoot, "AGENTS.md")} before editing.\n`);
-    assertFails(
-      nodeCommand,
-      ["scripts/check-workspace.mjs"],
-      harnessRoot,
-      `${smokeCase.name} Claude memory stale ref`,
-    );
   }
 }
 
@@ -417,31 +398,6 @@ await validateNegativeConfigCase({
     await symlink(outsideRoot, path.join(workspaceRoot, "linked-app"), "dir");
   },
 });
-
-{
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}workspace-claude-symlink-`));
-  const smokeCase = {
-    name: "workspace-claude-symlink",
-    models: { openai: false, anthropic: true },
-    consumers: [{ name: "product-app", purpose: "Application repository" }],
-  };
-  const configPath = await writeConfig(workspaceRoot, smokeCase);
-  const harnessRoot = path.join(workspaceRoot, "smoke-workspace-claude-symlink-structor");
-  const outsideRoot = path.join(workspaceRoot, "outside-claude");
-  await mkdir(outsideRoot);
-
-  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath], repoRoot);
-  await symlink(outsideRoot, path.join(workspaceRoot, ".claude"), "dir");
-
-  assertFails(
-    nodeCommand,
-    ["scripts/bootstrap-workspace.mjs"],
-    harnessRoot,
-    "workspace .claude symlink",
-    "symlinked write targets",
-  );
-  assertMissing(path.join(outsideRoot, "CLAUDE.md"), "workspace bootstrap should not write through symlinked .claude");
-}
 
 {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}worktree-pointer-symlink-`));

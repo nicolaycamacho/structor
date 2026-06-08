@@ -142,8 +142,9 @@ test("render substitutes placeholders and rejects unknown ones", () => {
 
 test("shouldRenderTemplate gates anthropic-only surfaces", () => {
   const codexOnly = { models: { openai: true, anthropic: false }, clientSupport: {} };
+  const claudeOnly = { models: { openai: false, anthropic: true }, clientSupport: {} };
   assert.equal(shouldRenderTemplate("CLAUDE.md.tpl", codexOnly), false);
-  assert.equal(shouldRenderTemplate(".claude/CLAUDE.md.tpl", codexOnly), false);
+  assert.equal(shouldRenderTemplate("CLAUDE.md.tpl", claudeOnly), true);
   assert.equal(shouldRenderTemplate("AGENTS.md.tpl", codexOnly), true);
   assert.equal(shouldRenderTemplate("consumer/AGENTS.md.tpl", codexOnly), false);
 });
@@ -168,7 +169,7 @@ test("validation contract declares trusted generated check dependencies", () => 
     models: { openai: true, anthropic: true },
     clientSupport: {
       codexHooks: true,
-      claudeRules: true,
+      claudeRules: false,
       claudeHooks: false,
       claudeSkills: false,
     },
@@ -198,7 +199,6 @@ test("consumer entrypoint contract exposes installable templates", () => {
     [
       ["AGENTS.md", "consumer/AGENTS.md.tpl"],
       ["CLAUDE.md", "consumer/CLAUDE.md.tpl"],
-      [".claude/CLAUDE.md", "consumer/.claude/CLAUDE.md.tpl"],
     ],
   );
 });
@@ -564,27 +564,6 @@ test("generated workspace bootstrap rejects symlinked leaf targets", async () =>
     assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(result.stderr, /Workspace bootstrap target AGENTS\.md is unsafe: symlinked write targets/);
     assert.equal(await readFile(path.join(outsideRoot, "AGENTS.md"), "utf8"), "OUTSIDE");
-  });
-});
-
-test("generated workspace bootstrap rejects symlinked parent targets", async () => {
-  await withTempDir(async (root) => {
-    const configPath = await writeMinimalConfig(root, "./test-structor", {
-      models: { openai: true, anthropic: true },
-      clientSupport: { codex: { hooks: false }, claude: { rules: false } },
-    });
-    const outputRoot = path.join(root, "test-structor");
-    const outsideRoot = path.join(root, "outside");
-    await mkdir(outsideRoot);
-
-    assertSuccess(runInitHarness(configPath), "generator should create workspace bootstrap script");
-    await symlink(outsideRoot, path.join(root, ".claude"), "dir");
-
-    const result = runWorkspaceBootstrap(outputRoot, ["--force"]);
-
-    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
-    assert.match(result.stderr, /Workspace bootstrap target \.claude\/CLAUDE\.md is unsafe: symlinked write targets/);
-    await assert.rejects(readFile(path.join(outsideRoot, "CLAUDE.md"), "utf8"));
   });
 });
 

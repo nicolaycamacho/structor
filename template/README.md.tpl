@@ -13,13 +13,13 @@ This harness includes the client support selected during generation:
 - OpenAI/Codex enabled: `{{MODEL_OPENAI_ENABLED}}`
 - Anthropic/Claude Code enabled: `{{MODEL_ANTHROPIC_ENABLED}}`
 - Codex hooks enabled: `{{CLIENT_CODEX_HOOKS_ENABLED}}`
-- Claude project rules enabled: `{{CLIENT_CLAUDE_RULES_ENABLED}}`
+- Claude project rules deferred: `{{CLIENT_CLAUDE_RULES_ENABLED}}`
 - Claude hooks enabled: `{{CLIENT_CLAUDE_HOOKS_ENABLED}}`
 - Claude skills enabled: `{{CLIENT_CLAUDE_SKILLS_ENABLED}}`
 
 Canonical policy lives in `ai/*`. Client-specific files are thin startup,
-project-rule, or local guardrail surfaces that route back to that canonical
-policy. They should not become independent policy sources.
+overlay, or local guardrail surfaces that route back to that canonical policy.
+They should not become independent policy sources.
 
 Codex hook support, when enabled, is intentionally conservative: deterministic,
 local, bounded by short timeouts, and validated to avoid network calls, external
@@ -81,9 +81,9 @@ node scripts/bootstrap-workspace.mjs
 node scripts/check-workspace.mjs
 ```
 
-`bootstrap-workspace.mjs` installs workspace-level `AGENTS.md`, `CLAUDE.md`,
-and `.claude/*` files when the selected model support requires them. It skips
-existing files unless `--force` is passed.
+`bootstrap-workspace.mjs` installs workspace-level `AGENTS.md` and `CLAUDE.md`
+when the selected model support requires them. It skips existing files unless
+`--force` is passed.
 
 ## Daily Use
 

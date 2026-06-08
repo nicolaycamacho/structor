@@ -109,9 +109,6 @@ Source config: `examples/anthropic-only/harness.config.json`
 ```text
 workspace/
   example-api-structor/
-    .claude/CLAUDE.md
-    .claude/rules/harness-client-surfaces.md
-    .claude/settings.json
     .structor/manifest.json
     CLAUDE.md
     README.md
@@ -193,16 +190,9 @@ workspace/
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
-    workspace/.claude/CLAUDE.md
-    workspace/.claude/rules/harness-client-surfaces.md
-    workspace/.claude/settings.json
     workspace/CLAUDE.md
-  .claude/CLAUDE.md  # workspace pointer to example-api-structor/workspace/.claude/CLAUDE.md
-  .claude/rules/harness-client-surfaces.md  # workspace pointer to example-api-structor/workspace/.claude/rules/harness-client-surfaces.md
-  .claude/settings.json  # workspace pointer to example-api-structor/workspace/.claude/settings.json
   CLAUDE.md  # workspace pointer to example-api-structor/workspace/CLAUDE.md
   example-api/
-    .claude/CLAUDE.md  # consumer pointer to example-api-structor/consumer/.claude/CLAUDE.md
     CLAUDE.md  # consumer pointer to example-api-structor/consumer/CLAUDE.md
 ```
 
@@ -213,9 +203,6 @@ Source config: `examples/frontend-backend/harness.config.json`
 ```text
 workspace/
   example-platform-structor/
-    .claude/CLAUDE.md
-    .claude/rules/harness-client-surfaces.md
-    .claude/settings.json
     .codex/hooks.json
     .structor/manifest.json
     AGENTS.md
@@ -304,22 +291,14 @@ workspace/
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
-    workspace/.claude/CLAUDE.md
-    workspace/.claude/rules/harness-client-surfaces.md
-    workspace/.claude/settings.json
     workspace/AGENTS.md
     workspace/CLAUDE.md
-  .claude/CLAUDE.md  # workspace pointer to example-platform-structor/workspace/.claude/CLAUDE.md
-  .claude/rules/harness-client-surfaces.md  # workspace pointer to example-platform-structor/workspace/.claude/rules/harness-client-surfaces.md
-  .claude/settings.json  # workspace pointer to example-platform-structor/workspace/.claude/settings.json
   AGENTS.md  # workspace pointer to example-platform-structor/workspace/AGENTS.md
   CLAUDE.md  # workspace pointer to example-platform-structor/workspace/CLAUDE.md
   example-frontend/
-    .claude/CLAUDE.md  # consumer pointer to example-platform-structor/consumer/.claude/CLAUDE.md
     AGENTS.md  # consumer pointer to example-platform-structor/consumer/AGENTS.md
     CLAUDE.md  # consumer pointer to example-platform-structor/consumer/CLAUDE.md
   example-api/
-    .claude/CLAUDE.md  # consumer pointer to example-platform-structor/consumer/.claude/CLAUDE.md
     AGENTS.md  # consumer pointer to example-platform-structor/consumer/AGENTS.md
     CLAUDE.md  # consumer pointer to example-platform-structor/consumer/CLAUDE.md
 ```
@@ -331,9 +310,6 @@ Source config: `examples/openai-and-anthropic/harness.config.json`
 ```text
 workspace/
   example-worker-structor/
-    .claude/CLAUDE.md
-    .claude/rules/harness-client-surfaces.md
-    .claude/settings.json
     .codex/hooks.json
     .structor/manifest.json
     AGENTS.md
@@ -422,18 +398,11 @@ workspace/
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
-    workspace/.claude/CLAUDE.md
-    workspace/.claude/rules/harness-client-surfaces.md
-    workspace/.claude/settings.json
     workspace/AGENTS.md
     workspace/CLAUDE.md
-  .claude/CLAUDE.md  # workspace pointer to example-worker-structor/workspace/.claude/CLAUDE.md
-  .claude/rules/harness-client-surfaces.md  # workspace pointer to example-worker-structor/workspace/.claude/rules/harness-client-surfaces.md
-  .claude/settings.json  # workspace pointer to example-worker-structor/workspace/.claude/settings.json
   AGENTS.md  # workspace pointer to example-worker-structor/workspace/AGENTS.md
   CLAUDE.md  # workspace pointer to example-worker-structor/workspace/CLAUDE.md
   example-worker/
-    .claude/CLAUDE.md  # consumer pointer to example-worker-structor/consumer/.claude/CLAUDE.md
     AGENTS.md  # consumer pointer to example-worker-structor/consumer/AGENTS.md
     CLAUDE.md  # consumer pointer to example-worker-structor/consumer/CLAUDE.md
 ```

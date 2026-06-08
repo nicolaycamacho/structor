@@ -950,7 +950,7 @@ function printSetupTransactionPreview(config, configPath) {
     models: config.models,
     clientSupport: {
       codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
-      claudeRules: config.clientSupport?.claude?.rules ?? config.models.anthropic,
+      claudeRules: config.clientSupport?.claude?.rules ?? false,
       claudeHooks: false,
       claudeSkills: false,
     },
@@ -1393,7 +1393,7 @@ async function init(options) {
           hooks: modelChoice === "both" || modelChoice === "openai",
         },
         claude: {
-          rules: modelChoice === "both" || modelChoice === "anthropic",
+          rules: false,
           hooks: false,
           skills: false,
         },

@@ -56,7 +56,7 @@
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "rules": { "type": "boolean" },
+            "rules": { "const": false },
             "hooks": { "const": false },
             "skills": { "const": false }
           }

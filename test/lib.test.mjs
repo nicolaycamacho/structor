@@ -366,6 +366,14 @@ test("validateConfigShape rejects unknown top-level keys", async () => {
   assert.ok(errors.some((error) => /not allowed/.test(error)));
 });
 
+test("validateConfigShape rejects deferred Claude rules support", async () => {
+  const config = validConfig();
+  config.models.anthropic = true;
+  config.clientSupport = { claude: { rules: true } };
+  const errors = await validateConfigShape(config, "config");
+  assert.ok(errors.some((error) => /clientSupport\.claude\.rules/.test(error)));
+});
+
 test("validateJsonSchema enforces enum values", () => {
   const validErrors = [];
   validateJsonSchema("ready", { type: "string", enum: ["ready", "done"] }, "brief.status", validErrors);
