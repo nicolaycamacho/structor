@@ -1,6 +1,6 @@
 # Structor
 
-Structor is a toolkit for creating repository-local AI engineering harnesses for
+Structor is a toolkit for creating repository-local AI Harness Engineering Frameworks for
 consumer repositories. This glossary names the core concepts so setup,
 generation, and repo-inspection work stay distinct.
 

@@ -1,7 +1,7 @@
 # Structor Product Context
 
 Structor is early infrastructure for harness engineering. It generates
-repository-local AI engineering harnesses for consumer repositories.
+repository-local AI Harness Engineering Frameworks for consumer repositories.
 
 ## Product Model
 

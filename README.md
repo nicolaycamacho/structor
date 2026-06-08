@@ -4,7 +4,7 @@
 > generated layout, and config shape may change.
 
 Structor is a local harness-engineering toolkit. It generates a
-repository-local AI engineering harness: a versioned policy layer for Codex,
+repository-local AI Harness Engineering Framework: a versioned policy layer for Codex,
 Claude Code, and similar agents to share context routing, contracts, task shape,
 review expectations, and validation guidance.
 
@@ -276,7 +276,7 @@ pointers, and validate the result with evidence.
 Paste this into Codex or Claude Code from the root of this template repo:
 
 ```text
-Use this repo to create a project-specific AI engineering harness.
+Use this repo to create a project-specific AI Harness Engineering Framework.
 
 Project facts:
 - Project name: <fill in>

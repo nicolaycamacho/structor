@@ -1,6 +1,6 @@
 # Harness Engineering Standard
 
-An engineering harness is the repo-local operating frame for AI-assisted
+An Harness Engineering Framework is the repo-local operating frame for AI-assisted
 engineering: it keeps context, contracts, validation expectations, review rules,
 quality signals, and learning loops in durable files that can be inspected and
 versioned.

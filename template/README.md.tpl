@@ -1,6 +1,6 @@
-# {{PROJECT_NAME}} Engineering Harness
+# {{PROJECT_NAME}} Harness Engineering Framework
 
-This repository contains the AI engineering harness for {{PROJECT_NAME}}.
+This repository contains the AI Harness Engineering Framework for {{PROJECT_NAME}}.
 
 The harness defines policy, contracts, context routing, task templates, review
 rules, quality tracking, and validation. It does not implement product behavior

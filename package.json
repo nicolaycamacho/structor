@@ -1,7 +1,7 @@
 {
   "name": "@structor-dev/cli",
   "version": "0.2.5",
-  "description": "Harness-engineering toolkit that generates repository-local AI engineering harnesses for consumer repos.",
+  "description": "Harness-engineering toolkit that generates repository-local AI Harness Engineering Frameworks for consumer repos.",
   "license": "MIT",
   "author": "Nicolay Camacho",
   "repository": {

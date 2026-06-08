@@ -2,7 +2,7 @@
 
 `structor init` is the recommended first-run setup flow for a project
 workspace. It is a local-only, deterministic terminal wizard for creating a
-repository-local AI engineering harness. It does not call an LLM, make API
+repository-local AI Harness Engineering Framework. It does not call an LLM, make API
 requests, install packages, create remotes, run agents, or modify external
 services.
 
@@ -93,7 +93,7 @@ workspace/
 It suggests sibling folders as consumer repos only when it finds strong local
 signals such as `.git`, `package.json`, `pyproject.toml`, or `go.mod`. It
 excludes hidden folders, `node_modules`, `structor`, and likely generated
-folders such as `*-structor`, `*-harness`, and `*-engineering-harness`.
+folders such as `*-structor`, `*-harness`, and `*-harness-engineering-framework`.
 
 The detected list is only a suggestion. The user confirms the selected repos
 before any config is written. If the detected repos are rejected, the wizard

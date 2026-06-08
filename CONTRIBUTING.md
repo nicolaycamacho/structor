@@ -6,7 +6,7 @@ narrow.
 
 ## Scope
 
-Structor generates repository-local AI engineering harnesses. It is not a
+Structor generates repository-local AI Harness Engineering Frameworks. It is not a
 runner, orchestrator, or agent runtime. Polling, PR automation, dashboards,
 auto-merge, and external service mutation are out of scope for the core
 template.
