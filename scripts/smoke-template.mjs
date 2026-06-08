@@ -497,9 +497,9 @@ await validateNegativeConfigCase({
   if (!agentsContent.includes("This consumer repository is governed by") || !agentsContent.includes("Preserved Guidance")) {
     throw new Error("consumer AGENTS.md should be replaced with a Structor entrypoint that mentions preserved guidance.");
   }
-  const taskContent = await readFile(path.join(workspaceRoot, "smoke-preserve-consumer-entrypoints-structor", "ai/tasks/guidance-migration.md"), "utf8");
+  const taskContent = await readFile(path.join(workspaceRoot, "smoke-preserve-consumer-entrypoints-structor", "ai/tasks/populate-generated-harness.md"), "utf8");
   if (!taskContent.includes(".structor/preserved-guidance/")) {
-    throw new Error("generated migration task should include the preserved guidance path.");
+    throw new Error("generated populate-generated-harness task should include the preserved guidance path.");
   }
 
   run(
@@ -644,7 +644,7 @@ await validatePreserveRootGuidanceCase({
 
   run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);
   assertMissing(path.join(consumerRoot, ".structor", "preserved-guidance"), "no-existing-guidance preserved guidance");
-  const taskContent = await readFile(path.join(harnessRoot, "ai/tasks/guidance-migration.md"), "utf8");
+  const taskContent = await readFile(path.join(harnessRoot, "ai/tasks/populate-generated-harness.md"), "utf8");
   if (!taskContent.includes("repo scan evidence only") || !taskContent.includes("./smoke-no-existing-guidance-task-structor")) {
     throw new Error("no-existing-guidance task should exist with repo-scan-only behavior and concrete harness path.");
   }

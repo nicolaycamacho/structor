@@ -66,8 +66,11 @@ The default first-run path is:
 9. If root guidance exists, consent to preserve-and-replace or abort setup.
 10. Let Structor install or verify consumer and workspace entrypoints, then run
    generated governance and workspace completion gates before success.
-11. Use the generated migration task to migrate preserved guidance into canonical
-   harness docs before relying on the harness for real project work.
+11. Use the generated populate-generated-harness task with a frontier model such
+   as GPT-5.5 or Opus 4.8 to migrate preserved guidance into canonical harness
+   docs before relying on the harness for real project work.
+12. Manually verify generated content, navigation, references, and commands,
+   then write a final report with verification evidence and remaining risks.
 
 During development from this repository, the equivalent local command is
 `npm run init -- --workspace ..`.
@@ -142,8 +145,8 @@ Only after confirmation, it can write:
   bootstrap contract.
 - Preserved root guidance under `.structor/preserved-guidance/<timestamp>/`
   inside the consumer repo after explicit consent.
-- A local migration task describing the guidance review still required after
-  deterministic setup.
+- A local populate-generated-harness task describing the guidance review still
+  required after deterministic setup.
 
 Consumer entrypoints are thin pointer files. They route Codex and Claude Code
 back to the generated harness; they are not copies of the canonical harness
@@ -156,8 +159,8 @@ repo. In the planned safe takeover flow, Structor checks for those files before
 writing root entrypoints.
 
 If no root guidance exists, Structor can generate root entrypoints, generate
-the harness, create the migration task, report deterministic setup complete,
-and still mark guidance migration required.
+the harness, create the populate-generated-harness task, report deterministic
+setup complete, and still mark harness population required.
 
 If existing root guidance is found, Structor asks for consent and offers only
 two outcomes:
@@ -259,7 +262,17 @@ governance checks, and workspace completion gates passed.
 repo-specific conventions, contracts, validation expectations, and workflow
 guidance before real implementation work should depend on it.
 
-After the user runs and reviews the local migration task:
+Recommended post-init workflow:
+
+1. Run `structor init`.
+2. Verify the generated harness bootstrap.
+3. Populate the harness with repo analysis.
+4. Validate the populated harness by checking navigation, references, and
+   commands.
+5. Write a final report with verification evidence and remaining risks.
+
+After the user runs and manually verifies the local populate-generated-harness
+task:
 
 ```text
 setup_complete: true
@@ -267,8 +280,9 @@ guidance_ready: true
 ```
 
 Structor does not run interpretive migration itself. It generates local
-migration guidance/task material; the user runs that task locally with their
-preferred agent and reviews the result.
+population guidance/task material; the user runs that task locally with their
+preferred agent, preferably a frontier model such as GPT-5.5 or Opus 4.8, and
+manually verifies the result.
 
 ## Validation Split
 

@@ -13,9 +13,10 @@ Claude Code, and similar tools into the generated harness. The planned
 repos as user-owned guidance unless the user consents to replacement.
 
 If no root guidance exists, Structor can generate thin root entrypoints, create
-the harness, create a migration task, and report deterministic setup complete.
-Guidance migration is still required because the generated harness starts from
-starter policy, not from interpreted project-specific conventions.
+the harness, create a populate-generated-harness task, and report deterministic
+setup complete. Harness population is still required because the generated
+harness starts from starter policy, not from interpreted project-specific
+conventions.
 
 If existing root guidance is found, Structor offers only two outcomes:
 
@@ -62,9 +63,10 @@ Canonical shared guidance belongs in the generated harness under `ai/`.
 Preserved root guidance remains nearby so the user and their preferred local
 agent can migrate useful conventions deliberately.
 
-## Migration Task
+## Populate Generated Harness Task
 
-The planned safe takeover flow creates concrete local migration task material.
+The planned safe takeover flow creates concrete local populate-generated-harness
+task material.
 The task should tell the user's preferred local agent to compare preserved
 guidance against the generated harness and propose reviewed updates for:
 
@@ -74,9 +76,19 @@ guidance against the generated harness and propose reviewed updates for:
 - workflow and review guidance
 - project context that belongs in canonical harness docs
 
-Structor does not run this interpretive migration during deterministic setup.
-The user runs the migration task locally, reviews the result, and commits only
-the guidance they accept.
+Structor does not run this interpretive harness population during deterministic
+setup. The user runs the populate-generated-harness task locally, preferably
+with a frontier model such as GPT-5.5 or Opus 4.8, reviews the result manually,
+and commits only the guidance they accept.
+
+Recommended workflow:
+
+1. Run `structor init`.
+2. Verify the generated harness bootstrap.
+3. Populate the harness with repo analysis.
+4. Validate the populated harness by checking navigation, references, and
+   commands.
+5. Write a final report with verification evidence and remaining risks.
 
 ## Readiness States
 
@@ -91,7 +103,7 @@ This means Structor files, routing, and deterministic setup gates completed, but
 the generated harness still needs reviewed project-specific guidance before it
 should steer real implementation work.
 
-After the user completes and reviews guidance migration:
+After the user completes and manually verifies harness population:
 
 ```text
 setup_complete: true

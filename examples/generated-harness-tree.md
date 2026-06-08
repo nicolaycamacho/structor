@@ -58,13 +58,13 @@ workspace/
     ai/skills/review-governance-drift.md
     ai/skills/review-security.md
     ai/specs/README.md
-    ai/tasks/guidance-migration.md
+    ai/tasks/populate-generated-harness.md
     ai/templates/README.md
     ai/templates/fixtures/issues/invalid-placeholder.md
     ai/templates/fixtures/issues/invalid-protected-surface.md
     ai/templates/fixtures/issues/valid-ready.md
-    ai/templates/guidance-migration-prompt.md
     ai/templates/issue-template.md
+    ai/templates/populate-generated-harness-prompt.md
     ai/templates/task-brief-template.md
     ai/workspace/LOCAL-STACK.md
     ai/workspace/REPOS.md
@@ -154,13 +154,13 @@ workspace/
     ai/skills/review-governance-drift.md
     ai/skills/review-security.md
     ai/specs/README.md
-    ai/tasks/guidance-migration.md
+    ai/tasks/populate-generated-harness.md
     ai/templates/README.md
     ai/templates/fixtures/issues/invalid-placeholder.md
     ai/templates/fixtures/issues/invalid-protected-surface.md
     ai/templates/fixtures/issues/valid-ready.md
-    ai/templates/guidance-migration-prompt.md
     ai/templates/issue-template.md
+    ai/templates/populate-generated-harness-prompt.md
     ai/templates/task-brief-template.md
     ai/workspace/LOCAL-STACK.md
     ai/workspace/REPOS.md
@@ -252,13 +252,13 @@ workspace/
     ai/skills/review-governance-drift.md
     ai/skills/review-security.md
     ai/specs/README.md
-    ai/tasks/guidance-migration.md
+    ai/tasks/populate-generated-harness.md
     ai/templates/README.md
     ai/templates/fixtures/issues/invalid-placeholder.md
     ai/templates/fixtures/issues/invalid-protected-surface.md
     ai/templates/fixtures/issues/valid-ready.md
-    ai/templates/guidance-migration-prompt.md
     ai/templates/issue-template.md
+    ai/templates/populate-generated-harness-prompt.md
     ai/templates/task-brief-template.md
     ai/workspace/LOCAL-STACK.md
     ai/workspace/REPOS.md
@@ -359,13 +359,13 @@ workspace/
     ai/skills/review-governance-drift.md
     ai/skills/review-security.md
     ai/specs/README.md
-    ai/tasks/guidance-migration.md
+    ai/tasks/populate-generated-harness.md
     ai/templates/README.md
     ai/templates/fixtures/issues/invalid-placeholder.md
     ai/templates/fixtures/issues/invalid-protected-surface.md
     ai/templates/fixtures/issues/valid-ready.md
-    ai/templates/guidance-migration-prompt.md
     ai/templates/issue-template.md
+    ai/templates/populate-generated-harness-prompt.md
     ai/templates/task-brief-template.md
     ai/workspace/LOCAL-STACK.md
     ai/workspace/REPOS.md
