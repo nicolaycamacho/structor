@@ -55,11 +55,13 @@ During local development from a clone of this repo, use
 `node ./structor/bin/structor.mjs init` from the parent workspace instead.
 
 `init` is local-only and deterministic. It detects sibling repos, asks a few
-questions, previews the full setup transaction with a dry run, persists
-`harness.config.json` inside the generated harness only after confirmation, and
-does not report success until consumer entrypoints, workspace entrypoints, and
-completion gates have passed. No network calls, no LLM calls, no telemetry, no
-package installs, and no remote service mutation.
+confirmation-oriented questions, infers project identity, harness directory,
+consumer repo names, and validation commands from local evidence, previews the
+full setup transaction with a dry run, persists `harness.config.json` inside the
+generated harness only after confirmation, and does not report success until
+consumer entrypoints, workspace entrypoints, and completion gates have passed.
+No network calls, no LLM calls, no telemetry, no package installs, and no
+remote service mutation.
 
 `structor init` remains the normal setup flow for users creating generated
 harnesses for their own target repositories. Contributing to Structor itself is

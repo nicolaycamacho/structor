@@ -75,6 +75,10 @@ function success(message) {
   console.log(color("green", message));
 }
 
+function check(message) {
+  console.log(`${color("green", "✓")} ${message}`);
+}
+
 function warn(message) {
   console.log(color("yellow", message));
 }
@@ -208,35 +212,19 @@ async function askYesNo(rl, question, defaultValue = true) {
   }
 }
 
-async function askChoice(rl, question, choices, defaultIndex = 0) {
+async function askStaticChoice(rl, question, choices, defaultIndex = 0) {
   console.log(question);
   choices.forEach((choice, index) => {
-    const marker = index === defaultIndex ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
+    const isDefault = index === defaultIndex;
+    const marker = isDefault ? color("green", "›") : " ";
+    const label = isDefault ? color("bold", choice.label) : choice.label;
+    console.log(`  ${marker} ${index + 1}. ${label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
   });
   while (true) {
     const answer = (await rl.question(`Select ${color("dim", `[${defaultIndex + 1}]`)}: `)).trim();
     const index = answer ? Number.parseInt(answer, 10) - 1 : defaultIndex;
     if (Number.isInteger(index) && choices[index]) return choices[index].value;
     warn("Please select a listed number.");
-  }
-}
-
-async function askMultiSelect(rl, question, choices, defaultIndexes) {
-  console.log(question);
-  choices.forEach((choice, index) => {
-    const marker = defaultIndexes.includes(index) ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
-  });
-  const defaultValue = defaultIndexes.map((index) => index + 1).join(",");
-  while (true) {
-    const answer = (await rl.question(`Select comma-separated numbers ${color("dim", `[${defaultValue}]`)}: `)).trim();
-    const raw = answer || defaultValue;
-    const indexes = raw.split(",").map((item) => Number.parseInt(item.trim(), 10) - 1);
-    if (indexes.length > 0 && indexes.every((index) => Number.isInteger(index) && choices[index])) {
-      return [...new Set(indexes)].map((index) => choices[index].value);
-    }
-    warn("Please enter one or more listed numbers, for example 1,2.");
   }
 }
 
@@ -378,29 +366,50 @@ export function compactValidation(validation) {
   return Object.fromEntries(Object.entries(validation).filter(([, value]) => value.trim() !== ""));
 }
 
-async function collectConsumerDetails(rl, workspaceRoot, selectedCandidates) {
+function inferredPurpose(candidate) {
+  return candidate.manual ? "Application repository" : "Detected consumer repository";
+}
+
+async function consumerFromCandidate(workspaceRoot, candidate) {
+  return {
+    name: slugify(candidate.name),
+    path: relativeFrom(workspaceRoot, candidate.path),
+    purpose: inferredPurpose(candidate),
+    validation: compactValidation(await inferValidation(candidate.path)),
+  };
+}
+
+function printValidationSummary(validation) {
+  for (const key of ["install", "lint", "test", "build"]) {
+    if (validation[key]) check(`${key}: ${validation[key]}`);
+    else if (key === "test") console.log(`  ${key}: ${color("yellow", "not found")}`);
+    else console.log(`  ${key}: ${color("dim", "not found")}`);
+  }
+  console.log(`  health: ${color("dim", "not configured")}`);
+}
+
+function printConsumerDetectionSummary(candidates) {
+  for (const candidate of candidates) {
+    console.log(`  - ${color("bold", candidate.folderName)} ${color("dim", relativeFrom(path.dirname(candidate.path), candidate.path))}`);
+    if (candidate.signals?.length > 0) note(`    signals: ${candidate.signals.join(", ")}`);
+  }
+}
+
+async function collectInferredConsumers(workspaceRoot, selectedCandidates) {
   const consumers = [];
   for (const candidate of selectedCandidates) {
     section(`Consumer: ${candidate.folderName}`);
-    const name = await askLine(rl, "Consumer name", candidate.name);
-    const purpose = await askLine(rl, "Purpose", "Application repository");
-    const suggestions = await inferValidation(candidate.path);
-    note("Validation commands are stored in harness.config.json for agents to run later. Leave unknown commands blank.");
-    const validation = {};
-    for (const key of ["install", "lint", "test", "build", "health"]) {
-      validation[key] = await askLine(rl, `${key} command`, suggestions[key] ?? "");
-    }
-    consumers.push({
-      name: slugify(name),
-      path: relativeFrom(workspaceRoot, candidate.path),
-      purpose,
-      validation: compactValidation(validation),
-    });
+    const consumer = await consumerFromCandidate(workspaceRoot, candidate);
+    console.log(`Name: ${consumer.name}`);
+    console.log(`Path: ${color("dim", consumer.path)}`);
+    console.log(`Purpose: ${consumer.purpose}`);
+    printValidationSummary(consumer.validation);
+    consumers.push(consumer);
   }
   return consumers;
 }
 
-async function promptManualConsumers(rl, workspaceRoot, outputPath) {
+async function promptManualConsumers(rl, workspaceRoot, outputPath = "./project-structor") {
   const consumers = [];
   while (consumers.length === 0 || await askYesNo(rl, "Add another consumer repo?", false)) {
     section(`Consumer ${consumers.length + 1}`);
@@ -423,15 +432,87 @@ async function promptManualConsumers(rl, workspaceRoot, outputPath) {
       if (!(await askYesNo(rl, "Use this path anyway?", false))) continue;
     }
     const folderName = path.basename(absolutePath);
-    const [consumer] = await collectConsumerDetails(rl, workspaceRoot, [{
+    const consumer = await consumerFromCandidate(workspaceRoot, {
       name: slugify(folderName),
       path: absolutePath,
       folderName,
       signals: await collectSignals(absolutePath),
-    }]);
+      manual: true,
+    });
+    section(`Consumer: ${folderName}`);
+    console.log(`Name: ${consumer.name}`);
+    console.log(`Path: ${color("dim", consumer.path)}`);
+    console.log(`Purpose: ${consumer.purpose}`);
+    printValidationSummary(consumer.validation);
     consumers.push(consumer);
   }
   return consumers;
+}
+
+async function promptConsumerRepos(rl, workspaceRoot, startingConfig) {
+  if (startingConfig?.consumers?.length > 0 && await askYesNo(rl, "Use configured consumer repos?", true)) {
+    return startingConfig.consumers;
+  }
+
+  const candidates = await detectConsumerRepos(workspaceRoot);
+  if (candidates.length === 1) {
+    section("Detected consumer repo");
+    printConsumerDetectionSummary(candidates);
+    if (await askYesNo(rl, "Use this repo?", true)) {
+      return await collectInferredConsumers(workspaceRoot, candidates);
+    }
+    return await promptManualConsumers(rl, workspaceRoot);
+  }
+
+  if (candidates.length > 1) {
+    section("Detected consumer repos");
+    printConsumerDetectionSummary(candidates);
+    if (await askYesNo(rl, "Continue with these repositories?", true)) {
+      return await collectInferredConsumers(workspaceRoot, candidates);
+    }
+    return await promptManualConsumers(rl, workspaceRoot);
+  }
+
+  warn("No obvious sibling consumer repos found.");
+  return await promptManualConsumers(rl, workspaceRoot);
+}
+
+function titleizeSlug(slug) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Project";
+}
+
+function projectInferenceBase(workspaceRoot, consumers) {
+  if (consumers.length === 1) return consumers[0].name;
+  return slugify(path.basename(workspaceRoot));
+}
+
+function inferProjectConfig(workspaceRoot, consumers, startingConfig) {
+  if (startingConfig?.project?.name && startingConfig?.project?.slug) {
+    return {
+      name: startingConfig.project.name,
+      slug: startingConfig.project.slug,
+    };
+  }
+  const slug = slugify(projectInferenceBase(workspaceRoot, consumers));
+  return {
+    name: titleizeSlug(slug),
+    slug,
+  };
+}
+
+function projectSlugFromHarnessRepoName(harnessRepoName) {
+  return slugify(harnessRepoName.replace(/-structor$/, ""));
+}
+
+function normalizeWorkspaceRelativePath(rawPath) {
+  const normalized = rawPath.trim().replaceAll(path.sep, "/").replace(/\/+$/, "");
+  if (!normalized) return "./project-structor";
+  if (path.isAbsolute(normalized) || normalized.startsWith("./") || normalized.startsWith("../")) return normalized;
+  return `./${normalized}`;
 }
 
 function printConfigSummary(config, configPath) {
@@ -1159,18 +1240,30 @@ async function init(options) {
       }
     }
 
+    section("Consumer repos");
+    note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
+    const consumers = await promptConsumerRepos(rl, workspaceRoot, startingConfig);
+
+    const inferredProject = inferProjectConfig(workspaceRoot, consumers, startingConfig);
     section("Project");
-    const projectName = await askLine(rl, "Project name", startingConfig?.project?.name ?? path.basename(workspaceRoot));
-    const projectSlug = slugify(await askLine(rl, "Project slug", startingConfig?.project?.slug ?? slugify(projectName)));
-    const harnessRepoName = await askLine(rl, "Generated Structor repo folder", startingConfig?.project?.harnessRepoName ?? `${projectSlug}-structor`);
-    const outputPath = await askLine(rl, "Generated Structor repo path", startingConfig?.output?.path ?? `./${harnessRepoName}`);
+    console.log(`Project: ${inferredProject.name} (${inferredProject.slug})`);
+    const defaultHarnessDirectory = startingConfig?.output?.path ?? `./${startingConfig?.project?.harnessRepoName ?? `${inferredProject.slug}-structor`}`;
+    const outputPath = normalizeWorkspaceRelativePath(await askLine(rl, "Harness directory", defaultHarnessDirectory));
+    const harnessRepoName = path.basename(outputPath);
+    if (!harnessRepoName.endsWith("-structor")) {
+      warn("Harness directory basename does not end with -structor. This is allowed, but the suffix is recommended.");
+    }
+    const projectSlug = projectSlugFromHarnessRepoName(harnessRepoName);
+    const projectName = startingConfig?.project?.name && startingConfig?.project?.slug
+      ? startingConfig.project.name
+      : titleizeSlug(projectSlug);
 
     section("Agent clients");
     const defaultModelIndex =
       startingConfig?.models?.openai && !startingConfig?.models?.anthropic ? 1 :
       !startingConfig?.models?.openai && startingConfig?.models?.anthropic ? 2 :
       0;
-    const modelChoice = await askChoice(rl, "Which agent clients should this harness support?", [
+    const modelChoice = await askStaticChoice(rl, "Agent client support", [
       { label: "Codex and Claude", value: "both" },
       { label: "Codex only", value: "openai" },
       { label: "Claude only", value: "anthropic" },
@@ -1179,31 +1272,6 @@ async function init(options) {
     section("Customization");
     note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
     note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
-
-    section("Consumer repos");
-    note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
-    let consumers;
-    if (startingConfig?.consumers?.length > 0 && await askYesNo(rl, "Use configured consumer repos?", true)) {
-      consumers = startingConfig.consumers;
-    } else {
-      const candidates = await detectConsumerRepos(workspaceRoot);
-      if (candidates.length > 0) {
-      const selected = await askMultiSelect(
-        rl,
-        "Found likely consumer repos:",
-        candidates.map((candidate) => ({
-          label: candidate.folderName,
-          value: candidate,
-          note: candidate.signals.join(", "),
-        })),
-        candidates.map((_, index) => index),
-      );
-      consumers = await collectConsumerDetails(rl, workspaceRoot, selected);
-      } else {
-      warn("No obvious sibling consumer repos found.");
-      consumers = await promptManualConsumers(rl, workspaceRoot, outputPath);
-      }
-    }
 
     const config = {
       project: {

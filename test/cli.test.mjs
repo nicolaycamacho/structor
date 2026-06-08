@@ -217,18 +217,8 @@ test("init customization step explains starter-only mode without scan selection"
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-structor",
+          "",
           "./example-structor",
-          "1",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "n",
         ].join("\n"),
@@ -239,6 +229,10 @@ test("init customization step explains starter-only mode without scan selection"
     assert.match(result.stdout, /Starter only creates generic harness content/);
     assert.match(result.stdout, /Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes/);
     assert.doesNotMatch(result.stdout, /How much should Structor customize from consumer repos/);
+    assert.doesNotMatch(outputText(result), /Project name:/);
+    assert.doesNotMatch(outputText(result), /Project slug:/);
+    assert.doesNotMatch(outputText(result), /Consumer name:/);
+    assert.doesNotMatch(outputText(result), /test command:/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -248,7 +242,7 @@ test("init defaults to generating the harness after the dry-run preview", async 
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-generate-default-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, `${slugify(path.basename(workspaceRoot))}-structor`);
+    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
     await mkdir(consumerRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
 
@@ -263,18 +257,6 @@ test("init defaults to generating the harness after the dry-run preview", async 
           "",
           "",
           "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "y",
           "",
         ].join("\n"),
       },
@@ -291,6 +273,15 @@ test("init defaults to generating the harness after the dry-run preview", async 
 
     const durableConfig = JSON.parse(await readFile(path.join(harnessRoot, "harness.config.json"), "utf8"));
     assert.deepEqual(durableConfig.workspace, { root: ".." });
+    assert.equal(durableConfig.project.slug, "example-app");
+    assert.equal(durableConfig.project.harnessRepoName, "example-app-structor");
+    assert.equal(durableConfig.output.path, "./example-app-structor");
+    assert.equal(durableConfig.consumers[0].validation.install, "npm install");
+    assert.equal(durableConfig.consumers[0].validation.health, undefined);
+    assert.doesNotMatch(outputText(result), /Project name:/);
+    assert.doesNotMatch(outputText(result), /Project slug:/);
+    assert.doesNotMatch(outputText(result), /Consumer name:/);
+    assert.doesNotMatch(outputText(result), /health command:/);
 
     const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
     assert.equal(doctor.status, 0, `doctor failed after init\nstdout:\n${doctor.stdout}\nstderr:\n${doctor.stderr}`);
@@ -316,18 +307,9 @@ test("init removes files it created when entrypoint conflicts block setup", asyn
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
+          "",
           "./example-project-structor",
           "2",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "y",
           "",
@@ -364,17 +346,9 @@ test("init does not write generated harness files when entrypoint conflicts fail
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
+          "",
           "./example-project-structor",
           "2",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "y",
@@ -414,17 +388,9 @@ test("init does not execute skipped existing generated setup scripts", async () 
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
+          "",
           "./example-project-structor",
           "2",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "y",
@@ -456,19 +422,11 @@ test("init refuses missing manual consumer paths before installing entrypoints",
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
-          "./example-project-structor",
-          "2",
           "./missing-app",
           "y",
           "",
-          "",
-          "",
-          "",
-          "",
-          "",
+          "./example-project-structor",
+          "2",
           "",
           "",
         ].join("\n"),
@@ -517,19 +475,9 @@ test("doctor prefers the harness-local init config over a stale workspace config
     const initInput = [
       workspaceRoot,
       "n",
-      "Example Project",
-      "example-project",
-      "example-project-structor",
+      "",
       "./example-project-structor",
       "2",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
       "y",
       "",
     ].join("\n");
@@ -572,18 +520,9 @@ test("doctor discovers a harness-local init config in a nested output path", asy
         encoding: "utf8",
         input: [
           workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
+          "",
           "./tools/example-project-structor",
           "2",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "y",
           "",
