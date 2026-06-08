@@ -216,9 +216,9 @@ test("init customization step explains starter-only mode without scan selection"
         cwd: repoRoot,
         encoding: "utf8",
         input: [
+          workspaceRoot,
           "",
-          "",
-          "",
+          "./example-structor",
           "",
           "n",
         ].join("\n"),
@@ -229,6 +229,10 @@ test("init customization step explains starter-only mode without scan selection"
     assert.match(result.stdout, /Starter only creates generic harness content/);
     assert.match(result.stdout, /Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes/);
     assert.doesNotMatch(result.stdout, /How much should Structor customize from consumer repos/);
+    assert.doesNotMatch(outputText(result), /Project name:/);
+    assert.doesNotMatch(outputText(result), /Project slug:/);
+    assert.doesNotMatch(outputText(result), /Consumer name:/);
+    assert.doesNotMatch(outputText(result), /test command:/);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -250,7 +254,9 @@ test("init defaults to generating the harness after the dry-run preview", async 
         encoding: "utf8",
         input: [
           "",
-          "y",
+          "",
+          "",
+          "",
           "",
         ].join("\n"),
       },
@@ -259,10 +265,6 @@ test("init defaults to generating the harness after the dry-run preview", async 
     assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     assert.match(outputText(result), /Generate harness now\? \[Y\/n\]/);
     assert.match(outputText(result), /Structor setup complete\./);
-    assert.doesNotMatch(outputText(result), /Project name/);
-    assert.doesNotMatch(outputText(result), /Project slug/);
-    assert.doesNotMatch(outputText(result), /Consumer name/);
-    assert.doesNotMatch(outputText(result), /health command/);
     assert.equal(existsSync(path.join(harnessRoot, "AGENTS.md")), true);
     assert.equal(existsSync(path.join(workspaceRoot, "AGENTS.md")), true);
     assert.equal(existsSync(path.join(consumerRoot, "AGENTS.md")), true);
@@ -271,6 +273,15 @@ test("init defaults to generating the harness after the dry-run preview", async 
 
     const durableConfig = JSON.parse(await readFile(path.join(harnessRoot, "harness.config.json"), "utf8"));
     assert.deepEqual(durableConfig.workspace, { root: ".." });
+    assert.equal(durableConfig.project.slug, "example-app");
+    assert.equal(durableConfig.project.harnessRepoName, "example-app-structor");
+    assert.equal(durableConfig.output.path, "./example-app-structor");
+    assert.equal(durableConfig.consumers[0].validation.install, "npm install");
+    assert.equal(durableConfig.consumers[0].validation.health, undefined);
+    assert.doesNotMatch(outputText(result), /Project name:/);
+    assert.doesNotMatch(outputText(result), /Project slug:/);
+    assert.doesNotMatch(outputText(result), /Consumer name:/);
+    assert.doesNotMatch(outputText(result), /health command:/);
 
     const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
     assert.equal(doctor.status, 0, `doctor failed after init\nstdout:\n${doctor.stdout}\nstderr:\n${doctor.stderr}`);
@@ -314,14 +325,47 @@ test("init confirms all detected repos by default and accepts numeric agent sele
   }
 });
 
-test("init removes files it created when entrypoint conflicts block setup", async () => {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-conflict-cleanup-"));
+test("init preserves existing project identity when reusing config", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-existing-identity-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
+    const harnessRoot = path.join(workspaceRoot, "custom-harness");
     await mkdir(consumerRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
-    await writeFile(path.join(consumerRoot, "AGENTS.md"), "# user-owned conflict\n");
+    await writeFile(path.join(workspaceRoot, "harness.config.json"), `${JSON.stringify({
+      project: {
+        name: "Existing Project",
+        slug: "existing-project",
+        harnessRepoName: "custom-harness",
+      },
+      output: {
+        path: "./custom-harness",
+      },
+      models: {
+        openai: true,
+        anthropic: false,
+      },
+      clientSupport: {
+        codex: {
+          hooks: true,
+        },
+        claude: {
+          rules: false,
+          hooks: false,
+          skills: false,
+        },
+      },
+      consumers: [
+        {
+          name: "example-app",
+          path: "./example-app",
+          purpose: "Application repository",
+          validation: {
+            install: "npm install",
+          },
+        },
+      ],
+    }, null, 2)}\n`);
 
     const result = spawnSync(
       process.execPath,
@@ -334,14 +378,89 @@ test("init removes files it created when entrypoint conflicts block setup", asyn
           "",
           "",
           "",
+          "",
           "y",
           "",
         ].join("\n"),
       },
     );
 
-    assert.notEqual(result.status, 0, `init should fail on conflict.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(outputText(result), /Entrypoint conflicts detected before bootstrap/);
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+
+    const durableConfig = JSON.parse(await readFile(path.join(harnessRoot, "harness.config.json"), "utf8"));
+    assert.equal(durableConfig.project.name, "Existing Project");
+    assert.equal(durableConfig.project.slug, "existing-project");
+    assert.equal(durableConfig.project.harnessRepoName, "custom-harness");
+    assert.equal(durableConfig.output.path, "./custom-harness");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("init --yes aborts on existing root guidance without explicit preservation", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-yes-guidance-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+    await writeFile(path.join(consumerRoot, "AGENTS.md"), "# existing guidance\n");
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot, "--yes"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          workspaceRoot,
+          "",
+          "./example-project-structor",
+          "2",
+          "",
+        ].join("\n"),
+      },
+    );
+
+    assert.notEqual(result.status, 0, `init --yes should abort.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /pass --yes --preserve-existing-guidance/);
+    assert.equal(await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8"), "# existing guidance\n");
+    assert.equal(existsSync(harnessRoot), false);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("init aborts before writing when existing root guidance is not preserved", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-conflict-cleanup-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    await mkdir(consumerRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+    await writeFile(path.join(consumerRoot, "AGENTS.md"), "# user-owned conflict\n");
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          workspaceRoot,
+          "",
+          "./example-project-structor",
+          "2",
+          "",
+          "",
+          "2",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init should abort cleanly.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Existing root guidance files were found/);
+    assert.match(outputText(result), /Stopped before generation/);
     assert.equal(await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8"), "# user-owned conflict\n");
     assert.equal(existsSync(path.join(workspaceRoot, "harness.config.json")), false);
     assert.equal(existsSync(harnessRoot), false);
@@ -351,11 +470,11 @@ test("init removes files it created when entrypoint conflicts block setup", asyn
   }
 });
 
-test("init does not write generated harness files when entrypoint conflicts fail preflight", async () => {
+test("init does not write generated harness files when root guidance preservation is declined", async () => {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-conflict-preflight-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
     await mkdir(consumerRoot, { recursive: true });
     await mkdir(harnessRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
@@ -368,21 +487,63 @@ test("init does not write generated harness files when entrypoint conflicts fail
         cwd: repoRoot,
         encoding: "utf8",
         input: [
+          workspaceRoot,
+          "",
+          "./example-project-structor",
+          "2",
           "",
           "",
+          "2",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init should abort cleanly.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Existing root guidance files were found/);
+    assert.equal(await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8"), "# user-owned conflict\n");
+    assert.equal(existsSync(path.join(harnessRoot, "AGENTS.md")), false);
+    assert.equal(existsSync(path.join(harnessRoot, ".structor", "manifest.json")), false);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("init restores overwritten root guidance when late setup validation fails", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-rollback-guidance-"));
+  try {
+    const consumerRoot = path.join(workspaceRoot, "example-app");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    const outsideRoot = path.join(workspaceRoot, "outside");
+    const agentsPath = path.join(consumerRoot, "AGENTS.md");
+    await mkdir(consumerRoot, { recursive: true });
+    await mkdir(outsideRoot, { recursive: true });
+    await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
+    await writeFile(agentsPath, "# original guidance\n");
+    await writeFile(path.join(outsideRoot, "AGENTS.md"), "outside");
+    await symlink(path.join(outsideRoot, "AGENTS.md"), path.join(workspaceRoot, "AGENTS.md"));
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot, "--force", "--preserve-existing-guidance"],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          workspaceRoot,
           "",
+          "./example-project-structor",
+          "2",
           "",
-          "y",
           "",
         ].join("\n"),
       },
     );
 
-    assert.notEqual(result.status, 0, `init should fail on conflict.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-    assert.match(outputText(result), /Entrypoint conflicts detected before bootstrap/);
-    assert.equal(await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8"), "# user-owned conflict\n");
+    assert.notEqual(result.status, 0, `init should fail on workspace bootstrap.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Workspace bootstrap failed/);
+    assert.equal(await readFile(agentsPath, "utf8"), "# original guidance\n");
+    assert.equal(existsSync(path.join(consumerRoot, ".structor", "preserved-guidance")), false);
     assert.equal(existsSync(path.join(harnessRoot, "AGENTS.md")), false);
-    assert.equal(existsSync(path.join(harnessRoot, ".structor", "manifest.json")), false);
   } finally {
     await rm(workspaceRoot, { recursive: true, force: true });
   }
@@ -392,7 +553,7 @@ test("init does not execute skipped existing generated setup scripts", async () 
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-stale-script-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
     await mkdir(consumerRoot, { recursive: true });
     await mkdir(path.join(harnessRoot, "scripts"), { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
@@ -408,8 +569,10 @@ test("init does not execute skipped existing generated setup scripts", async () 
         cwd: repoRoot,
         encoding: "utf8",
         input: [
+          workspaceRoot,
           "",
-          "",
+          "./example-project-structor",
+          "2",
           "",
           "",
           "y",
@@ -429,7 +592,7 @@ test("init does not execute skipped existing generated setup scripts", async () 
 test("init refuses missing manual consumer paths before installing entrypoints", async () => {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-missing-consumer-"));
   try {
-    const harnessRoot = path.join(workspaceRoot, "missing-app-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
     const missingConsumerRoot = path.join(workspaceRoot, "missing-app");
     await mkdir(workspaceRoot, { recursive: true });
 
@@ -440,15 +603,12 @@ test("init refuses missing manual consumer paths before installing entrypoints",
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          "",
+          workspaceRoot,
           "./missing-app",
           "y",
           "",
-          "",
-          "",
-          "",
-          "",
-          "",
+          "./example-project-structor",
+          "2",
           "",
           "",
         ].join("\n"),
@@ -495,11 +655,11 @@ test("doctor prefers the harness-local init config over a stale workspace config
       ],
     }, null, 2)}\n`);
     const initInput = [
-      "",
+      workspaceRoot,
       "n",
       "",
       "./example-project-structor",
-      "",
+      "2",
       "y",
       "",
     ].join("\n");
@@ -541,9 +701,10 @@ test("doctor discovers a harness-local init config in a nested output path", asy
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          "",
+          workspaceRoot,
           "",
           "./tools/example-project-structor",
+          "2",
           "",
           "y",
           "",
@@ -709,6 +870,7 @@ test("setup contributor forwards force to workspace bootstrap preview", () => {
   const result = runSetupContributor(["--dry-run", "--force"]);
   assertSuccess(result, "setup contributor force dry-run");
   assert.match(result.stdout, /bootstrap-workspace\.mjs --force/);
+  assert.doesNotMatch(outputText(result), /preservation consent/);
 });
 
 test("contribute structor completes from a local fixture repo without GitHub auth", async () => {

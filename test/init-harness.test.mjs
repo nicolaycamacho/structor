@@ -6,8 +6,10 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { repoRoot } from "../scripts/lib.mjs";
+import { exists, repoRoot } from "../scripts/lib.mjs";
 import {
+  generateHarness,
+  installConsumerEntrypoints,
   parseArgs,
   render,
   shouldRenderTemplate,
@@ -482,6 +484,7 @@ test("init harness rejects forced symlinked consumer entrypoints", async () => {
         configPath,
         "--install-consumer-entrypoints",
         "--force",
+        "--preserve-existing-guidance",
       ],
       { cwd: repoRoot, encoding: "utf8" },
     );
@@ -489,6 +492,40 @@ test("init harness rejects forced symlinked consumer entrypoints", async () => {
     assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
     assert.match(result.stderr, /Consumer entrypoint AGENTS\.md is unsafe: symlinked write targets/);
     assert.equal(await readFile(path.join(outsideRoot, "AGENTS.md"), "utf8"), "OUTSIDE");
+    assert.equal(await exists(path.join(consumerRoot, ".structor", "preserved-guidance")), false);
+  });
+});
+
+test("installer can refresh contributor root entrypoints without preserved-guidance flow", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const consumerRoot = path.join(root, "product-app");
+    const agentsPath = path.join(consumerRoot, "AGENTS.md");
+    await writeFile(agentsPath, "# existing contributor guidance\n");
+
+    const configContent = await readFile(configPath, "utf8");
+    const config = JSON.parse(configContent);
+    const { resolvedConfig } = await silenceLog(() => generateHarness(config, {
+      configPath,
+      configContent,
+      requireExistingConsumers: true,
+    }));
+
+    await silenceLog(() => installConsumerEntrypoints(resolvedConfig, {
+      dryRun: false,
+      force: false,
+      allowRootGuidanceOverwrite: true,
+    }));
+    assert.equal(await readFile(agentsPath, "utf8"), "# existing contributor guidance\n");
+
+    await silenceLog(() => installConsumerEntrypoints(resolvedConfig, {
+      dryRun: false,
+      force: true,
+      allowRootGuidanceOverwrite: true,
+    }));
+    const refreshed = await readFile(agentsPath, "utf8");
+    assert.match(refreshed, /This consumer repository is governed by/);
+    assert.doesNotMatch(refreshed, /Preserved Guidance/);
   });
 });
 
