@@ -290,6 +290,41 @@ test("init defaults to generating the harness after the dry-run preview", async 
   }
 });
 
+test("init confirms all detected repos by default and accepts numeric agent selection", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-multi-detected-"));
+  try {
+    for (const repoName of ["example-api", "example-web"]) {
+      const consumerRoot = path.join(workspaceRoot, repoName);
+      await mkdir(consumerRoot, { recursive: true });
+      await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: repoName })}\n`);
+    }
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          "",
+          "",
+          "",
+          "2",
+          "n",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Continue with these repositories\? \[Y\/n\]/);
+    assert.match(outputText(result), /example-api/);
+    assert.match(outputText(result), /example-web/);
+    assert.match(outputText(result), /Models: Codex\n/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("init preserves existing project identity when reusing config", async () => {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-existing-identity-"));
   try {
