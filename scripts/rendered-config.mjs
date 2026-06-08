@@ -136,8 +136,9 @@ export function preservedGuidanceSection(preservedGuidancePath) {
     "Existing root guidance was preserved at:",
     markdownPathCodeSpan(preservedGuidancePath),
     "",
-    "Guidance migration is required before relying on this harness for real project work.",
-    "Use the generated migration task in the Structor harness.",
+    "Populate the generated harness before relying on it for real project work.",
+    "Use the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8.",
+    "Manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.",
     "",
   ].join("\n");
 }

@@ -1052,10 +1052,12 @@ function printInitReadinessSummary({ generated, harnessRoot, preservedGuidanceBy
   console.log(`  ${harnessRoot}/`);
 
   section("Next step");
-  console.log("Guidance migration is required before using this harness for real project work.");
-  console.log(`  Open ${path.join(harnessRoot, "ai/tasks/guidance-migration.md")}`);
-  console.log("  Run it locally with Codex or Claude.");
-  console.log("  Review the result before treating the harness as guidance-ready.");
+  console.log(color("red", color("bold", "IMPORTANT")));
+  console.log("Populate the generated harness before using it for real project work.");
+  console.log(`  Open ${path.join(harnessRoot, "ai/tasks/populate-generated-harness.md")}`);
+  console.log(`  Use the prompt at ${path.join(harnessRoot, "ai/templates/populate-generated-harness-prompt.md")}`);
+  console.log("  Run it locally with Codex or Claude using a frontier model such as GPT-5.5 or Opus 4.8.");
+  console.log("  Manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.");
 }
 
 async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {

@@ -132,9 +132,12 @@ entrypoints.
 These files were preserved as local source material. Structor did not delete,
 upload, merge, analyze, or reinterpret them.
 
-Use the generated guidance migration task in the Structor harness to review this
-material and migrate still-relevant repo-specific knowledge into canonical
-harness docs.
+Use the generated populate-generated-harness task in the Structor harness with
+a frontier model such as GPT-5.5 or Opus 4.8 to review this material and
+migrate still-relevant repo-specific knowledge into canonical harness docs.
+
+Manually verify generated content, navigation, references, and commands before
+treating the harness as guidance-ready.
 
 Do not blindly copy this guidance. Verify paths, commands, architecture claims,
 and workflow rules against the current consumer repo.
@@ -183,7 +186,7 @@ async function preserveConsumerRootGuidance({
     },
     preservedFiles,
     additionalGuidanceCandidates: await collectAdditionalGuidanceCandidates(consumerRoot),
-    nextStep: "Run the generated guidance migration task in the Structor harness and migrate useful repo-specific knowledge into canonical harness docs.",
+    nextStep: "Run the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8, then manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.",
   };
   await writeFile(path.join(preserveRoot, "manifest.json"), `${JSON.stringify(manifest, null, 2)}\n`);
   return {

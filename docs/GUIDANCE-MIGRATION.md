@@ -1,8 +1,8 @@
-# Guidance Migration
+# Populate Generated Harness
 
-Guidance migration exists because Structor must install root entrypoints that
-route agents through the generated harness, while existing repo-specific
-guidance may still contain useful local knowledge.
+Generated harness population exists because Structor must install root
+entrypoints that route agents through the generated harness, while existing
+repo-specific guidance may still contain useful local knowledge.
 
 ## Trust Boundaries
 
@@ -74,19 +74,31 @@ Guidance is not ready until a human or local agent reviews preserved guidance
 and repo evidence, then migrates still-relevant knowledge into canonical harness
 docs.
 
-## Running The Generated Migration Task
+## Running The Generated Harness Population Task
 
 Open the generated harness task:
 
 ```text
-ai/tasks/guidance-migration.md
+ai/tasks/populate-generated-harness.md
 ```
 
 Use it with:
 
 ```text
-ai/templates/guidance-migration-prompt.md
+ai/templates/populate-generated-harness-prompt.md
 ```
 
-Review the resulting harness doc changes before treating the harness as
-guidance-ready.
+Use a frontier model such as GPT-5.5 or Opus 4.8 for this task.
+
+Review the resulting harness doc changes manually before treating the harness
+as guidance-ready. Verify generated content, navigation, references, and
+commands against the actual repo.
+
+Recommended workflow:
+
+1. Run `structor init`.
+2. Verify the generated harness bootstrap.
+3. Populate the harness with repo analysis.
+4. Validate the populated harness by checking navigation, references, and
+   commands.
+5. Write a final report with verification evidence and remaining risks.
