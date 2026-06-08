@@ -4,44 +4,14 @@
 > generated layout, and config shape may change.
 
 Structor is a local harness-engineering toolkit. It generates a
-repository-local AI engineering harness for your project: a versioned policy
-layer that gives Codex, Claude Code, and similar agents a shared, enforceable
-set of rules for context routing, contracts, task shape, review, and
-validation.
+repository-local AI engineering harness: a versioned policy layer for Codex,
+Claude Code, and similar agents to share context routing, contracts, task shape,
+review expectations, and validation guidance.
 
-It is a generator, not a runtime. Structor scaffolds the harness; it never runs
-agents, polls sessions, automates pull requests, or touches external services.
-The open-source generator is local-only: no telemetry, no LLM calls, and no
-network calls during `init` or `generate`.
-
-Structor is for teams that want agent guidance to live next to their code,
-review history, and validation commands instead of in scattered chat prompts.
-It is useful when a project has multiple repos, multiple agent clients, or
-repeatable review and validation expectations that should be checked
-mechanically.
-
-Structor is MIT-licensed so teams can generate, modify, and use harness
-artifacts inside private or commercial repositories. Commercial policy packs,
-private templates, tailored rollout support, or hosted services may be licensed
-separately.
-
-## First Minute
-
-- **What it is:** a local generator for repository-local AI engineering
-  harnesses.
-- **Who it is for:** teams that want Codex, Claude Code, and similar agents to
-  share reviewed project policy, task shape, and validation expectations.
-- **Why not just a rules file:** Structor gives the rules a repeatable
-  generated structure, thin client entrypoints, and validators that catch drift.
-- **What it creates:** a sibling harness repo with canonical `ai/*` policy,
-  Codex and Claude entrypoints, contracts, task templates, review guidance, and
-  local validation scripts.
-- **What it does not do:** run agents, coordinate sessions, open pull requests,
-  host services, call LLM APIs, install packages, or mutate external systems.
-- **How to try it:** run `npx @structor-dev/cli init` from the workspace folder
-  that contains your consumer repos.
-- **How validation is split:** `npm run check:ci` is the fast structural path;
-  `npm run validate` adds tests and smoke-tested generated-harness flows.
+Structor is a generator, not a runtime. It creates plain local files and
+validators; it does not run agents, coordinate sessions, open pull requests,
+host services, call LLM APIs, install packages, collect telemetry, or mutate
+external systems.
 
 ## Quick Start
 
@@ -51,31 +21,42 @@ Run Structor from the workspace folder that contains your consumer repos:
 npx @structor-dev/cli init
 ```
 
-During local development from a clone of this repo, use
-`node ./structor/bin/structor.mjs init` from the parent workspace instead.
+During local development from the parent workspace containing the `structor/`
+clone, use:
 
-`init` is local-only and deterministic. It detects sibling repos, asks a few
-confirmation-oriented questions, infers project identity, harness directory,
-consumer repo names, and validation commands from local evidence, previews the
-full setup transaction with a dry run, persists `harness.config.json` inside the
-generated harness only after confirmation, and does not report success until
-consumer entrypoints, workspace entrypoints, and completion gates have passed.
-No network calls, no LLM calls, no telemetry, no package installs, and no
-remote service mutation.
+```sh
+node ./structor/bin/structor.mjs init
+```
 
-`structor init` remains the normal setup flow for users creating generated
-harnesses for their own target repositories. Contributing to Structor itself is
-a separate workflow.
+`structor init` is local-only and deterministic. It detects sibling repos, asks
+a few confirmation-oriented questions, infers project identity, harness
+directory, consumer repo names, and validation commands from local evidence,
+previews the planned setup transaction, asks before writing, and reports setup
+completion only after deterministic local gates pass.
 
-## What You Get
+## First-Minute Safety
 
-Running `init` produces a generated harness repo as a sibling of your code:
+- No network calls, LLM calls, telemetry, package installs, or remote service
+  mutation during `init` or `generate`.
+- Existing root agent guidance is not silently deleted, uploaded, interpreted,
+  or automatically merged.
+- The planned guidance takeover flow asks for consent before replacing existing
+  root `AGENTS.md` or `CLAUDE.md` entrypoints.
+- Preserved guidance remains consumer-local source material for a later reviewed
+  migration.
+- Setup completion and guidance readiness are separate states: Structor can
+  finish deterministic setup while still requiring project-specific guidance
+  migration.
+
+## Generated Output
+
+Running `init` creates a generated harness repo as a sibling of your code:
 
 ```text
 workspace/
   my-app-structor/        # generated harness: policy, contracts, validation
-  my-app-frontend/         # your code
-  my-app-backend/          # optional second repo
+  my-app-frontend/        # your code
+  my-app-backend/         # optional second repo
 ```
 
 Inside `my-app-structor/`:
@@ -91,6 +72,14 @@ scripts/            validation that mechanically enforces the rules above
 Optional consumer repo pointer files can route agents back to the generated
 harness from each code repo.
 
+## Learn More
+
+- [Init and setup manual](docs/INIT.md)
+- [Guidance safety and post-init migration](docs/GUIDANCE-SAFETY.md)
+- [Contributor setup](docs/CONTRIBUTOR-SETUP.md)
+- [Security policy](SECURITY.md)
+- [Roadmap](ROADMAP.md)
+
 ## Why Not Just Use A Rules File?
 
 A single `AGENTS.md`, `CLAUDE.md`, or prompt file can tell an agent what to do,
@@ -102,6 +91,12 @@ Structor keeps canonical policy in the generated harness, keeps consumer
 entrypoints thin, and ships validators that check the structure. The result is
 still plain files in your repository; Structor just gives those files a stable
 shape and a way to detect drift.
+
+The generated harness starts with structured starter guidance. Structor does not
+infer complete project conventions, architecture, contracts, or validation
+expectations from consumer repo code during deterministic setup. Those
+repo-specific details belong in the post-init guidance migration and review
+step.
 
 ## Why It Exists
 
@@ -243,12 +238,13 @@ workspace/
 ```
 
 With that layout, the current flow can bootstrap consumer repos out of the box
-when their agent pointer files are missing. For safety, existing consumer
-`AGENTS.md`, `CLAUDE.md`, and `.claude/CLAUDE.md` files must already match the
-expected Structor-managed pointer surfaces or `init` fails unless `--force` is
-explicitly passed. If you generate the harness somewhere else, move or copy it
-into the sibling workspace layout before running the generated workspace
-bootstrap scripts.
+when their agent pointer files are missing. For safety, existing consumer root
+`AGENTS.md` and `CLAUDE.md` files are preserved consumer-locally before Structor
+replaces them with thin root entrypoints, or `init` aborts before writing.
+Existing `.claude/CLAUDE.md` conflicts remain separate known pointer-surface
+conflicts. If you generate the harness somewhere else, move or copy it into the
+sibling workspace layout before running the generated workspace bootstrap
+scripts.
 
 ## Agent-Assisted Manual Setup
 
@@ -265,8 +261,10 @@ pointers, and validate the result with evidence.
 - Consumer repos are already cloned as siblings, or their intended sibling
   folder names are known.
 - The generated harness output path will be a sibling of the consumer repos.
-- Existing consumer `AGENTS.md`, `CLAUDE.md`, and `.claude/*` files have been
-  reviewed before using `--force`.
+- Existing consumer root `AGENTS.md` and `CLAUDE.md` files are handled through
+  the preserve-or-abort flow, not `--force`.
+- Existing managed pointer surfaces such as `.claude/*` have been reviewed
+  before using `--force`.
 
 ### Initialization Prompt
 
@@ -304,10 +302,14 @@ Rules:
   want the full local smoke suite.
 - Run npm run generate -- --config harness.config.json --dry-run and summarize the
   planned writes before writing files.
-- If the dry run is correct, run npm run generate -- --config harness.config.json
-  --install-consumer-entrypoints.
-- Do not overwrite existing consumer AGENTS.md, CLAUDE.md, or .claude/* files
-  unless I explicitly approve --force.
+- If the dry run is correct and no existing root guidance is present, run npm
+  run generate -- --config harness.config.json --install-consumer-entrypoints.
+- If existing consumer root AGENTS.md or CLAUDE.md files are present, choose
+  preserve-and-replace or abort. Use --preserve-existing-guidance only with
+  explicit approval.
+- Do not use --force to take over existing consumer root AGENTS.md or CLAUDE.md.
+- Do not overwrite existing managed pointer surfaces such as .claude/* unless I
+  explicitly approve --force after review.
 - In the generated harness, run node scripts/validate-governance.mjs.
 - If Codex hooks are enabled, confirm node scripts/check-codex-hooks.mjs passed.
 - If Claude support is enabled, confirm node scripts/check-claude-compatibility.mjs passed.
@@ -383,8 +385,10 @@ node scripts/bootstrap-workspace.mjs
 node scripts/check-workspace.mjs
 ```
 
-Use `--force` only after reviewing existing consumer or workspace entrypoints
-that would be overwritten.
+Use `--force` only after reviewing existing managed pointer surfaces such as
+workspace entrypoints or `.claude/*` files that would be overwritten. Do not use
+`--force` as consent to take over existing consumer root `AGENTS.md` or
+`CLAUDE.md`; use the preserve-or-abort guidance flow instead.
 
 ## Consumer Repo Entrypoints
 
@@ -517,3 +521,8 @@ npm run setup:contributor
   workflows.
 - No consumer implementation logic.
 - No source-project or other project-specific content in active templates.
+
+Structor is MIT-licensed so teams can generate, modify, and use harness
+artifacts inside private or commercial repositories. Commercial policy packs,
+private templates, tailored rollout support, or hosted services may be licensed
+separately.

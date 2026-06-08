@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { mkdtemp, mkdir, readFile, symlink, writeFile } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { execFileSync, spawnSync } from "node:child_process";
 import os from "node:os";
@@ -41,6 +41,7 @@ const tempRootPrefix = "structor-";
 const harnessConfigFileName = "harness.config.json";
 const harnessSchemaPath = "schemas/harness-config.schema.json";
 const initHarnessScript = "scripts/init-harness.mjs";
+const cliPath = path.join(repoRoot, "bin/structor.mjs");
 const nodeCommand = "node";
 const lintCommand = "npm run lint";
 const testCommand = "npm test";
@@ -64,10 +65,40 @@ function assertFails(command, args, cwd, label, expectedMessage) {
   }
 }
 
+function assertResultFails(result, label, expectedMessage) {
+  if (result.status === 0) {
+    throw new Error(`${label} should have failed.`);
+  }
+  const output = `${result.stdout}\n${result.stderr}`;
+  if (expectedMessage && !output.includes(expectedMessage)) {
+    throw new Error(`${label} failed without expected message ${JSON.stringify(expectedMessage)}. Output: ${output}`);
+  }
+}
+
 function assertExists(filePath, label) {
   if (!existsSync(filePath)) {
     throw new Error(`${label} was not generated: ${filePath}`);
   }
+}
+
+async function preservedGuidanceRun(consumerRoot) {
+  const preserveRoot = path.join(consumerRoot, ".structor", "preserved-guidance");
+  assertExists(preserveRoot, "preserved guidance root");
+  const timestamps = (await readdir(preserveRoot)).sort();
+  if (timestamps.length !== 1) {
+    throw new Error(`expected one preserved-guidance timestamp, found ${timestamps.length}`);
+  }
+  return path.join(preserveRoot, timestamps[0]);
+}
+
+function initInput({ workspaceRoot, outputPath, modelChoice = "1" }) {
+  return [
+    workspaceRoot,
+    "",
+    outputPath,
+    modelChoice,
+    "",
+  ].join("\n");
 }
 
 function assertMissing(filePath, label) {
@@ -449,34 +480,217 @@ await validateNegativeConfigCase({
 }
 
 {
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}force-consumer-entrypoints-`));
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}preserve-consumer-entrypoints-`));
   const smokeCase = {
-    name: "force-consumer-entrypoints",
-    models: { openai: true, anthropic: false },
+    name: "preserve-consumer-entrypoints",
+    models: { openai: true, anthropic: true },
     consumers: [{ name: "product-app", purpose: "Application repository" }],
   };
   const configPath = await writeConfig(workspaceRoot, smokeCase);
-  const openaiEntrypoint = findEntrypoint(
-    consumerEntrypointsForSettings(settingsForSmokeCase(smokeCase)),
-    (entrypoint) => entrypoint.model === "openai",
-    "OpenAI consumer entrypoint",
-  );
-  const agentsPath = path.join(workspaceRoot, "product-app", openaiEntrypoint.path);
-  await writeFile(agentsPath, "OLD");
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+  const agentsPath = path.join(consumerRoot, "AGENTS.md");
+  const claudePath = path.join(consumerRoot, "CLAUDE.md");
+  await writeFile(agentsPath, "OLD AGENTS");
+  await writeFile(claudePath, "OLD CLAUDE");
+  await mkdir(path.join(consumerRoot, ".ai", "openai"), { recursive: true });
+  await writeFile(path.join(consumerRoot, ".ai", "openai", "context.md"), "# local context\n");
 
-  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);
-  if (await readFile(agentsPath, "utf8") !== "OLD") {
-    throw new Error("consumer entrypoint should be skipped without --force.");
+  assertFails(
+    nodeCommand,
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"],
+    repoRoot,
+    "preserve required without flag",
+    "Existing root guidance files require preservation consent",
+  );
+  if (await readFile(agentsPath, "utf8") !== "OLD AGENTS") {
+    throw new Error("consumer AGENTS.md should remain unchanged when preservation is not authorized.");
+  }
+  assertMissing(
+    path.join(workspaceRoot, "smoke-preserve-consumer-entrypoints-structor"),
+    "unauthorized lower-level init generated harness",
+  );
+
+  assertFails(
+    nodeCommand,
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--force"],
+    repoRoot,
+    "force should not authorize root guidance takeover",
+    "Existing root guidance files require preservation consent",
+  );
+  if (await readFile(claudePath, "utf8") !== "OLD CLAUDE") {
+    throw new Error("consumer CLAUDE.md should remain unchanged when only --force is provided.");
   }
 
   run(
     nodeCommand,
-    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--force"],
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--force", "--preserve-existing-guidance"],
     repoRoot,
   );
-  const forcedContent = await readFile(agentsPath, "utf8");
-  if (forcedContent === "OLD" || !forcedContent.includes("This consumer repository is governed by")) {
-    throw new Error("consumer entrypoint should be overwritten with --force.");
+  const preserveRoot = await preservedGuidanceRun(consumerRoot);
+  if (await readFile(path.join(preserveRoot, "AGENTS.md"), "utf8") !== "OLD AGENTS") {
+    throw new Error("preserved AGENTS.md should contain the original guidance.");
+  }
+  if (await readFile(path.join(preserveRoot, "CLAUDE.md"), "utf8") !== "OLD CLAUDE") {
+    throw new Error("preserved CLAUDE.md should contain the original guidance.");
+  }
+  const manifest = JSON.parse(await readFile(path.join(preserveRoot, "manifest.json"), "utf8"));
+  if (manifest.preservedFiles.length !== 2 || !manifest.additionalGuidanceCandidates.includes(".ai/openai/context.md")) {
+    throw new Error("preserved guidance manifest should record both root files and conservative candidates.");
+  }
+  const agentsContent = await readFile(agentsPath, "utf8");
+  if (!agentsContent.includes("This consumer repository is governed by") || !agentsContent.includes("Preserved Guidance")) {
+    throw new Error("consumer AGENTS.md should be replaced with a Structor entrypoint that mentions preserved guidance.");
+  }
+  const taskContent = await readFile(path.join(workspaceRoot, "smoke-preserve-consumer-entrypoints-structor", "ai/tasks/guidance-migration.md"), "utf8");
+  if (!taskContent.includes(".structor/preserved-guidance/")) {
+    throw new Error("generated migration task should include the preserved guidance path.");
+  }
+
+  run(
+    nodeCommand,
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"],
+    repoRoot,
+  );
+  const preservedRuns = await readdir(path.join(consumerRoot, ".structor", "preserved-guidance"));
+  if (preservedRuns.length !== 1) {
+    throw new Error("rerun after preserved-guidance init should verify the Structor entrypoint without creating migration debt.");
+  }
+}
+
+async function validatePreserveRootGuidanceCase({ name, models, existingFiles, expectedGeneratedFiles }) {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}${name}-`));
+  const smokeCase = {
+    name,
+    models,
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const harnessRoot = path.join(workspaceRoot, `smoke-${name}-structor`);
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+  for (const [fileName, content] of Object.entries(existingFiles)) {
+    await writeFile(path.join(consumerRoot, fileName), content);
+  }
+
+  run(
+    nodeCommand,
+    [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--preserve-existing-guidance"],
+    repoRoot,
+  );
+  const preserveRoot = await preservedGuidanceRun(consumerRoot);
+  const timestampName = path.basename(preserveRoot);
+  const manifest = JSON.parse(await readFile(path.join(preserveRoot, "manifest.json"), "utf8"));
+
+  for (const [fileName, content] of Object.entries(existingFiles)) {
+    if (await readFile(path.join(preserveRoot, fileName), "utf8") !== content) {
+      throw new Error(`${name} should preserve ${fileName}.`);
+    }
+    if (!manifest.preservedFiles.some((file) => file.source === fileName)) {
+      throw new Error(`${name} manifest should record ${fileName}.`);
+    }
+  }
+  for (const fileName of expectedGeneratedFiles) {
+    const generatedContent = await readFile(path.join(consumerRoot, fileName), "utf8");
+    if (!generatedContent.includes("This consumer repository is governed by") || !generatedContent.includes(timestampName)) {
+      throw new Error(`${name} should replace ${fileName} with a Structor entrypoint that mentions preserved guidance.`);
+    }
+  }
+  run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], harnessRoot);
+  run(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot);
+}
+
+await validatePreserveRootGuidanceCase({
+  name: "preserve-openai-only",
+  models: { openai: true, anthropic: false },
+  existingFiles: { "AGENTS.md": "OLD AGENTS" },
+  expectedGeneratedFiles: ["AGENTS.md"],
+});
+
+await validatePreserveRootGuidanceCase({
+  name: "preserve-anthropic-only",
+  models: { openai: false, anthropic: true },
+  existingFiles: { "CLAUDE.md": "OLD CLAUDE" },
+  expectedGeneratedFiles: ["CLAUDE.md"],
+});
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}yes-abort-guidance-`));
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+  await mkdir(consumerRoot, { recursive: true });
+  await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
+  await writeFile(path.join(consumerRoot, "AGENTS.md"), "OLD AGENTS");
+
+  const result = spawnSync(
+    process.execPath,
+    [cliPath, "init", "--workspace", workspaceRoot, "--yes"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: initInput({
+        workspaceRoot,
+        projectName: "Example Project",
+        projectSlug: "example-project",
+        harnessRepoName: "example-project-structor",
+        outputPath: "./example-project-structor",
+        modelChoice: "2",
+      }),
+    },
+  );
+  assertResultFails(result, "--yes existing guidance", "pass --yes --preserve-existing-guidance");
+  if (await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8") !== "OLD AGENTS") {
+    throw new Error("--yes without preservation should leave AGENTS.md unchanged.");
+  }
+}
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}yes-preserve-guidance-`));
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+  const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+  await mkdir(consumerRoot, { recursive: true });
+  await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
+  await writeFile(path.join(consumerRoot, "AGENTS.md"), "OLD AGENTS");
+
+  const result = spawnSync(
+    process.execPath,
+    [cliPath, "init", "--workspace", workspaceRoot, "--yes", "--preserve-existing-guidance"],
+    {
+      cwd: repoRoot,
+      encoding: "utf8",
+      input: initInput({
+        workspaceRoot,
+        projectName: "Example Project",
+        projectSlug: "example-project",
+        harnessRepoName: "example-project-structor",
+        outputPath: "./example-project-structor",
+        modelChoice: "2",
+      }),
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(`--yes --preserve-existing-guidance should succeed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+  }
+  const preserveRoot = await preservedGuidanceRun(consumerRoot);
+  if (await readFile(path.join(preserveRoot, "AGENTS.md"), "utf8") !== "OLD AGENTS") {
+    throw new Error("--yes --preserve-existing-guidance should preserve AGENTS.md.");
+  }
+  run(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot);
+}
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}no-existing-guidance-task-`));
+  const smokeCase = {
+    name: "no-existing-guidance-task",
+    models: { openai: true, anthropic: false },
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const harnessRoot = path.join(workspaceRoot, "smoke-no-existing-guidance-task-structor");
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);
+  assertMissing(path.join(consumerRoot, ".structor", "preserved-guidance"), "no-existing-guidance preserved guidance");
+  const taskContent = await readFile(path.join(harnessRoot, "ai/tasks/guidance-migration.md"), "utf8");
+  if (!taskContent.includes("repo scan evidence only") || !taskContent.includes("./smoke-no-existing-guidance-task-structor")) {
+    throw new Error("no-existing-guidance task should exist with repo-scan-only behavior and concrete harness path.");
   }
 }
 
@@ -491,6 +705,21 @@ await validateNegativeConfigCase({
     "check-config workspace-root-output",
     "workspace root",
   );
+}
+
+{
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}matching-root-entrypoint-`));
+  const smokeCase = {
+    name: "matching-root-entrypoint",
+    models: { openai: true, anthropic: false },
+    consumers: [{ name: "product-app", purpose: "Application repository" }],
+  };
+  const configPath = await writeConfig(workspaceRoot, smokeCase);
+  const consumerRoot = path.join(workspaceRoot, "product-app");
+
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints"], repoRoot);
+  run(nodeCommand, [path.join(repoRoot, initHarnessScript), "--config", configPath, "--install-consumer-entrypoints", "--preserve-existing-guidance"], repoRoot);
+  assertMissing(path.join(consumerRoot, ".structor", "preserved-guidance"), "matching Structor root entrypoint preserved guidance");
 }
 
 console.log("Template smoke check passed.");

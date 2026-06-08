@@ -67,11 +67,38 @@ function consumerConfig(resolvedConsumers, workspaceRoot) {
   });
 }
 
+function guidanceMigrationConsumerSections(resolvedConsumers, workspaceRoot, harnessRoot, preservedGuidanceByConsumer = {}) {
+  const harnessPath = path.relative(workspaceRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+  const renderedHarnessPath = harnessPath.startsWith(".") ? harnessPath : `./${harnessPath}`;
+  return resolvedConsumers.map(({ config: consumer, requestedRoot, root: consumerRoot }) => {
+    const consumerPath = path.relative(workspaceRoot, requestedRoot ?? consumerRoot).replaceAll(path.sep, "/") || ".";
+    const preservedPath = preservedGuidanceByConsumer[consumer.name]?.directory ?? "none";
+    return [
+      `## ${markdownText(consumer.name)}`,
+      "",
+      "Consumer repo:",
+      `  ${markdownPathCodeSpan(consumerPath.startsWith(".") ? consumerPath : `./${consumerPath}`)}`,
+      "Generated harness:",
+      `  ${markdownPathCodeSpan(renderedHarnessPath)}`,
+      "Preserved guidance:",
+      `  ${markdownPathCodeSpan(preservedPath)}`,
+      "Migration targets:",
+      "  ai/context.md",
+      "  ai/HUB.md",
+      "  ai/ARCHITECTURE.md",
+      "  ai/WORKFLOW.md",
+      "  ai/QUALITY.md",
+      "  ai/contracts/README.md",
+      "  ai/workspace/TEST-STRATEGY.md",
+    ].join("\n");
+  }).join("\n\n");
+}
+
 export function renderedGeneratedScriptHashes(hashes) {
   return jsonLiteral(hashes);
 }
 
-export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot, workspaceRoot = path.dirname(outputRoot)) {
+export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot, workspaceRoot = path.dirname(outputRoot), options = {}) {
   const workspaceHarnessPath = path.relative(workspaceRoot, outputRoot).replaceAll(path.sep, "/") || ".";
 
   return {
@@ -92,10 +119,30 @@ export function harnessTemplateValues(config, support, resolvedConsumers, output
     CLIENT_CLAUDE_RULES_ENABLED: javascriptBoolean(support.claudeRules),
     CLIENT_CLAUDE_HOOKS_ENABLED: javascriptBoolean(support.claudeHooks),
     CLIENT_CLAUDE_SKILLS_ENABLED: javascriptBoolean(support.claudeSkills),
+    GUIDANCE_MIGRATION_CONSUMER_SECTIONS: guidanceMigrationConsumerSections(
+      resolvedConsumers,
+      workspaceRoot,
+      outputRoot,
+      options.preservedGuidanceByConsumer,
+    ),
   };
 }
 
-export function consumerEntrypointValues(config, consumer, harnessRelativePath) {
+export function preservedGuidanceSection(preservedGuidancePath) {
+  if (!preservedGuidancePath) return "";
+  return [
+    "## Preserved Guidance",
+    "",
+    "Existing root guidance was preserved at:",
+    markdownPathCodeSpan(preservedGuidancePath),
+    "",
+    "Guidance migration is required before relying on this harness for real project work.",
+    "Use the generated migration task in the Structor harness.",
+    "",
+  ].join("\n");
+}
+
+export function consumerEntrypointValues(config, consumer, harnessRelativePath, options = {}) {
   const harnessPath = (relativePath) => markdownPathCodeSpan(`${harnessRelativePath}/${relativePath}`);
 
   return {
@@ -108,5 +155,6 @@ export function consumerEntrypointValues(config, consumer, harnessRelativePath) 
     HARNESS_AI_AGENTS_PATH: harnessPath("ai/AGENTS.md"),
     HARNESS_AI_HUB_PATH: harnessPath("ai/HUB.md"),
     HARNESS_AI_CONTEXT_PATH: harnessPath("ai/context.md"),
+    PRESERVED_GUIDANCE_SECTION: preservedGuidanceSection(options.preservedGuidancePath),
   };
 }
