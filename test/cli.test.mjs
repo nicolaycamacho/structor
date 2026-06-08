@@ -216,16 +216,6 @@ test("init customization step explains starter-only mode without scan selection"
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-structor",
-          "./example-structor",
-          "1",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "",
@@ -248,7 +238,7 @@ test("init defaults to generating the harness after the dry-run preview", async 
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-generate-default-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, `${slugify(path.basename(workspaceRoot))}-structor`);
+    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
     await mkdir(consumerRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
 
@@ -260,20 +250,6 @@ test("init defaults to generating the harness after the dry-run preview", async 
         encoding: "utf8",
         input: [
           "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "y",
           "",
         ].join("\n"),
@@ -283,6 +259,10 @@ test("init defaults to generating the harness after the dry-run preview", async 
     assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
     assert.match(outputText(result), /Generate harness now\? \[Y\/n\]/);
     assert.match(outputText(result), /Structor setup complete\./);
+    assert.doesNotMatch(outputText(result), /Project name/);
+    assert.doesNotMatch(outputText(result), /Project slug/);
+    assert.doesNotMatch(outputText(result), /Consumer name/);
+    assert.doesNotMatch(outputText(result), /health command/);
     assert.equal(existsSync(path.join(harnessRoot, "AGENTS.md")), true);
     assert.equal(existsSync(path.join(workspaceRoot, "AGENTS.md")), true);
     assert.equal(existsSync(path.join(consumerRoot, "AGENTS.md")), true);
@@ -299,11 +279,46 @@ test("init defaults to generating the harness after the dry-run preview", async 
   }
 });
 
+test("init confirms all detected repos by default and accepts numeric agent selection", async () => {
+  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-multi-detected-"));
+  try {
+    for (const repoName of ["example-api", "example-web"]) {
+      const consumerRoot = path.join(workspaceRoot, repoName);
+      await mkdir(consumerRoot, { recursive: true });
+      await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: repoName })}\n`);
+    }
+
+    const result = spawnSync(
+      process.execPath,
+      [cliPath, "init", "--workspace", workspaceRoot],
+      {
+        cwd: repoRoot,
+        encoding: "utf8",
+        input: [
+          "",
+          "",
+          "",
+          "2",
+          "n",
+        ].join("\n"),
+      },
+    );
+
+    assert.equal(result.status, 0, `init failed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
+    assert.match(outputText(result), /Continue with these repositories\? \[Y\/n\]/);
+    assert.match(outputText(result), /example-api/);
+    assert.match(outputText(result), /example-web/);
+    assert.match(outputText(result), /Models: Codex\n/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("init removes files it created when entrypoint conflicts block setup", async () => {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-conflict-cleanup-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
     await mkdir(consumerRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
     await writeFile(path.join(consumerRoot, "AGENTS.md"), "# user-owned conflict\n");
@@ -315,16 +330,6 @@ test("init removes files it created when entrypoint conflicts block setup", asyn
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
-          "./example-project-structor",
-          "2",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "",
@@ -350,7 +355,7 @@ test("init does not write generated harness files when entrypoint conflicts fail
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-conflict-preflight-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
     await mkdir(consumerRoot, { recursive: true });
     await mkdir(harnessRoot, { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
@@ -363,16 +368,6 @@ test("init does not write generated harness files when entrypoint conflicts fail
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
-          "./example-project-structor",
-          "2",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "",
@@ -397,7 +392,7 @@ test("init does not execute skipped existing generated setup scripts", async () 
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-stale-script-"));
   try {
     const consumerRoot = path.join(workspaceRoot, "example-app");
-    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    const harnessRoot = path.join(workspaceRoot, "example-app-structor");
     await mkdir(consumerRoot, { recursive: true });
     await mkdir(path.join(harnessRoot, "scripts"), { recursive: true });
     await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "example-app" })}\n`);
@@ -413,16 +408,6 @@ test("init does not execute skipped existing generated setup scripts", async () 
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
-          "./example-project-structor",
-          "2",
-          "",
-          "",
-          "",
-          "",
           "",
           "",
           "",
@@ -444,7 +429,7 @@ test("init does not execute skipped existing generated setup scripts", async () 
 test("init refuses missing manual consumer paths before installing entrypoints", async () => {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-cli-missing-consumer-"));
   try {
-    const harnessRoot = path.join(workspaceRoot, "example-project-structor");
+    const harnessRoot = path.join(workspaceRoot, "missing-app-structor");
     const missingConsumerRoot = path.join(workspaceRoot, "missing-app");
     await mkdir(workspaceRoot, { recursive: true });
 
@@ -455,12 +440,7 @@ test("init refuses missing manual consumer paths before installing entrypoints",
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
-          "./example-project-structor",
-          "2",
+          "",
           "./missing-app",
           "y",
           "",
@@ -515,20 +495,10 @@ test("doctor prefers the harness-local init config over a stale workspace config
       ],
     }, null, 2)}\n`);
     const initInput = [
-      workspaceRoot,
+      "",
       "n",
-      "Example Project",
-      "example-project",
-      "example-project-structor",
+      "",
       "./example-project-structor",
-      "2",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
-      "",
       "",
       "y",
       "",
@@ -571,19 +541,9 @@ test("doctor discovers a harness-local init config in a nested output path", asy
         cwd: repoRoot,
         encoding: "utf8",
         input: [
-          workspaceRoot,
-          "Example Project",
-          "example-project",
-          "example-project-structor",
+          "",
+          "",
           "./tools/example-project-structor",
-          "2",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
-          "",
           "",
           "y",
           "",

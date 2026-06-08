@@ -31,13 +31,15 @@ runner command.
 The default first-run path is:
 
 1. Run `npx @structor-dev/cli init` from the parent workspace folder.
-2. Confirm the workspace, project name, generated harness path, agent clients,
-   and consumer repos.
-3. Review the setup summary, including the durable harness-local
+2. Confirm the workspace and detected consumer repos, or enter a consumer repo
+   path manually.
+3. Review the inferred project identity, choose one workspace-relative harness
+   directory, and confirm the agent clients.
+4. Review the setup summary, including the durable harness-local
    `harness.config.json` path, entrypoint writes, and completion gates.
-4. Review the dry-run preview of the generated harness plan.
-5. Confirm generation only if the preview is correct.
-6. Let Structor install or verify consumer and workspace entrypoints, then run
+5. Review the dry-run preview of the generated harness plan.
+6. Confirm generation only if the preview is correct.
+7. Let Structor install or verify consumer and workspace entrypoints, then run
    generated governance and workspace completion gates before success.
 
 During development from this repository, the equivalent local command is
@@ -108,6 +110,11 @@ folders such as `*-structor`, `*-harness`, and `*-engineering-harness`.
 The detected list is only a suggestion. The user confirms the selected repos
 before any config is written.
 
+When Structor detects one consumer repo, it asks whether to use that repo. When
+it detects multiple consumer repos, all detected repos are selected by default
+and the user confirms the list. If detection is rejected, the wizard falls back
+to manual consumer repo entry.
+
 ## Generated Repo Name
 
 The default generated repo folder is:
@@ -118,6 +125,19 @@ The default generated repo folder is:
 
 Harness remains the category. Structor is the productized local harness
 implementation.
+
+The Setup Wizard infers the project slug from the selected consumer repo when
+there is one consumer, or from the workspace folder when there are multiple
+consumers. It then asks for a single harness directory:
+
+```text
+Harness directory [./<project-slug>-structor]:
+```
+
+The harness directory basename becomes `project.harnessRepoName`. The project
+slug is stored from that basename without the `-structor` suffix. A basename
+that does not end in `-structor` is allowed, but Structor warns because the
+conventional generated harness folder is `<project-slug>-structor`.
 
 ## Config File
 

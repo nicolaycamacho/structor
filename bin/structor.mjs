@@ -211,8 +211,9 @@ async function askYesNo(rl, question, defaultValue = true) {
 async function askChoice(rl, question, choices, defaultIndex = 0) {
   console.log(question);
   choices.forEach((choice, index) => {
-    const marker = index === defaultIndex ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
+    const marker = index === defaultIndex ? ">" : " ";
+    const rendered = `${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`;
+    console.log(index === defaultIndex ? color("green", rendered) : color("dim", rendered));
   });
   while (true) {
     const answer = (await rl.question(`Select ${color("dim", `[${defaultIndex + 1}]`)}: `)).trim();
@@ -378,29 +379,55 @@ export function compactValidation(validation) {
   return Object.fromEntries(Object.entries(validation).filter(([, value]) => value.trim() !== ""));
 }
 
-async function collectConsumerDetails(rl, workspaceRoot, selectedCandidates) {
+function inferredProjectFromConsumers(workspaceRoot, consumers, startingProject = null) {
+  if (startingProject?.name && startingProject?.slug) {
+    return {
+      name: startingProject.name,
+      slug: startingProject.slug,
+    };
+  }
+
+  const source = consumers.length === 1
+    ? path.basename(consumers[0].path)
+    : path.basename(workspaceRoot);
+  const slug = slugify(source);
+  return {
+    name: source,
+    slug,
+  };
+}
+
+function printValidationSummary(validation) {
+  const foundKeys = ["install", "lint", "test", "build"].filter((key) => validation[key]);
+  if (foundKeys.length === 0) {
+    note("Validation: no package commands detected.");
+  } else {
+    console.log("Validation:");
+    for (const key of foundKeys) {
+      console.log(`  ${color("green", "✓")} ${key}: ${validation[key]}`);
+    }
+  }
+  if (!validation.test) console.log(`  ${color("yellow", "–")} test: not found`);
+  console.log(`  ${color("dim", "–")} health: ${validation.health ?? "not configured"}`);
+}
+
+async function inferConsumerDetails(workspaceRoot, selectedCandidates) {
   const consumers = [];
   for (const candidate of selectedCandidates) {
     section(`Consumer: ${candidate.folderName}`);
-    const name = await askLine(rl, "Consumer name", candidate.name);
-    const purpose = await askLine(rl, "Purpose", "Application repository");
-    const suggestions = await inferValidation(candidate.path);
-    note("Validation commands are stored in harness.config.json for agents to run later. Leave unknown commands blank.");
-    const validation = {};
-    for (const key of ["install", "lint", "test", "build", "health"]) {
-      validation[key] = await askLine(rl, `${key} command`, suggestions[key] ?? "");
-    }
+    const validation = compactValidation(await inferValidation(candidate.path));
+    printValidationSummary(validation);
     consumers.push({
-      name: slugify(name),
+      name: slugify(candidate.name),
       path: relativeFrom(workspaceRoot, candidate.path),
-      purpose,
-      validation: compactValidation(validation),
+      purpose: "Application repository",
+      validation,
     });
   }
   return consumers;
 }
 
-async function promptManualConsumers(rl, workspaceRoot, outputPath) {
+async function promptManualConsumers(rl, workspaceRoot) {
   const consumers = [];
   while (consumers.length === 0 || await askYesNo(rl, "Add another consumer repo?", false)) {
     section(`Consumer ${consumers.length + 1}`);
@@ -411,7 +438,6 @@ async function promptManualConsumers(rl, workspaceRoot, outputPath) {
         consumerName: slugify(path.basename(absolutePath)),
         consumerPath: repoPath,
         workspaceRoot,
-        outputRoot: path.resolve(workspaceRoot, outputPath),
         repoRoot: packageRoot,
       });
     } catch (error) {
@@ -423,7 +449,7 @@ async function promptManualConsumers(rl, workspaceRoot, outputPath) {
       if (!(await askYesNo(rl, "Use this path anyway?", false))) continue;
     }
     const folderName = path.basename(absolutePath);
-    const [consumer] = await collectConsumerDetails(rl, workspaceRoot, [{
+    const [consumer] = await inferConsumerDetails(workspaceRoot, [{
       name: slugify(folderName),
       path: absolutePath,
       folderName,
@@ -432,6 +458,20 @@ async function promptManualConsumers(rl, workspaceRoot, outputPath) {
     consumers.push(consumer);
   }
   return consumers;
+}
+
+async function confirmDetectedConsumers(rl, candidates) {
+  if (candidates.length === 1) {
+    const [candidate] = candidates;
+    console.log(`Detected repo: ${candidate.folderName}${color("dim", ` - ${candidate.signals.join(", ")}`)}`);
+    return await askYesNo(rl, "Use this repo?", true) ? [candidate] : null;
+  }
+
+  console.log("Detected repositories:");
+  for (const candidate of candidates) {
+    console.log(`  ${color("green", "✓")} ${candidate.folderName}${color("dim", ` - ${candidate.signals.join(", ")}`)}`);
+  }
+  return await askYesNo(rl, "Continue with these repositories?", true) ? candidates : null;
 }
 
 function printConfigSummary(config, configPath) {
@@ -1159,27 +1199,6 @@ async function init(options) {
       }
     }
 
-    section("Project");
-    const projectName = await askLine(rl, "Project name", startingConfig?.project?.name ?? path.basename(workspaceRoot));
-    const projectSlug = slugify(await askLine(rl, "Project slug", startingConfig?.project?.slug ?? slugify(projectName)));
-    const harnessRepoName = await askLine(rl, "Generated Structor repo folder", startingConfig?.project?.harnessRepoName ?? `${projectSlug}-structor`);
-    const outputPath = await askLine(rl, "Generated Structor repo path", startingConfig?.output?.path ?? `./${harnessRepoName}`);
-
-    section("Agent clients");
-    const defaultModelIndex =
-      startingConfig?.models?.openai && !startingConfig?.models?.anthropic ? 1 :
-      !startingConfig?.models?.openai && startingConfig?.models?.anthropic ? 2 :
-      0;
-    const modelChoice = await askChoice(rl, "Which agent clients should this harness support?", [
-      { label: "Codex and Claude", value: "both" },
-      { label: "Codex only", value: "openai" },
-      { label: "Claude only", value: "anthropic" },
-    ], defaultModelIndex);
-
-    section("Customization");
-    note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
-    note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
-
     section("Consumer repos");
     note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
     let consumers;
@@ -1188,22 +1207,43 @@ async function init(options) {
     } else {
       const candidates = await detectConsumerRepos(workspaceRoot);
       if (candidates.length > 0) {
-      const selected = await askMultiSelect(
-        rl,
-        "Found likely consumer repos:",
-        candidates.map((candidate) => ({
-          label: candidate.folderName,
-          value: candidate,
-          note: candidate.signals.join(", "),
-        })),
-        candidates.map((_, index) => index),
-      );
-      consumers = await collectConsumerDetails(rl, workspaceRoot, selected);
+        const selected = await confirmDetectedConsumers(rl, candidates);
+        consumers = selected
+          ? await inferConsumerDetails(workspaceRoot, selected)
+          : await promptManualConsumers(rl, workspaceRoot);
       } else {
-      warn("No obvious sibling consumer repos found.");
-      consumers = await promptManualConsumers(rl, workspaceRoot, outputPath);
+        warn("No obvious sibling consumer repos found.");
+        consumers = await promptManualConsumers(rl, workspaceRoot);
       }
     }
+
+    section("Project");
+    const inferredProject = inferredProjectFromConsumers(workspaceRoot, consumers, startingConfig?.project);
+    const defaultOutputPath = startingConfig?.output?.path ?? `./${inferredProject.slug}-structor`;
+    const outputPath = await askLine(rl, "Harness directory", defaultOutputPath);
+    const harnessRepoName = path.basename(path.resolve(workspaceRoot, outputPath));
+    const projectSlug = slugify(harnessRepoName.endsWith("-structor")
+      ? harnessRepoName.slice(0, -"structor".length - 1)
+      : harnessRepoName);
+    const projectName = startingConfig?.project?.name ?? inferredProject.name;
+    if (!harnessRepoName.endsWith("-structor")) {
+      warn("Harness directory does not end with -structor. This is allowed, but the conventional generated harness folder is <project-slug>-structor.");
+    }
+
+    section("Agent clients");
+    const defaultModelIndex =
+      startingConfig?.models?.openai && !startingConfig?.models?.anthropic ? 1 :
+      !startingConfig?.models?.openai && startingConfig?.models?.anthropic ? 2 :
+      0;
+    const modelChoice = await askChoice(rl, "Agent clients", [
+      { label: "Codex and Claude", value: "both" },
+      { label: "Codex only", value: "openai" },
+      { label: "Claude only", value: "anthropic" },
+    ], defaultModelIndex);
+
+    section("Customization");
+    note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
+    note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
 
     const config = {
       project: {
