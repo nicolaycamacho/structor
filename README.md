@@ -28,7 +28,9 @@ clone, use:
 node ./structor/bin/structor.mjs init
 ```
 
-`structor init` is local-only and deterministic. It detects sibling repos,
+`structor init` is local-only and deterministic. It detects sibling repos, asks
+a few confirmation-oriented questions, infers project identity, harness
+directory, consumer repo names, and validation commands from local evidence,
 previews the planned setup transaction, asks before writing, and reports setup
 completion only after deterministic local gates pass.
 

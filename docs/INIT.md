@@ -51,17 +51,22 @@ agent coordinator.
 The default first-run path is:
 
 1. Run `npx @structor-dev/cli init` from the parent workspace folder.
-2. Confirm the workspace, project name, generated harness path, agent clients,
-   and consumer repos.
-3. Let Structor detect existing root guidance in each selected consumer repo.
-4. If root guidance exists, consent to preserve-and-replace or abort setup.
-5. Review the setup summary, including the durable harness-local
+2. Confirm the workspace and detected consumer repositories. With one detected
+   repo, press Enter to use it. With multiple detected repos, press Enter to use
+   all detected repos.
+3. Review the inferred project identity and validation command summary, then
+   confirm the generated harness directory.
+4. Confirm the highlighted default agent clients, or enter `1`, `2`, or `3`
+   when scripting stdin.
+5. Let Structor detect existing root guidance in each selected consumer repo.
+6. Review the setup summary, including the durable harness-local
    `harness.config.json` path, entrypoint writes, and completion gates.
-6. Review the dry-run preview of the generated harness plan.
-7. Confirm generation only if the preview is correct.
-8. Let Structor install or verify consumer and workspace entrypoints, then run
+7. Review the dry-run preview of the generated harness plan.
+8. Confirm generation only if the preview is correct.
+9. If root guidance exists, consent to preserve-and-replace or abort setup.
+10. Let Structor install or verify consumer and workspace entrypoints, then run
    generated governance and workspace completion gates before success.
-9. Use the generated migration task to migrate preserved guidance into canonical
+11. Use the generated migration task to migrate preserved guidance into canonical
    harness docs before relying on the harness for real project work.
 
 During development from this repository, the equivalent local command is
@@ -88,13 +93,31 @@ excludes hidden folders, `node_modules`, `structor`, and likely generated
 folders such as `*-structor`, `*-harness`, and `*-engineering-harness`.
 
 The detected list is only a suggestion. The user confirms the selected repos
-before any config is written.
+before any config is written. If the detected repos are rejected, the wizard
+falls back to manual consumer repo path entry.
+
+Detected consumer repos use inferred names, purposes, and validation commands.
+The wizard summarizes found validation commands and marks missing commands as
+`not found` or `not configured`; it does not prompt for per-repo command text on
+the detected-repo happy path.
 
 The default generated repo folder is:
 
 ```text
 <project-slug>-structor
 ```
+
+Harness remains the category. Structor is the productized local harness
+implementation. During `init`, the generated harness location is collected with
+one prompt:
+
+```text
+Harness directory [./<project-slug>-structor]:
+```
+
+The directory basename becomes `project.harnessRepoName`; the project slug is
+stored as that basename without the `-structor` suffix. A basename without the
+recommended `-structor` suffix is allowed but warned.
 
 ## What It Reads
 

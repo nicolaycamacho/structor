@@ -91,23 +91,12 @@ async function preservedGuidanceRun(consumerRoot) {
   return path.join(preserveRoot, timestamps[0]);
 }
 
-function initInput({ workspaceRoot, projectName, projectSlug, harnessRepoName, outputPath, modelChoice = "1" }) {
+function initInput({ workspaceRoot, outputPath, modelChoice = "1" }) {
   return [
     workspaceRoot,
-    projectName,
-    projectSlug,
-    harnessRepoName,
+    "",
     outputPath,
     modelChoice,
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "",
-    "y",
     "",
   ].join("\n");
 }
