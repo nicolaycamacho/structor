@@ -13,6 +13,14 @@ validators; it does not run agents, coordinate sessions, open pull requests,
 host services, call LLM APIs, install packages, collect telemetry, or mutate
 external systems.
 
+## Provenance
+
+Structor is independently developed as a generalized, organization-agnostic
+harness-engineering toolkit. Public Structor templates, validators, examples,
+and documentation should avoid proprietary implementation details,
+organization-specific workflows, confidential architecture, secrets, and client-
+or employer-specific artifacts.
+
 ## Quick Start
 
 Run Structor from the workspace folder that contains your consumer repos:

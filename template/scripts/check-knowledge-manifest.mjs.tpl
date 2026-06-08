@@ -10,45 +10,55 @@ const manifestPath = "ai/knowledge-manifest.json";
 const ignoredAiDocDirectories = new Set(["model-overlays", "templates", "contracts", "skills", "specs", "plans"]);
 const archiveOrGeneratedPattern = /archive|archived|historical|generated/i;
 
-async function exists(relativePath) {
+function fromRoot(relativePath) {
+  return path.join(repoRoot, relativePath);
+}
+
+async function canAccess(relativePath) {
   try {
-    await access(path.join(repoRoot, relativePath), fsConstants.F_OK);
+    await access(fromRoot(relativePath), fsConstants.F_OK);
     return true;
   } catch {
     return false;
   }
 }
 
-async function read(relativePath) {
-  return readFile(path.join(repoRoot, relativePath), "utf8");
+function toRepoRelative(absolutePath) {
+  return path.relative(repoRoot, absolutePath).replaceAll(path.sep, "/");
 }
 
-async function markdownFiles(baseRelativePath) {
-  const files = [];
-  async function walk(currentPath) {
+async function readText(relativePath) {
+  return readFile(fromRoot(relativePath), "utf8");
+}
+
+async function collectMarkdownFiles(relativeRoot) {
+  const discovered = [];
+  const queue = [fromRoot(relativeRoot)];
+
+  while (queue.length > 0) {
+    const currentPath = queue.shift();
     const entries = await readdir(currentPath, { withFileTypes: true });
     for (const entry of entries) {
       const absolute = path.join(currentPath, entry.name);
-      const relative = path.relative(repoRoot, absolute).replaceAll(path.sep, "/");
       if (entry.isDirectory()) {
         if (ignoredAiDocDirectories.has(entry.name)) continue;
-        await walk(absolute);
+        queue.push(absolute);
       } else if (entry.isFile() && entry.name.endsWith(".md")) {
-        files.push(relative);
+        discovered.push(toRepoRelative(absolute));
       }
     }
   }
-  await walk(path.join(repoRoot, baseRelativePath));
-  return files.sort();
+
+  return discovered.sort();
 }
 
 const errors = [];
-const manifest = JSON.parse(await read(manifestPath));
+const manifest = JSON.parse(await readText(manifestPath));
 const docs = manifest.canonicalDocs ?? [];
 const listed = new Set(docs.map((doc) => doc.path));
 
 for (const doc of docs) {
-  if (!(await exists(doc.path))) {
+  if (!(await canAccess(doc.path))) {
     errors.push(`${doc.path} is listed in ${manifestPath} but does not exist.`);
     continue;
   }
@@ -56,22 +66,23 @@ for (const doc of docs) {
     errors.push(`${doc.path} is active but has no purpose.`);
   }
   for (const linkedFrom of doc.linkedFrom ?? []) {
-    if (!(await exists(linkedFrom))) {
+    if (!(await canAccess(linkedFrom))) {
       errors.push(`${doc.path} expects a routing link from ${linkedFrom}, but it does not exist.`);
       continue;
     }
-    const source = await read(linkedFrom);
+    const source = await readText(linkedFrom);
     if (!source.includes(doc.path) && !source.includes(path.basename(doc.path))) {
       errors.push(`${doc.path} is not linked from ${linkedFrom}.`);
     }
   }
 }
 
-  for (const relativePath of await markdownFiles("ai")) {
-  if (!listed.has(relativePath) && !archiveOrGeneratedPattern.test((await read(relativePath)).slice(0, 400))) {
+for (const relativePath of await collectMarkdownFiles("ai")) {
+  const preamble = (await readText(relativePath)).slice(0, 400);
+  if (!listed.has(relativePath) && !archiveOrGeneratedPattern.test(preamble)) {
     errors.push(`${relativePath} is an active ai/*.md doc but is not listed in ${manifestPath}.`);
   }
-  }
+}
 
 if (errors.length > 0) {
   console.error("Knowledge manifest check failed.");
