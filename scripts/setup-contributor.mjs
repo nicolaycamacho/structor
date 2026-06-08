@@ -107,6 +107,7 @@ async function main() {
     dryRun: true,
     force: options.force,
     config: presetConfigPath,
+    allowRootGuidanceOverwrite: true,
   });
 
   if (!options.dryRun) {
@@ -115,6 +116,7 @@ async function main() {
       dryRun: false,
       force: options.force,
       config: presetConfigPath,
+      allowRootGuidanceOverwrite: true,
     });
   }
 }

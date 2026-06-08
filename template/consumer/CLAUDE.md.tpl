@@ -10,6 +10,7 @@ Read:
 3. Hub: {{HARNESS_AI_HUB_PATH}}
 4. Context: {{HARNESS_AI_CONTEXT_PATH}}
 
+{{PRESERVED_GUIDANCE_SECTION}}
 Local purpose: {{CONSUMER_PURPOSE}}
 
 Keep this file short. Canonical policy belongs in the harness.

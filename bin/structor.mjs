@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, rm, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, rm, rmdir, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -14,6 +14,8 @@ import {
   validateConfigShape,
 } from "../scripts/lib.mjs";
 import {
+  collectConsumerRootGuidanceConflicts,
+  filesystemTimestamp,
   generateHarness,
   installConsumerEntrypoints,
   render,
@@ -75,6 +77,10 @@ function success(message) {
   console.log(color("green", message));
 }
 
+function check(message) {
+  console.log(`${color("green", "✓")} ${message}`);
+}
+
 function warn(message) {
   console.log(color("yellow", message));
 }
@@ -131,6 +137,7 @@ export function parseArgs(argv) {
     if (arg === "--yes" || arg === "-y") options.yes = true;
     else if (arg === "--help" || arg === "-h") options.help = true;
     else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
+    else if (arg === "--preserve-existing-guidance") options.preserveExistingGuidance = true;
     else if (arg === "--force") options.force = true;
     else if (arg === "--dry-run") options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
@@ -150,7 +157,7 @@ function assertNoUnknownCommandFlags(command, options) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -208,35 +215,19 @@ async function askYesNo(rl, question, defaultValue = true) {
   }
 }
 
-async function askChoice(rl, question, choices, defaultIndex = 0) {
+async function askStaticChoice(rl, question, choices, defaultIndex = 0) {
   console.log(question);
   choices.forEach((choice, index) => {
-    const marker = index === defaultIndex ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
+    const isDefault = index === defaultIndex;
+    const marker = isDefault ? color("green", "›") : " ";
+    const label = isDefault ? color("bold", choice.label) : choice.label;
+    console.log(`  ${marker} ${index + 1}. ${label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
   });
   while (true) {
     const answer = (await rl.question(`Select ${color("dim", `[${defaultIndex + 1}]`)}: `)).trim();
     const index = answer ? Number.parseInt(answer, 10) - 1 : defaultIndex;
     if (Number.isInteger(index) && choices[index]) return choices[index].value;
     warn("Please select a listed number.");
-  }
-}
-
-async function askMultiSelect(rl, question, choices, defaultIndexes) {
-  console.log(question);
-  choices.forEach((choice, index) => {
-    const marker = defaultIndexes.includes(index) ? "*" : " ";
-    console.log(`  ${marker} ${index + 1}. ${choice.label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
-  });
-  const defaultValue = defaultIndexes.map((index) => index + 1).join(",");
-  while (true) {
-    const answer = (await rl.question(`Select comma-separated numbers ${color("dim", `[${defaultValue}]`)}: `)).trim();
-    const raw = answer || defaultValue;
-    const indexes = raw.split(",").map((item) => Number.parseInt(item.trim(), 10) - 1);
-    if (indexes.length > 0 && indexes.every((index) => Number.isInteger(index) && choices[index])) {
-      return [...new Set(indexes)].map((index) => choices[index].value);
-    }
-    warn("Please enter one or more listed numbers, for example 1,2.");
   }
 }
 
@@ -378,29 +369,50 @@ export function compactValidation(validation) {
   return Object.fromEntries(Object.entries(validation).filter(([, value]) => value.trim() !== ""));
 }
 
-async function collectConsumerDetails(rl, workspaceRoot, selectedCandidates) {
+function inferredPurpose(candidate) {
+  return candidate.manual ? "Application repository" : "Detected consumer repository";
+}
+
+async function consumerFromCandidate(workspaceRoot, candidate) {
+  return {
+    name: slugify(candidate.name),
+    path: relativeFrom(workspaceRoot, candidate.path),
+    purpose: inferredPurpose(candidate),
+    validation: compactValidation(await inferValidation(candidate.path)),
+  };
+}
+
+function printValidationSummary(validation) {
+  for (const key of ["install", "lint", "test", "build"]) {
+    if (validation[key]) check(`${key}: ${validation[key]}`);
+    else if (key === "test") console.log(`  ${key}: ${color("yellow", "not found")}`);
+    else console.log(`  ${key}: ${color("dim", "not found")}`);
+  }
+  console.log(`  health: ${color("dim", "not configured")}`);
+}
+
+function printConsumerDetectionSummary(candidates) {
+  for (const candidate of candidates) {
+    console.log(`  - ${color("bold", candidate.folderName)} ${color("dim", relativeFrom(path.dirname(candidate.path), candidate.path))}`);
+    if (candidate.signals?.length > 0) note(`    signals: ${candidate.signals.join(", ")}`);
+  }
+}
+
+async function collectInferredConsumers(workspaceRoot, selectedCandidates) {
   const consumers = [];
   for (const candidate of selectedCandidates) {
     section(`Consumer: ${candidate.folderName}`);
-    const name = await askLine(rl, "Consumer name", candidate.name);
-    const purpose = await askLine(rl, "Purpose", "Application repository");
-    const suggestions = await inferValidation(candidate.path);
-    note("Validation commands are stored in harness.config.json for agents to run later. Leave unknown commands blank.");
-    const validation = {};
-    for (const key of ["install", "lint", "test", "build", "health"]) {
-      validation[key] = await askLine(rl, `${key} command`, suggestions[key] ?? "");
-    }
-    consumers.push({
-      name: slugify(name),
-      path: relativeFrom(workspaceRoot, candidate.path),
-      purpose,
-      validation: compactValidation(validation),
-    });
+    const consumer = await consumerFromCandidate(workspaceRoot, candidate);
+    console.log(`Name: ${consumer.name}`);
+    console.log(`Path: ${color("dim", consumer.path)}`);
+    console.log(`Purpose: ${consumer.purpose}`);
+    printValidationSummary(consumer.validation);
+    consumers.push(consumer);
   }
   return consumers;
 }
 
-async function promptManualConsumers(rl, workspaceRoot, outputPath) {
+async function promptManualConsumers(rl, workspaceRoot, outputPath = "./project-structor") {
   const consumers = [];
   while (consumers.length === 0 || await askYesNo(rl, "Add another consumer repo?", false)) {
     section(`Consumer ${consumers.length + 1}`);
@@ -423,15 +435,87 @@ async function promptManualConsumers(rl, workspaceRoot, outputPath) {
       if (!(await askYesNo(rl, "Use this path anyway?", false))) continue;
     }
     const folderName = path.basename(absolutePath);
-    const [consumer] = await collectConsumerDetails(rl, workspaceRoot, [{
+    const consumer = await consumerFromCandidate(workspaceRoot, {
       name: slugify(folderName),
       path: absolutePath,
       folderName,
       signals: await collectSignals(absolutePath),
-    }]);
+      manual: true,
+    });
+    section(`Consumer: ${folderName}`);
+    console.log(`Name: ${consumer.name}`);
+    console.log(`Path: ${color("dim", consumer.path)}`);
+    console.log(`Purpose: ${consumer.purpose}`);
+    printValidationSummary(consumer.validation);
     consumers.push(consumer);
   }
   return consumers;
+}
+
+async function promptConsumerRepos(rl, workspaceRoot, startingConfig) {
+  if (startingConfig?.consumers?.length > 0 && await askYesNo(rl, "Use configured consumer repos?", true)) {
+    return startingConfig.consumers;
+  }
+
+  const candidates = await detectConsumerRepos(workspaceRoot);
+  if (candidates.length === 1) {
+    section("Detected consumer repo");
+    printConsumerDetectionSummary(candidates);
+    if (await askYesNo(rl, "Use this repo?", true)) {
+      return await collectInferredConsumers(workspaceRoot, candidates);
+    }
+    return await promptManualConsumers(rl, workspaceRoot);
+  }
+
+  if (candidates.length > 1) {
+    section("Detected consumer repos");
+    printConsumerDetectionSummary(candidates);
+    if (await askYesNo(rl, "Continue with these repositories?", true)) {
+      return await collectInferredConsumers(workspaceRoot, candidates);
+    }
+    return await promptManualConsumers(rl, workspaceRoot);
+  }
+
+  warn("No obvious sibling consumer repos found.");
+  return await promptManualConsumers(rl, workspaceRoot);
+}
+
+function titleizeSlug(slug) {
+  return slug
+    .split("-")
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ") || "Project";
+}
+
+function projectInferenceBase(workspaceRoot, consumers) {
+  if (consumers.length === 1) return consumers[0].name;
+  return slugify(path.basename(workspaceRoot));
+}
+
+function inferProjectConfig(workspaceRoot, consumers, startingConfig) {
+  if (startingConfig?.project?.name && startingConfig?.project?.slug) {
+    return {
+      name: startingConfig.project.name,
+      slug: startingConfig.project.slug,
+    };
+  }
+  const slug = slugify(projectInferenceBase(workspaceRoot, consumers));
+  return {
+    name: titleizeSlug(slug),
+    slug,
+  };
+}
+
+function projectSlugFromHarnessRepoName(harnessRepoName) {
+  return slugify(harnessRepoName.replace(/-structor$/, ""));
+}
+
+function normalizeWorkspaceRelativePath(rawPath) {
+  const normalized = rawPath.trim().replaceAll(path.sep, "/").replace(/\/+$/, "");
+  if (!normalized) return "./project-structor";
+  if (path.isAbsolute(normalized) || normalized.startsWith("./") || normalized.startsWith("../")) return normalized;
+  return `./${normalized}`;
 }
 
 function printConfigSummary(config, configPath) {
@@ -890,6 +974,90 @@ function printSetupTransactionPreview(config, configPath) {
   console.log("  - node scripts/check-workspace.mjs");
 }
 
+function groupedGuidanceConflicts(conflicts) {
+  const groups = new Map();
+  for (const conflict of conflicts) {
+    const current = groups.get(conflict.consumer) ?? {
+      consumer: conflict.consumer,
+      consumerPath: conflict.consumerPath,
+      consumerRoot: conflict.consumerRoot,
+      files: [],
+    };
+    current.files.push(conflict);
+    groups.set(conflict.consumer, current);
+  }
+  return [...groups.values()];
+}
+
+function preservedGuidancePlan(conflicts, timestamp) {
+  return Object.fromEntries(groupedGuidanceConflicts(conflicts).map((group) => [
+    group.consumer,
+    {
+      directory: `.structor/preserved-guidance/${timestamp}`,
+      files: group.files.map((file) => `.structor/preserved-guidance/${timestamp}/${file.path}`),
+    },
+  ]));
+}
+
+async function confirmPreserveExistingGuidance(rl, conflicts, timestamp, options) {
+  if (conflicts.length === 0) return true;
+  if (options.preserveExistingGuidance) return true;
+  if (options.yes) {
+    throw new Error(
+      `Existing root guidance files require explicit preservation consent:\n${conflicts.map((conflict) => `- ${conflict.targetPath}`).join("\n")}\nRe-run without --yes to choose interactively, or pass --yes --preserve-existing-guidance.`,
+    );
+  }
+
+  section("Existing root guidance files were found");
+  for (const conflict of conflicts) console.log(`  ${conflict.targetPath}`);
+  console.log("Structor needs to replace root guidance entrypoints so agents route through the generated harness.");
+  console.log("Structor will preserve your existing files as consumer-local source material before generating new root entrypoints.");
+  console.log("Preserved guidance will be stored at:");
+  for (const group of groupedGuidanceConflicts(conflicts)) {
+    console.log(`  ${path.join(group.consumerRoot, ".structor", "preserved-guidance", timestamp)}/`);
+  }
+  const choice = await askStaticChoice(rl, "Continue?", [
+    { label: "Preserve existing guidance and generate Structor entrypoints", value: "preserve" },
+    { label: "Abort", value: "abort" },
+  ], 0);
+  if (choice !== "preserve") {
+    warn("Stopped before generation.");
+    return false;
+  }
+  return true;
+}
+
+function printInitReadinessSummary({ generated, harnessRoot, preservedGuidanceByConsumer }) {
+  success("Structor setup complete.");
+  console.log("setup_complete: true");
+  console.log("guidance_ready: false");
+
+  section("Generated root entrypoints");
+  for (const entrypoint of generated.consumerEntrypoints.filter((item) => item.path === "AGENTS.md" || item.path === "CLAUDE.md")) {
+    console.log(`  ${path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)}`);
+  }
+
+  const preservedFiles = Object.entries(preservedGuidanceByConsumer)
+    .flatMap(([consumerName, preserved]) => {
+      const consumer = generated.resolvedConfig.consumers.find((item) => item.config.name === consumerName);
+      const consumerRoot = consumer?.confirmedRoot ?? consumer?.root;
+      return consumerRoot ? preserved.files.map((file) => path.join(consumerRoot, file)) : [];
+    });
+  if (preservedFiles.length > 0) {
+    section("Preserved existing guidance");
+    for (const filePath of preservedFiles) console.log(`  ${filePath}`);
+  }
+
+  section("Generated harness");
+  console.log(`  ${harnessRoot}/`);
+
+  section("Next step");
+  console.log("Guidance migration is required before using this harness for real project work.");
+  console.log(`  Open ${path.join(harnessRoot, "ai/tasks/guidance-migration.md")}`);
+  console.log("  Run it locally with Codex or Claude.");
+  console.log("  Review the result before treating the harness as guidance-ready.");
+}
+
 async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {
   const result = spawnSync(process.execPath, [relativeScriptPath, ...args], {
     cwd: harnessRoot,
@@ -957,6 +1125,7 @@ async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
 
     for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+      if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
       const targetPath = path.join(consumerRoot, entrypoint.path);
       if (!(await exists(targetPath))) continue;
 
@@ -984,7 +1153,7 @@ async function removeEmptyParents(startPath, stopPath) {
   const resolvedStop = path.resolve(stopPath);
   while (current.startsWith(resolvedStop) && current !== resolvedStop) {
     try {
-      await rm(current);
+      await rmdir(current);
     } catch (error) {
       if (error?.code === "ENOTEMPTY" || error?.code === "ENOENT") return;
       throw error;
@@ -999,8 +1168,19 @@ async function cleanupFailedInit({
   workspaceRoot,
   workspaceCreatedPaths,
   consumerCreatedPaths,
+  consumerRestores,
+  consumerPreservationDirs,
   harnessCreatedPaths,
 }) {
+  for (const restore of consumerRestores) {
+    await writeFile(restore.targetPath, restore.content);
+  }
+
+  for (const preservePath of consumerPreservationDirs) {
+    await rm(preservePath, { recursive: true, force: true });
+    await removeEmptyParents(preservePath, workspaceRoot);
+  }
+
   for (const targetPath of [...workspaceCreatedPaths, ...consumerCreatedPaths]) {
     await rm(targetPath, { force: true });
     await removeEmptyParents(targetPath, workspaceRoot);
@@ -1159,18 +1339,33 @@ async function init(options) {
       }
     }
 
+    section("Consumer repos");
+    note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
+    const consumers = await promptConsumerRepos(rl, workspaceRoot, startingConfig);
+
+    const inferredProject = inferProjectConfig(workspaceRoot, consumers, startingConfig);
     section("Project");
-    const projectName = await askLine(rl, "Project name", startingConfig?.project?.name ?? path.basename(workspaceRoot));
-    const projectSlug = slugify(await askLine(rl, "Project slug", startingConfig?.project?.slug ?? slugify(projectName)));
-    const harnessRepoName = await askLine(rl, "Generated Structor repo folder", startingConfig?.project?.harnessRepoName ?? `${projectSlug}-structor`);
-    const outputPath = await askLine(rl, "Generated Structor repo path", startingConfig?.output?.path ?? `./${harnessRepoName}`);
+    console.log(`Project: ${inferredProject.name} (${inferredProject.slug})`);
+    const defaultHarnessDirectory = startingConfig?.output?.path ?? `./${startingConfig?.project?.harnessRepoName ?? `${inferredProject.slug}-structor`}`;
+    const outputPath = normalizeWorkspaceRelativePath(await askLine(rl, "Harness directory", defaultHarnessDirectory));
+    const harnessRepoName = path.basename(outputPath);
+    if (!harnessRepoName.endsWith("-structor")) {
+      warn("Harness directory basename does not end with -structor. This is allowed, but the suffix is recommended.");
+    }
+    const hasExistingProjectIdentity = startingConfig?.project?.name && startingConfig?.project?.slug;
+    const projectSlug = hasExistingProjectIdentity
+      ? startingConfig.project.slug
+      : projectSlugFromHarnessRepoName(harnessRepoName);
+    const projectName = hasExistingProjectIdentity
+      ? startingConfig.project.name
+      : titleizeSlug(projectSlug);
 
     section("Agent clients");
     const defaultModelIndex =
       startingConfig?.models?.openai && !startingConfig?.models?.anthropic ? 1 :
       !startingConfig?.models?.openai && startingConfig?.models?.anthropic ? 2 :
       0;
-    const modelChoice = await askChoice(rl, "Which agent clients should this harness support?", [
+    const modelChoice = await askStaticChoice(rl, "Agent client support", [
       { label: "Codex and Claude", value: "both" },
       { label: "Codex only", value: "openai" },
       { label: "Claude only", value: "anthropic" },
@@ -1179,31 +1374,6 @@ async function init(options) {
     section("Customization");
     note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
     note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
-
-    section("Consumer repos");
-    note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
-    let consumers;
-    if (startingConfig?.consumers?.length > 0 && await askYesNo(rl, "Use configured consumer repos?", true)) {
-      consumers = startingConfig.consumers;
-    } else {
-      const candidates = await detectConsumerRepos(workspaceRoot);
-      if (candidates.length > 0) {
-      const selected = await askMultiSelect(
-        rl,
-        "Found likely consumer repos:",
-        candidates.map((candidate) => ({
-          label: candidate.folderName,
-          value: candidate,
-          note: candidate.signals.join(", "),
-        })),
-        candidates.map((_, index) => index),
-      );
-      consumers = await collectConsumerDetails(rl, workspaceRoot, selected);
-      } else {
-      warn("No obvious sibling consumer repos found.");
-      consumers = await promptManualConsumers(rl, workspaceRoot, outputPath);
-      }
-    }
 
     const config = {
       project: {
@@ -1254,10 +1424,16 @@ async function init(options) {
       requireExistingConsumers: true,
       dryRun: true,
     });
+    const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
+    const preservationTimestamp = filesystemTimestamp();
+    const preservedGuidanceByConsumer = preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp);
 
     const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
     if (!apply) {
       warn("Stopped after dry-run preview.");
+      return;
+    }
+    if (!(await confirmPreserveExistingGuidance(rl, rootGuidanceConflicts, preservationTimestamp, options))) {
       return;
     }
 
@@ -1266,6 +1442,8 @@ async function init(options) {
     const harnessRootExisted = await exists(harnessRoot);
     const workspaceCreatedPaths = [];
     const consumerCreatedPaths = [];
+    const consumerRestores = [];
+    const consumerPreservationDirs = [];
     const harnessCreatedPaths = [];
 
     try {
@@ -1282,6 +1460,7 @@ async function init(options) {
         requireExistingConsumers: true,
         force: options.force,
         dryRun: false,
+        preservedGuidanceByConsumer,
       });
       harnessCreatedPaths.push(
         ...generated.generatedFiles
@@ -1305,11 +1484,32 @@ async function init(options) {
       const consumerEntrypoints = await installConsumerEntrypoints(generated.resolvedConfig, {
         dryRun: false,
         force: options.force,
+        preserveExistingGuidance: rootGuidanceConflicts.length > 0,
+        preservationTimestamp,
+        preservedGuidanceByConsumer,
       });
+      generated.consumerEntrypoints = consumerEntrypoints;
       consumerCreatedPaths.push(
         ...consumerEntrypoints
           .filter((entrypoint) => entrypoint.action === "created")
           .map((entrypoint) => path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)),
+      );
+      consumerRestores.push(
+        ...consumerEntrypoints
+          .filter((entrypoint) => entrypoint.action === "wrote" && typeof entrypoint.previousContent === "string")
+          .map((entrypoint) => ({
+            targetPath: entrypoint.targetPath ?? path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path),
+            content: entrypoint.previousContent,
+          })),
+      );
+      consumerPreservationDirs.push(
+        ...new Set(consumerEntrypoints
+          .filter((entrypoint) => entrypoint.preservedGuidanceDirectory)
+          .map((entrypoint) => path.join(
+            generated.resolvedConfig.workspaceRoot,
+            entrypoint.consumerPath,
+            entrypoint.preservedGuidanceDirectory,
+          ))),
       );
 
       const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
@@ -1344,12 +1544,25 @@ async function init(options) {
         workspaceRoot,
         workspaceCreatedPaths,
         consumerCreatedPaths,
+        consumerRestores,
+        consumerPreservationDirs,
         harnessCreatedPaths,
       });
       throw error;
     }
 
-    success("Structor setup complete.");
+    const finalGenerated = {
+      resolvedConfig: dryRunGenerated.resolvedConfig,
+      consumerEntrypoints: consumerEntrypointsForSettings({
+        models: initConfig.models,
+        clientSupport: dryRunGenerated.resolvedConfig.support,
+      }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
+        consumer: consumer.name,
+        consumerPath: consumer.path,
+        path: entrypoint.path,
+      }))),
+    };
+    printInitReadinessSummary({ generated: finalGenerated, harnessRoot, preservedGuidanceByConsumer });
     section("Setup ready");
     note("No post-success bootstrap steps are required.");
     for (const command of initCompletionCommands(harnessRoot)) {
