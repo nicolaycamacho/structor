@@ -72,7 +72,7 @@ policy, thin Codex and Claude entrypoints, contracts, task templates, review
 guidance, and local validation scripts. It does not create a runner or hosted
 service; generated files remain local until you review and commit them.
 
-## Workspace Layout
+## Workspace Detection
 
 Structor works best when run from a parent workspace folder:
 
