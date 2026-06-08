@@ -25,21 +25,6 @@ function script(template, options = {}) {
 export const generatedHarnessArtifacts = [
   artifact("AGENTS.md.tpl", { gates: [gateModelOpenai], workspaceCheck: "repo" }),
   artifact("CLAUDE.md.tpl", { gates: [gateModelAnthropic], workspaceCheck: "repo", claudeCompatibility: true }),
-  artifact(".claude/CLAUDE.md.tpl", {
-    gates: [gateModelAnthropic],
-    workspaceCheck: "repo",
-    claudeCompatibility: true,
-  }),
-  artifact(".claude/rules/harness-client-surfaces.md.tpl", {
-    gates: [gateClientClaudeRules],
-    workspaceCheck: "repo",
-    claudeCompatibility: true,
-  }),
-  artifact(".claude/settings.json.tpl", {
-    gates: [gateModelAnthropic],
-    workspaceCheck: "repo",
-    claudeCompatibility: true,
-  }),
   artifact(".codex/hooks.json.tpl", { gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
   artifact("README.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/AGENTS.md.tpl", { workspaceCheck: "repo" }),
@@ -81,11 +66,6 @@ export const generatedHarnessArtifacts = [
     gates: [gateModelAnthropic],
     consumerEntrypoint: { path: "CLAUDE.md", routing: "harness", model: "anthropic" },
   }),
-  artifact("consumer/.claude/CLAUDE.md.tpl", {
-    generated: false,
-    gates: [gateModelAnthropic],
-    consumerEntrypoint: { path: ".claude/CLAUDE.md", routing: "claude-memory", model: "anthropic" },
-  }),
   artifact("workspace/AGENTS.md.tpl", {
     gates: [gateModelOpenai],
     workspaceEntrypoint: { path: "AGENTS.md", routing: "harness", model: "openai" },
@@ -93,18 +73,6 @@ export const generatedHarnessArtifacts = [
   artifact("workspace/CLAUDE.md.tpl", {
     gates: [gateModelAnthropic],
     workspaceEntrypoint: { path: "CLAUDE.md", routing: "harness", model: "anthropic" },
-  }),
-  artifact("workspace/.claude/CLAUDE.md.tpl", {
-    gates: [gateModelAnthropic],
-    workspaceEntrypoint: { path: ".claude/CLAUDE.md", routing: "claude-memory", model: "anthropic" },
-  }),
-  artifact("workspace/.claude/rules/harness-client-surfaces.md.tpl", {
-    gates: [gateClientClaudeRules],
-    workspaceEntrypoint: { path: ".claude/rules/harness-client-surfaces.md", routing: "presence", model: "anthropic" },
-  }),
-  artifact("workspace/.claude/settings.json.tpl", {
-    gates: [gateModelAnthropic],
-    workspaceEntrypoint: { path: ".claude/settings.json", routing: "presence", model: "anthropic" },
   }),
   artifact("ai/contracts/README.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/contracts/repo-boundaries.md.tpl"),
@@ -210,7 +178,7 @@ export const generatedHarnessValidationChecks = [
 export function clientSupportForConfig(config) {
   return {
     codexHooks: Boolean(config.models?.openai) && (config.clientSupport?.codex?.hooks ?? true),
-    claudeRules: Boolean(config.models?.anthropic) && (config.clientSupport?.claude?.rules ?? true),
+    claudeRules: false,
     claudeHooks: Boolean(config.models?.anthropic) && (config.clientSupport?.claude?.hooks ?? false),
     claudeSkills: Boolean(config.models?.anthropic) && (config.clientSupport?.claude?.skills ?? false),
   };
@@ -229,7 +197,7 @@ export function normalizeHarnessSettings(input) {
     Object.hasOwn(support, "claudeSkills")
       ? {
           codexHooks: Boolean(support.codexHooks),
-          claudeRules: Boolean(support.claudeRules),
+          claudeRules: false,
           claudeHooks: Boolean(support.claudeHooks),
           claudeSkills: Boolean(support.claudeSkills),
         }

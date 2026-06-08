@@ -17,7 +17,7 @@
       "hooks": true
     },
     "claude": {
-      "rules": true,
+      "rules": false,
       "hooks": false,
       "skills": false
     }

@@ -9,8 +9,6 @@ const overlayFiles = [
   "template/ai/model-overlays/anthropic/CLAUDE.md.tpl",
   "template/consumer/AGENTS.md.tpl",
   "template/consumer/CLAUDE.md.tpl",
-  "template/consumer/.claude/CLAUDE.md.tpl",
-  "template/.claude/CLAUDE.md.tpl",
 ];
 const errors = [];
 

@@ -164,17 +164,15 @@ Generated Codex support can include:
 Generated Claude Code support can include:
 
 - `CLAUDE.md`
-- `.claude/CLAUDE.md`
-- `.claude/settings.json`
-- `.claude/rules/harness-client-surfaces.md`
 - `ai/model-overlays/anthropic/CLAUDE.md`
 - `scripts/check-claude-compatibility.mjs`
 
 Default behavior:
 
 - `models.openai: true` generates Codex entrypoints and Codex hook scaffolding.
-- `models.anthropic: true` generates Claude entrypoints, settings, and project
-  rules.
+- `models.anthropic: true` generates Claude entrypoints through `CLAUDE.md`.
+- Claude `.claude/*` project memory, settings, and rules are deferred for a
+  future opt-in surface.
 - Claude hooks and Claude skills are reserved for future support. Keep those
   flags false or omit them.
 
@@ -186,7 +184,7 @@ Optional config:
     "hooks": true
   },
   "claude": {
-    "rules": true,
+    "rules": false,
     "hooks": false,
     "skills": false
   }
@@ -249,10 +247,9 @@ With that layout, the current flow can bootstrap consumer repos out of the box
 when their agent pointer files are missing. For safety, existing consumer root
 `AGENTS.md` and `CLAUDE.md` files are preserved consumer-locally before Structor
 replaces them with thin root entrypoints, or `init` aborts before writing.
-Existing `.claude/CLAUDE.md` conflicts remain separate known pointer-surface
-conflicts. If you generate the harness somewhere else, move or copy it into the
-sibling workspace layout before running the generated workspace bootstrap
-scripts.
+Existing `.claude/*` files are not part of the default init takeover surface.
+If you generate the harness somewhere else, move or copy it into the sibling
+workspace layout before running the generated workspace bootstrap scripts.
 
 ## Agent-Assisted Manual Setup
 
@@ -286,8 +283,8 @@ Project facts:
 - Harness repo folder name: <fill in, for example project-structor>
 - Consumer repos: <fill in sibling repo folder names and purposes>
 - Models to support: OpenAI/Codex and Anthropic/Claude Code unless I say otherwise
-- Client support: generate Codex hooks and Claude rules unless I say otherwise;
-  do not generate Claude hooks or Claude skills unless I explicitly request them
+- Client support: generate Codex hooks unless I say otherwise; keep Claude
+  rules, hooks, and skills disabled until Structor adds explicit opt-in support
 
 Rules:
 - Read AGENTS.md, README.md, harness.config.example.json, template/ai/AGENTS.md.tpl,
@@ -354,7 +351,7 @@ Set:
   consumer repos, for example `../project-structor`
 - `models.openai` and `models.anthropic`
 - optional `clientSupport.codex.hooks`
-- optional `clientSupport.claude.rules`; keep `clientSupport.claude.hooks` and
+- keep `clientSupport.claude.rules`, `clientSupport.claude.hooks`, and
   `clientSupport.claude.skills` false or omitted until those surfaces are added
 - each consumer `name`, workspace-relative sibling `path`, `purpose`, and
   validation commands. Consumer paths must stay inside the workspace and cannot
@@ -394,7 +391,7 @@ node scripts/check-workspace.mjs
 ```
 
 Use `--force` only after reviewing existing managed pointer surfaces such as
-workspace entrypoints or `.claude/*` files that would be overwritten. Do not use
+workspace entrypoints that would be overwritten. Do not use
 `--force` as consent to take over existing consumer root `AGENTS.md` or
 `CLAUDE.md`; use the preserve-or-abort guidance flow instead.
 
@@ -404,7 +401,6 @@ Each configured consumer repo should have short pointer files:
 
 - `AGENTS.md` for OpenAI/Codex-compatible agents
 - `CLAUDE.md` for Anthropic/Claude-compatible agents
-- `.claude/CLAUDE.md` for Claude Code project memory
 
 These files point to the generated harness and may include only minimal
 repo-local facts such as repository purpose and validation commands. They
@@ -435,7 +431,6 @@ manually using:
 
 - `template/consumer/AGENTS.md.tpl`
 - `template/consumer/CLAUDE.md.tpl`
-- `template/consumer/.claude/CLAUDE.md.tpl`
 
 ## Validation
 

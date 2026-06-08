@@ -136,8 +136,8 @@ Only after confirmation, it can write:
 
 - `harness.config.json` inside the generated harness.
 - A generated Structor repo at the configured `output.path`.
-- Required consumer entrypoint pointer files: `AGENTS.md`, `CLAUDE.md`, and
-  `.claude/CLAUDE.md` when the selected model support enables them.
+- Required consumer entrypoint pointer files: `AGENTS.md` and `CLAUDE.md` when
+  the selected model support enables them.
 - Required workspace entrypoint pointer files owned by the generated harness
   bootstrap contract.
 - Preserved root guidance under `.structor/preserved-guidance/<timestamp>/`

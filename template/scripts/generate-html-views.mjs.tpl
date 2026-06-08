@@ -160,7 +160,7 @@ function consumerRecords() {
       purpose: consumer.purpose ?? "n/a",
       validation,
       codexEntrypoint: modelSupport.openai ? "AGENTS.md" : "disabled",
-      claudeEntrypoints: modelSupport.anthropic ? ["CLAUDE.md", ".claude/CLAUDE.md"] : [],
+      claudeEntrypoints: modelSupport.anthropic ? ["CLAUDE.md"] : [],
       codexEnabled: modelSupport.openai,
       claudeEnabled: modelSupport.anthropic,
     };
@@ -356,7 +356,7 @@ async function indexView() {
         <div class="tile"><strong>${modelSupport.openai ? "Codex" : "Off"}</strong><span>${modelSupport.openai ? "AGENTS.md and OpenAI overlay expected" : "OpenAI support disabled"}</span></div>
         <div class="tile"><strong>${modelSupport.anthropic ? "Claude" : "Off"}</strong><span>${modelSupport.anthropic ? "CLAUDE.md surfaces expected" : "Anthropic support disabled"}</span></div>
         <div class="tile"><strong>${clientSupport.codexHooks ? "Hooks" : "No hooks"}</strong><span>Codex hook guardrails</span></div>
-        <div class="tile"><strong>${clientSupport.claudeRules ? "Rules" : "No rules"}</strong><span>Claude project rules</span></div>
+        <div class="tile"><strong>${clientSupport.claudeRules ? "Rules" : "Rules deferred"}</strong><span>Claude project rules</span></div>
       </div>
     </section>
     <section>

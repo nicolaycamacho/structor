@@ -338,7 +338,7 @@ export class ConfigResolutionError extends Error {
 export function resolveClientSupport(config) {
   return {
     codexHooks: config.models.openai && (config.clientSupport?.codex?.hooks ?? true),
-    claudeRules: config.models.anthropic && (config.clientSupport?.claude?.rules ?? true),
+    claudeRules: false,
     claudeHooks: config.models.anthropic && (config.clientSupport?.claude?.hooks ?? false),
     claudeSkills: config.models.anthropic && (config.clientSupport?.claude?.skills ?? false),
   };
