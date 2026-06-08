@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Workspace Agent Guide
 
-This workspace is governed by the {{PROJECT_NAME}} engineering harness.
+This workspace is governed by the {{PROJECT_NAME}} Harness Engineering Framework.
 
 Read the harness first:
 

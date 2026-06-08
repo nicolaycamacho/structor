@@ -1,4 +1,4 @@
-# {{PROJECT_NAME}} Engineering Harness
+# {{PROJECT_NAME}} Harness Engineering Framework
 
 This repo is the canonical harness for {{PROJECT_NAME}}. It defines shared
 guidance, contracts, task structure, review policy, and validation checks.

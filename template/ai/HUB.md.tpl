@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Harness Hub
 
-This is the routing layer for the {{PROJECT_NAME}} engineering harness.
+This is the routing layer for the {{PROJECT_NAME}} Harness Engineering Framework.
 
 ## Baseline
 

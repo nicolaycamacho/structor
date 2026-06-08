@@ -1,7 +1,7 @@
 # Roadmap
 
 Structor is a harness-engineering toolkit for generating repository-local AI
-engineering harnesses. It is a local generator, not a runner or hosted product.
+Harness Engineering Frameworks. It is a local generator, not a runner or hosted product.
 
 ## Current Open-Source Core
 
