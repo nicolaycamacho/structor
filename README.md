@@ -271,67 +271,9 @@ pointers, and validate the result with evidence.
 - Existing managed pointer surfaces such as `.claude/*` have been reviewed
   before using `--force`.
 
-### Initialization Prompt
+### Populate Generated Harness Prompt
 
-Paste this into Codex or Claude Code from the root of this template repo:
-
-```text
-Use this repo to create a project-specific AI engineering harness.
-
-Project facts:
-- Project name: <fill in>
-- Harness repo folder name: <fill in, for example project-structor>
-- Consumer repos: <fill in sibling repo folder names and purposes>
-- Models to support: OpenAI/Codex and Anthropic/Claude Code unless I say otherwise
-- Client support: generate Codex hooks unless I say otherwise; keep Claude
-  rules, hooks, and skills disabled until Structor adds explicit opt-in support
-
-Rules:
-- Read AGENTS.md, README.md, harness.config.example.json, template/ai/AGENTS.md.tpl,
-  template/ai/HUB.md.tpl, template/README.md.tpl, scripts/init-harness.mjs,
-  template/scripts/bootstrap-workspace.mjs.tpl, and
-  template/scripts/check-workspace.mjs.tpl before editing.
-- Keep the template generic; do not add product-specific content to active
-  templates.
-- Create or update harness.config.json for this workspace.
-- Set output.path so the generated harness repo is a sibling of the consumer repos.
-- Set consumer paths as workspace-relative sibling paths such as `./project-app`;
-  do not use absolute paths or `..` traversal.
-- Use concrete template-provided client-support files. Do not invent Codex or
-  Claude Code surfaces from scratch.
-- If customizing Codex hook rules, keep them deterministic, local, read-only,
-  short-timeout, and fixture-validated.
-- If customizing Claude Code support, keep `.claude/**` thin and routed to
-  canonical `ai/*` docs. Do not add Claude hooks without a validator.
-- Run npm run check:ci before generating anything; use npm run validate when you
-  want the full local smoke suite.
-- Run npm run generate -- --config harness.config.json --dry-run and summarize the
-  planned writes before writing files.
-- If the dry run is correct and no existing root guidance is present, run npm
-  run generate -- --config harness.config.json --install-consumer-entrypoints.
-- If existing consumer root AGENTS.md or CLAUDE.md files are present, choose
-  preserve-and-replace or abort. Use --preserve-existing-guidance only with
-  explicit approval.
-- Do not use --force to take over existing consumer root AGENTS.md or CLAUDE.md.
-- Do not overwrite existing managed pointer surfaces such as .claude/* unless I
-  explicitly approve --force after review.
-- In the generated harness, run node scripts/validate-governance.mjs.
-- If Codex hooks are enabled, confirm node scripts/check-codex-hooks.mjs passed.
-- If Claude support is enabled, confirm node scripts/check-claude-compatibility.mjs passed.
-- Confirm node scripts/check-overlay-drift.mjs passed.
-- From the generated harness, run node scripts/bootstrap-workspace.mjs --dry-run
-  and summarize planned workspace pointer writes.
-- If the workspace bootstrap preview is safe, run node scripts/bootstrap-workspace.mjs.
-- From the generated harness, run node scripts/check-workspace.mjs.
-- Report commands run, files changed, generated temp or output paths, skipped
-  files, failures, and remaining manual follow-ups.
-```
-
-The generated harness includes starter product, architecture, design, contract,
-review, quality, decision, task-template, and workspace-bootstrap files. The
-agent should fill obvious project-specific facts from `harness.config.json` and
-consumer repo inspection, then leave explicit starter sections for facts that
-require human input.
+Run this [prompt](https://github.com/nicolaycamacho/structor/blob/main/template/ai/templates/populate-generated-harness-prompt.md.tpl) into Codex or Claude Code from the root of the generated structor repo to populate it with customised data from your repo(s) including the preserved guidance files, if applicable.
 
 ## Manual Setup
 
