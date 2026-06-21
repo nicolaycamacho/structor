@@ -26,7 +26,7 @@
     {
       "name": "structor",
       "path": "./structor",
-      "purpose": "Structor source repository: the generator, templates, schemas, docs, tests, and CLI for repository-local AI engineering harnesses.",
+      "purpose": "Structor source repository: the generator, templates, schemas, docs, tests, and CLI for Repository-local AI Engineering Harnesses.",
       "validation": {
         "install": "npm install",
         "test": "npm test",

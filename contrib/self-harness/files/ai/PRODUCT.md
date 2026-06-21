@@ -1,19 +1,19 @@
 # Structor Product Context
 
-Structor is early infrastructure for harness engineering. It generates
-repository-local AI engineering harnesses for consumer repositories.
+Structor is early infrastructure for Harness Engineering. It generates
+Repository-local AI Engineering Harnesses for consumer repositories.
 
 ## Product Model
 
-- **Structor** is the toolkit and CLI.
-- **Harness engineering** is the practice of shaping durable AI guidance,
+- **Structor** is the Harness Engineering Framework and CLI.
+- **Harness Engineering** is the practice of shaping durable AI guidance,
   contracts, routing, and validation for software work.
-- **Generated harnesses** are sibling repositories that own guidance, contracts,
-  review templates, and validators for a project workspace.
+- **AI Engineering Harnesses** are sibling repositories that own guidance,
+  contracts, review templates, and validators for a project workspace.
 - **Consumer repositories** own implementation, runtime behavior, tests, and
   deployment-specific details.
-- **Structor Self-Harness** is a generated harness whose consumer repository is
-  Structor itself.
+- **Structor Self-Harness** is a Repository-local AI Engineering Harness whose
+  consumer repository is Structor itself.
 
 ## User Promise
 

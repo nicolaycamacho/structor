@@ -1,6 +1,6 @@
-# {{PROJECT_NAME}} Engineering Harness
+# {{PROJECT_NAME}} AI Engineering Harness
 
-This repo is the canonical harness for {{PROJECT_NAME}}. It defines shared
+This repo is the canonical AI Engineering Harness for {{PROJECT_NAME}}. It defines shared
 guidance, contracts, task structure, review policy, and validation checks.
 
 It does not implement product behavior and it is not a runner.

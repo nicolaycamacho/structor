@@ -1,10 +1,10 @@
 # Structor
 
-> Experimental. Early infrastructure for harness engineering. The API,
+> Experimental. Early infrastructure for Harness Engineering. The API,
 > generated layout, and config shape may change.
 
-Structor is a local harness-engineering toolkit. It generates a
-repository-local AI engineering harness: a versioned policy layer for Codex,
+Structor is a local Harness Engineering Framework. It generates a
+Repository-local AI Engineering Harness: a versioned policy layer for Codex,
 Claude Code, and similar agents to share context routing, contracts, task shape,
 review expectations, and validation guidance.
 
@@ -16,8 +16,8 @@ external systems.
 ## Provenance
 
 Structor is independently developed as a generalized, organization-agnostic
-harness-engineering toolkit. Public Structor templates, validators, examples,
-and documentation should avoid proprietary implementation details,
+Harness Engineering Framework. Its public templates, validators, examples, and
+documentation should avoid proprietary implementation details,
 organization-specific workflows, confidential architecture, secrets, and client-
 or employer-specific artifacts.
 
@@ -58,11 +58,12 @@ completion only after deterministic local gates pass.
 
 ## Generated Output
 
-Running `init` creates a generated harness repo as a sibling of your code:
+Running `init` creates a Repository-local AI Engineering Harness repo as a
+sibling of your code:
 
 ```text
 workspace/
-  my-app-structor/        # generated harness: policy, contracts, validation
+  my-app-structor/        # AI Engineering Harness: policy, contracts, validation
   my-app-frontend/        # your code
   my-app-backend/         # optional second repo
 ```
@@ -77,8 +78,8 @@ CLAUDE.md           thin Claude Code entrypoint -> routes into ai/
 scripts/            validation that mechanically enforces the rules above
 ```
 
-Optional consumer repo pointer files can route agents back to the generated
-harness from each code repo.
+Optional consumer repo pointer files can route agents back to the AI Engineering
+Harness from each code repo.
 
 ## Learn More
 
@@ -95,24 +96,24 @@ but it cannot easily keep project facts, model-specific overlays, contracts,
 task templates, review guidance, and validation policy synchronized across a
 workspace.
 
-Structor keeps canonical policy in the generated harness, keeps consumer
+Structor keeps canonical policy in the AI Engineering Harness, keeps consumer
 entrypoints thin, and ships validators that check the structure. The result is
 still plain files in your repository; Structor just gives those files a stable
 shape and a way to detect drift.
 
-The generated harness starts with structured starter guidance. Structor does not
-infer complete project conventions, architecture, contracts, or validation
-expectations from consumer repo code during deterministic setup. Those
-repo-specific details belong in the post-init guidance migration and review
-step.
+The generated AI Engineering Harness starts with structured starter guidance.
+Structor does not infer complete project conventions, architecture, contracts,
+or validation expectations from consumer repo code during deterministic setup.
+Those repo-specific details belong in the post-init guidance migration and
+review step.
 
 ## Why It Exists
 
 Most AI coding workflow tooling is a pile of prompts and rules with nothing
 enforcing them. Structor's bet is that reliable agentic engineering needs
-context architecture plus mechanical enforcement. The generated harness ships
-with validators that fail when policy drifts: overlay drift checks, contract
-manifest checks, task-shape checks, and hook guardrails.
+context architecture plus mechanical enforcement. The generated AI Engineering
+Harness ships with validators that fail when policy drifts: overlay drift
+checks, contract manifest checks, task-shape checks, and hook guardrails.
 
 ## Conservative Manual Path
 

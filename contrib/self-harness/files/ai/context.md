@@ -3,8 +3,8 @@
 ## Current Focus
 
 - Make Structor contribution work easier to route, bound, and validate.
-- Preserve the distinction between Structor as a toolkit and harness engineering
-  as the practice.
+- Preserve the distinction between Structor as a Harness Engineering Framework
+  and Harness Engineering as the practice.
 - Keep the future one-command contributor bootstrap behind the quality of this
   self-harness guidance.
 

@@ -1,11 +1,11 @@
 # Roadmap
 
-Structor is a harness-engineering toolkit for generating repository-local AI
-engineering harnesses. It is a local generator, not a runner or hosted product.
+Structor is a Harness Engineering Framework for generating Repository-local AI
+Engineering Harnesses. It is a local generator, not a runner or hosted product.
 
 ## Current Open-Source Core
 
-- Local `init` and `generate` flows for repository-local harnesses.
+- Local `init` and `generate` flows for Repository-local AI Engineering Harnesses.
 - Deterministic templates for Codex and Claude Code guidance.
 - Conservative path, template, schema, and governance validation.
 - Optional local consumer entrypoint installation.

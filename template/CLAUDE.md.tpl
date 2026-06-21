@@ -1,7 +1,7 @@
-# {{PROJECT_NAME}} Engineering Harness
+# {{PROJECT_NAME}} AI Engineering Harness
 
 This is the Claude Code-compatible entrypoint for the {{PROJECT_NAME}}
-engineering harness.
+AI Engineering Harness.
 
 Canonical policy lives in `ai/*`. Read:
 
