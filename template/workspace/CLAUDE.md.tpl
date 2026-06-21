@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Workspace Claude Guide
 
-This workspace is governed by the {{PROJECT_NAME}} AI Engineering Harness.
+This workspace is governed by the {{PROJECT_NAME}} AI Harness Engineering Framework.
 
 @{{WORKSPACE_HARNESS_PATH}}/ai/context.md
 

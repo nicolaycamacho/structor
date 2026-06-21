@@ -3,8 +3,8 @@
 Populate the generated Structor harness from the current consumer workspace.
 
 This is a one-time post-init setup pass. The objective is to transform the
-freshly generated generic Structor harness into a repository-specific AI
-Engineering Harness grounded entirely in the actual consumer repository or
+freshly generated generic Structor harness into a repository-specific AI Harness
+Engineering Framework grounded entirely in the actual consumer repository or
 repositories.
 
 Before populating the harness, verify that the generated Structor output is healthy, internally consistent, and functioning as intended.

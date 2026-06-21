@@ -1,11 +1,11 @@
 # Harness Engineering Standard
 
-An AI Engineering Harness is the repo-local operating frame for AI-assisted
+An AI Harness Engineering Framework is the repo-local operating frame for AI-assisted
 engineering: it keeps context, contracts, validation expectations, review rules,
 quality signals, and learning loops in durable files that can be inspected and
 versioned.
 
-This AI Engineering Harness should make the project readable to future agents. Intent,
+This AI Harness Engineering Framework should make the project readable to future agents. Intent,
 boundaries, and validation routes belong in committed artifacts, not in prior
 chat transcripts or unwritten team memory.
 

@@ -2,7 +2,7 @@
 
 `structor init` is the recommended first-run setup flow for a project
 workspace. It is a local-only, deterministic terminal wizard for creating a
-Repository-local AI Engineering Harness. It does not call an LLM, make API
+Repository-local AI Harness Engineering Framework. It does not call an LLM, make API
 requests, install packages, create remotes, run agents, or modify external
 services.
 

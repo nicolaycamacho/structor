@@ -1,11 +1,12 @@
 # Roadmap
 
 Structor is a Harness Engineering Framework for generating Repository-local AI
-Engineering Harnesses. It is a local generator, not a runner or hosted product.
+Harness Engineering Frameworks. It is a local generator, not a runner or hosted
+product.
 
 ## Current Open-Source Core
 
-- Local `init` and `generate` flows for Repository-local AI Engineering Harnesses.
+- Local `init` and `generate` flows for Repository-local AI Harness Engineering Frameworks.
 - Deterministic templates for Codex and Claude Code guidance.
 - Conservative path, template, schema, and governance validation.
 - Optional local consumer entrypoint installation.

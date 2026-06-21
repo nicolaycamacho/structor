@@ -1,6 +1,6 @@
 # {{PROJECT_NAME}} Workspace Agent Guide
 
-This workspace is governed by the {{PROJECT_NAME}} AI Engineering Harness.
+This workspace is governed by the {{PROJECT_NAME}} AI Harness Engineering Framework.
 
 Read the harness first:
 

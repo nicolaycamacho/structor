@@ -1,8 +1,8 @@
-# {{PROJECT_NAME}} AI Engineering Harness
+# {{PROJECT_NAME}} AI Harness Engineering Framework
 
-This repository contains the AI Engineering Harness for {{PROJECT_NAME}}.
+This repository contains the AI Harness Engineering Framework for {{PROJECT_NAME}}.
 
-The AI Engineering Harness defines policy, contracts, context routing, task
+The AI Harness Engineering Framework defines policy, contracts, context routing, task
 templates, review rules, quality tracking, and validation. It does not implement
 product behavior and it is not a runner or orchestration runtime.
 
@@ -30,7 +30,7 @@ code review, CI policy, or secret management.
 
 ## Expected Workspace Layout
 
-This AI Engineering Harness is intended to live as a sibling of the consumer
+This AI Harness Engineering Framework is intended to live as a sibling of the consumer
 repositories it governs:
 
 ```text
@@ -49,7 +49,7 @@ that shared parent folder.
 
 ## First Run
 
-Validate the AI Engineering Harness:
+Validate the AI Harness Engineering Framework:
 
 ```sh
 node scripts/validate-governance.mjs

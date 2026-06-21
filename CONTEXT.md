@@ -1,8 +1,8 @@
 # Structor
 
 Structor is a Harness Engineering Framework for creating Repository-local AI
-Engineering Harnesses for consumer repositories. This glossary names the core
-concepts so setup, generation, and repo-inspection work stay distinct.
+Harness Engineering Frameworks for consumer repositories. This glossary names
+the core concepts so setup, generation, and repo-inspection work stay distinct.
 
 ## Language
 
@@ -13,43 +13,43 @@ _Avoid_: Installer, runner, initializer
 
 **Initializer**:
 The deterministic renderer that turns harness configuration and templates into a
-Repository-local AI Engineering Harness and optional consumer entrypoints.
+Repository-local AI Harness Engineering Framework and optional consumer entrypoints.
 _Avoid_: Wizard, scanner, runner
 
-**Generated AI Engineering Harness**:
+**Generated AI Harness Engineering Framework**:
 The repository produced by Structor that owns AI guidance, contracts, review
 templates, validation scripts, and routing policy for one project workspace.
 _Avoid_: Template repo, consumer repo, runner
 
 **Harness Cockpit**:
 A read-only generated review view under `ai/views/*` that visualizes workspace
-wiring, AI Engineering Harness surfaces, consumer entrypoints, contracts, and
+wiring, AI Harness Engineering Framework surfaces, consumer entrypoints, contracts, and
 validation/readiness expectations from canonical local files.
 _Avoid_: Live dashboard, control plane, runner
 
 **Topology Diagram**:
-A static generated SVG view showing how the AI Engineering Harness, consumer
+A static generated SVG view showing how the AI Harness Engineering Framework, consumer
 repositories, client surfaces, consumer entrypoints, contract groups, and
 validation expectations relate.
 _Avoid_: Runtime diagram, Mermaid dependency, live status map
 
 **Consumer Repository**:
-A product or application repository governed by a Repository-local AI
-Engineering Harness while still owning its implementation, runtime behavior,
+A product or application repository governed by a Repository-local AI Harness
+Engineering Framework while still owning its implementation, runtime behavior,
 tests, and deployment checks.
 _Avoid_: Harness repo, template repo
 
 **Structor Self-Harness**:
-A Repository-local AI Engineering Harness whose **Consumer Repository** is the
+A Repository-local AI Harness Engineering Framework whose **Consumer Repository** is the
 Structor source repository itself. It teaches agents how to contribute to
-Structor without changing what AI Engineering Harnesses mean for other
+Structor without changing what AI Harness Engineering Frameworks mean for other
 projects.
 _Avoid_: Core template, runner, fork
 
 **Contributor Workspace**:
 The local workspace used by Structor contributors, containing the Structor source
 repository and its sibling **Structor Self-Harness**.
-_Avoid_: Generated AI Engineering Harness, consumer project, remote fork
+_Avoid_: Generated AI Harness Engineering Framework, consumer project, remote fork
 
 **Contributor Bootstrap**:
 The future onboarding flow for Structor contributors. It should become
@@ -62,16 +62,16 @@ _Avoid_: Initializer, setup wizard, runner
 The clone-first fallback path for Structor contributors who want the
 conventional workflow:
 `git clone https://github.com/nicolaycamacho/structor.git && cd structor && npm run setup:contributor`.
-_Avoid_: Contributor bootstrap, AI Engineering Harness setup, target-repo init
+_Avoid_: Contributor bootstrap, AI Harness Engineering Framework setup, target-repo init
 
 **Consumer Entrypoint**:
 A thin file inside a consumer repository that points agents back to the AI
-Engineering Harness and records minimal repo-local facts.
-_Avoid_: Policy copy, AI Engineering Harness
+Harness Engineering Framework and records minimal repo-local facts.
+_Avoid_: Policy copy, AI Harness Engineering Framework
 
 **Managed Pointer Block**:
 A delimited Structor-owned section inside an existing **Consumer Entrypoint**
-that points agents to the AI Engineering Harness while preserving surrounding
+that points agents to the AI Harness Engineering Framework while preserving surrounding
 user content verbatim.
 _Avoid_: Rewrite, full merge, policy replacement
 
@@ -117,13 +117,13 @@ canonical starter harness docs while leaving risky or uncertain candidates in th
 _Avoid_: Auto-approval, overwrite, finalization
 
 **Starter Harness Content**:
-Generic AI Engineering Harness guidance that is useful before project-specific
+Generic AI Harness Engineering Framework guidance that is useful before project-specific
 facts, contracts, and conventions have been reviewed.
 _Avoid_: Complete project policy, discovered contracts
 
 **Doctor**:
 A diagnostic and repair flow that checks an existing Structor workspace for
-drift, stale pointers, unsafe output paths, and missing AI Engineering Harness
+drift, stale pointers, unsafe output paths, and missing AI Harness Engineering Framework
 wiring.
 _Avoid_: Wizard, initializer, runner
 
