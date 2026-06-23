@@ -15,7 +15,7 @@ best-effort basis, without a formal response-time or fix-time SLA.
 
 ## Scope
 
-Structor is a local generator for repository-local AI engineering harnesses. It
+Structor is a local generator for Repository-local AI Harness Engineering Frameworks. It
 does not run agents, host services, collect telemetry, poll sessions, automate
 pull requests, or mutate external services.
 

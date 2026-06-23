@@ -6,14 +6,14 @@ commitment to hosted services, analytics, forms, deployment, commercial assets
 inside the open-source core, private policy packs, private templates, or
 client-specific deliverables.
 
-Structor should be presented as a local, open-source harness-engineering
-toolkit. It generates repository-local AI engineering harnesses for consumer
+Structor should be presented as a local, open-source Harness Engineering
+Framework. It generates Repository-local AI Harness Engineering Frameworks for consumer
 repositories so coding agents share a consistent policy layer for context
 routing, contracts, task shape, review, and validation.
 
 ## Approved Positioning
 
-- Structor generates a repository-local AI engineering harness for your
+- Structor generates a Repository-local AI Harness Engineering Framework for your
   project.
 - Structor is a generator, not a runtime.
 - Structor scaffolds the harness; it does not run agents, poll sessions,
@@ -68,7 +68,7 @@ should remain understandable and valuable on its own.
 
 1. Hero
    - Headline: Structor
-   - Supporting copy: Generate repository-local AI engineering harnesses for
+   - Supporting copy: Generate Repository-local AI Harness Engineering Frameworks for
      coding agents.
    - Boundary note: A generator, not a runner.
 2. Problem
@@ -146,5 +146,5 @@ Working title: "Your AI coding agents need a harness, not just prompts."
   private policy packs, private templates, or client-specific assets.
 - Do not frame commercial support as part of the open-source package.
 - Do not describe the generated harness as a production runtime or CI system.
-- Do not replace the harness-engineering story with generic AI productivity
+- Do not replace the Harness Engineering story with generic AI productivity
   claims.

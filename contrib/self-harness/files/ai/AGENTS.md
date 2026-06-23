@@ -10,7 +10,7 @@ This folder holds canonical guidance for contributing to Structor itself.
 
 ## Rules
 
-- Structor is the toolkit/product. Harness engineering is the practice.
+- Structor is the Harness Engineering Framework.
 - Structor is a generator, not a runner, orchestrator, agent runtime, PR
   automation system, dashboard, or external-service integration layer.
 - Keep active templates in `../structor/template/**` generic and reusable.

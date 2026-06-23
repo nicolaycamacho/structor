@@ -1,7 +1,7 @@
 # Structor Guide
 
-Structor is a harness-engineering toolkit that generates repository-local
-harnesses for consumer repos.
+Structor is a Harness Engineering Framework that generates Repository-local
+AI Harness Engineering Frameworks for consumer repos.
 
 ## Read Order
 

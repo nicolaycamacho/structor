@@ -1,8 +1,8 @@
 # Structor Self-Harness
 
-This generated harness guides work on the Structor source repository. Structor
-is the toolkit that generates repository-local AI engineering harnesses.
-Harness engineering is the practice Structor supports.
+This Repository-local AI Harness Engineering Framework guides work on the Structor source
+repository. Structor is the Harness Engineering Framework that generates
+Repository-local AI Harness Engineering Frameworks.
 
 ## Workspace
 

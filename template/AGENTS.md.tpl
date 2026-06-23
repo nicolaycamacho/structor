@@ -1,6 +1,6 @@
-# {{PROJECT_NAME}} Engineering Harness Repo Guide
+# {{PROJECT_NAME}} AI Harness Engineering Framework Repo Guide
 
-This repository is the canonical AI engineering harness for {{PROJECT_NAME}}.
+This repository is the canonical AI Harness Engineering Framework for {{PROJECT_NAME}}.
 
 ## Read Order
 
