@@ -1,0 +1,181 @@
+{
+  "version": 1,
+  "description": "Canonical Structor user-guide corpus for manual reading today and future assistant-facing guide retrieval.",
+  "documents": [
+    {
+      "path": "docs/index.md",
+      "title": "Structor Docs",
+      "audience": ["users", "assistants"],
+      "purpose": "Route readers to the canonical Structor guide corpus and explain its future assistant-facing role.",
+      "status": "current"
+    },
+    {
+      "path": "docs/concepts/what-structor-is.md",
+      "title": "What Structor Is",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain Structor's product identity, generated harness output, and non-runtime boundary.",
+      "status": "current"
+    },
+    {
+      "path": "docs/concepts/harness-engineering.md",
+      "title": "Harness Engineering",
+      "audience": ["users", "assistants"],
+      "purpose": "Define Harness Engineering and why a generated harness is more durable than a single rules file.",
+      "status": "current"
+    },
+    {
+      "path": "docs/concepts/harness-vs-runner.md",
+      "title": "Harness Vs Runner",
+      "audience": ["users", "assistants"],
+      "purpose": "Keep the generator and runner boundary explicit.",
+      "status": "current"
+    },
+    {
+      "path": "docs/concepts/repo-legibility.md",
+      "title": "Repo Legibility",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain the repository clarity Structor-generated harnesses are meant to improve.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/quickstart.md",
+      "title": "Quickstart",
+      "audience": ["first-time users", "assistants"],
+      "purpose": "Give the recommended first command and first successful setup path.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/setting-up-a-harness.md",
+      "title": "Setting Up A Harness",
+      "audience": ["users", "assistants"],
+      "purpose": "Describe workspace layout, reads, writes, root guidance handling, and the manual setup path.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/populating-a-harness.md",
+      "title": "Populating A Harness",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain the reviewed post-init guidance migration workflow.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/choosing-agent-clients.md",
+      "title": "Choosing Agent Clients",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain current Codex and Claude Code support and deferred surfaces.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/reviewing-generated-files.md",
+      "title": "Reviewing Generated Files",
+      "audience": ["users", "assistants"],
+      "purpose": "List what to inspect before treating generated harness output as project guidance.",
+      "status": "current"
+    },
+    {
+      "path": "docs/guides/troubleshooting.md",
+      "title": "Troubleshooting",
+      "audience": ["users", "assistants"],
+      "purpose": "Help diagnose common setup and validation issues without inventing repair automation.",
+      "status": "current"
+    },
+    {
+      "path": "docs/capabilities/context-routing.md",
+      "title": "Context Routing",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain how thin entrypoints route agents into canonical harness policy.",
+      "status": "current"
+    },
+    {
+      "path": "docs/capabilities/contracts.md",
+      "title": "Contracts",
+      "audience": ["users", "assistants"],
+      "purpose": "Explain generated harness contracts and their review expectations.",
+      "status": "current"
+    },
+    {
+      "path": "docs/capabilities/validation.md",
+      "title": "Validation",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Describe Structor package validation and generated harness validation.",
+      "status": "current"
+    },
+    {
+      "path": "docs/capabilities/generated-views.md",
+      "title": "Generated Views",
+      "audience": ["users", "assistants"],
+      "purpose": "Clarify the read-only generated view boundary.",
+      "status": "current"
+    },
+    {
+      "path": "docs/capabilities/safe-agent-workflows.md",
+      "title": "Safe Agent Workflows",
+      "audience": ["users", "assistants"],
+      "purpose": "Document safe root guidance takeover, preservation, and readiness states.",
+      "status": "current"
+    },
+    {
+      "path": "docs/reference/commands.md",
+      "title": "Commands",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Reference current CLI commands and safety notes.",
+      "status": "current"
+    },
+    {
+      "path": "docs/reference/configuration.md",
+      "title": "Configuration",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Reference harness.config.json shape, path rules, and client support flags.",
+      "status": "current"
+    },
+    {
+      "path": "docs/reference/generated-files.md",
+      "title": "Generated Files",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Reference generated harness file anatomy and consumer entrypoints.",
+      "status": "current"
+    },
+    {
+      "path": "docs/reference/contributor-setup.md",
+      "title": "Contributor Setup",
+      "audience": ["contributors", "assistants"],
+      "purpose": "Document the local Structor contributor setup path.",
+      "status": "current"
+    },
+    {
+      "path": "docs/anti-patterns/index.md",
+      "title": "Anti-Patterns",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Route readers to grounded Structor product-boundary anti-patterns.",
+      "status": "current"
+    },
+    {
+      "path": "docs/anti-patterns/using-structor-as-orchestrator.md",
+      "title": "Using Structor As An Orchestrator",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Warn against treating Structor as a runner or control plane.",
+      "status": "current"
+    },
+    {
+      "path": "docs/anti-patterns/duplicated-policy.md",
+      "title": "Duplicated Policy",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Warn against copying canonical policy across entrypoints and overlays.",
+      "status": "current"
+    },
+    {
+      "path": "docs/anti-patterns/magical-agent-claims.md",
+      "title": "Magical Agent Claims",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Warn against overstating deterministic setup as automatic project understanding.",
+      "status": "current"
+    },
+    {
+      "path": "docs/faq.md",
+      "title": "FAQ",
+      "audience": ["first-time users", "assistants"],
+      "purpose": "Answer first-run and troubleshooting questions concisely with canonical links.",
+      "status": "current"
+    }
+  ]
+}
