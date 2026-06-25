@@ -69,7 +69,8 @@ async function checkManifestDocuments(documents) {
     }
 
     if (typeof document.path !== "string") continue;
-    const normalizedPath = normalizeRelativePath(document.path);
+    const rawPath = document.path;
+    const normalizedPath = normalizeRelativePath(rawPath);
     manifestPaths.add(normalizedPath);
 
     if (seenPaths.has(normalizedPath)) {
@@ -80,7 +81,7 @@ async function checkManifestDocuments(documents) {
     if (!normalizedPath.startsWith("docs/")) {
       errors.push(`${normalizedPath} must be under docs/.`);
     }
-    if (isUnsafeManifestPath(normalizedPath)) {
+    if (isUnsafeManifestPath(rawPath, normalizedPath)) {
       errors.push(`${normalizedPath} must be a relative path inside docs/ without traversal.`);
     }
     if (path.extname(normalizedPath) !== ".md") {
@@ -129,14 +130,14 @@ function isExcludedGuideFile(relativePath) {
   return excludedGuideFiles.has(relativePath) || excludedGuidePrefixes.some((prefix) => relativePath.startsWith(prefix));
 }
 
-function isUnsafeManifestPath(relativePath) {
-  if (isAbsolutePathString(relativePath)) return true;
-  if (pathHasTraversal(relativePath)) return true;
-  return !isSameOrInsidePath(path.resolve(repoRoot, relativePath), docsRoot);
+function isUnsafeManifestPath(rawPath, normalizedPath) {
+  if (isAbsolutePathString(rawPath) || isAbsolutePathString(normalizedPath)) return true;
+  if (pathHasTraversal(rawPath) || pathHasTraversal(normalizedPath)) return true;
+  return !isSameOrInsidePath(path.resolve(repoRoot, normalizedPath), docsRoot);
 }
 
 function normalizeRelativePath(relativePath) {
-  return relativePath.replaceAll("\\", "/").replace(/^\.?\//, "");
+  return relativePath.replaceAll("\\", "/").replace(/^\.\//, "");
 }
 
 async function checkReadmeLinks() {
