@@ -1,7 +1,7 @@
-# Structor Contributor Setup
+# Contributor Setup
 
-The manual contributor setup path is for people who already cloned Structor and
-want the local self-harness without the future contributor bootstrap.
+The manual contributor setup path is for people who already cloned Structor
+and want the local self-harness.
 
 ```sh
 git clone https://github.com/nicolaycamacho/structor.git

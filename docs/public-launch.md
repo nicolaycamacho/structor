@@ -100,7 +100,7 @@ should remain understandable and valuable on its own.
      hosted services may be explored later.
    - Keep this section clearly separate from current OSS behavior.
 10. Next Step
-    - Point readers to the README and `docs/INIT.md` for the current local setup
+    - Point readers to the README and `docs/guides/quickstart.md` for the current local setup
       flow.
 
 ## Article Outline
