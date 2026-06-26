@@ -1,7 +1,7 @@
 # {{PROJECT_NAME}} Shared AI Guide
 
-This folder holds canonical shared guidance for the {{PROJECT_NAME}} engineering
-harness.
+This folder holds canonical shared guidance for the {{PROJECT_NAME}} AI Harness
+Engineering Framework.
 
 ## Scope
 

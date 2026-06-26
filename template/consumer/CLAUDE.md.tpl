@@ -1,7 +1,7 @@
 # {{CONSUMER_NAME}} Claude Guide
 
-This consumer repository is governed by the {{PROJECT_NAME}} engineering
-harness.
+This consumer repository is governed by the {{PROJECT_NAME}} AI Harness
+Engineering Framework.
 
 Read:
 
