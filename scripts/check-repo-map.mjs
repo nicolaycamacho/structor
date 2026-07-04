@@ -28,13 +28,8 @@ const packageJson = await readJsonFile("package.json", "package.json");
 const repoMap = await readTextFile(mapRelativePath, mapRelativePath);
 const manifest = await readJsonFile(manifestRelativePath, manifestRelativePath);
 
-if (repoMap !== null) {
-  checkRepoMap(repoMap);
-}
-
-if (manifest !== null && packageJson !== null) {
-  await checkManifest(manifest, packageJson);
-}
+if (repoMap !== null) checkRepoMap(repoMap);
+if (manifest !== null && packageJson !== null) await checkManifest(manifest, packageJson);
 
 failIfErrors("Repo map check", errors);
 
@@ -44,7 +39,6 @@ async function readTextFile(relativePath, label) {
     errors.push(`${label} does not exist.`);
     return null;
   }
-
   return await readFile(absolutePath, "utf8");
 }
 
@@ -74,22 +68,22 @@ function checkRepoMap(content) {
   }
 }
 
-async function checkManifest(manifest, pkg) {
-  if (manifest.version !== 1) {
+async function checkManifest(repoMapManifest, pkg) {
+  if (repoMapManifest.version !== 1) {
     errors.push(`${manifestRelativePath}.version must be 1.`);
   }
 
-  checkPackage(manifest.package, pkg);
-  await checkScripts(manifest.scripts, pkg.scripts ?? {});
-  await checkPathEntries("directories", manifest.directories, { expectDirectory: true });
-  await checkPathEntries("entrypoints", manifest.entrypoints, { expectDirectory: false });
-  await checkNamedPathObject("generation", manifest.generation);
-  await checkNamedPathObject("validation", manifest.validation);
-  checkPublishedFiles(manifest.publishedFiles, pkg.files ?? []);
-  await checkSyncGroups(manifest.syncGroups);
+  await checkPackage(repoMapManifest.package, pkg);
+  checkScripts(repoMapManifest.scripts, pkg.scripts ?? {});
+  await checkPathEntries("directories", repoMapManifest.directories, { expectDirectory: true });
+  await checkPathEntries("entrypoints", repoMapManifest.entrypoints, { expectDirectory: false });
+  await checkNamedPathObject("generation", repoMapManifest.generation);
+  await checkNamedPathObject("validation", repoMapManifest.validation);
+  checkPublishedFiles(repoMapManifest.publishedFiles, pkg.files ?? []);
+  await checkSyncGroups(repoMapManifest.syncGroups);
 }
 
-function checkPackage(packageEntry, pkg) {
+async function checkPackage(packageEntry, pkg) {
   if (!isPlainObject(packageEntry)) {
     errors.push(`${manifestRelativePath}.package must be an object.`);
     return;
@@ -101,17 +95,17 @@ function checkPackage(packageEntry, pkg) {
   if (packageEntry.versionSource !== "package.json") {
     errors.push(`${manifestRelativePath}.package.versionSource must be "package.json".`);
   }
+
   const binaryPath = pkg.bin?.structor;
   if (packageEntry.binary !== binaryPath) {
     errors.push(`${manifestRelativePath}.package.binary must match package.json bin.structor ${JSON.stringify(binaryPath)}.`);
   }
   if (typeof binaryPath === "string") {
-    assertPathSafe(binaryPath, `${manifestRelativePath}.package.binary`);
-    schedulePathExistenceCheck(binaryPath, `${manifestRelativePath}.package.binary`);
+    await checkPathExists(binaryPath, `${manifestRelativePath}.package.binary`, { expectDirectory: false });
   }
 }
 
-async function checkScripts(scriptEntries, packageScripts) {
+function checkScripts(scriptEntries, packageScripts) {
   if (!Array.isArray(scriptEntries)) {
     errors.push(`${manifestRelativePath}.scripts must be an array.`);
     return;
@@ -128,6 +122,7 @@ async function checkScripts(scriptEntries, packageScripts) {
     if (!hasNonEmptyString(entry.command)) errors.push(`${label}.command must be a non-empty string.`);
     if (!hasNonEmptyString(entry.purpose)) errors.push(`${label}.purpose must be a non-empty string.`);
     if (!hasNonEmptyString(entry.name)) continue;
+
     if (manifestScripts.has(entry.name)) {
       errors.push(`${entry.name} is duplicated in ${manifestRelativePath}.scripts.`);
     }
@@ -192,7 +187,9 @@ async function checkNamedPathObject(fieldName, entries) {
       errors.push(`${label} must be a non-empty string.`);
       continue;
     }
-    await checkPathExists(relativePath, label, { expectDirectory: relativePath.endsWith("/") || !path.extname(relativePath) });
+    await checkPathExists(relativePath, label, {
+      expectDirectory: relativePath.endsWith("/") || !path.extname(relativePath),
+    });
   }
 }
 
@@ -244,6 +241,7 @@ async function checkSyncGroups(syncGroups) {
     } else {
       seenNames.add(group.name);
     }
+
     if (!Array.isArray(group.paths) || group.paths.length === 0) {
       errors.push(`${label}.paths must be a non-empty array.`);
       continue;
@@ -260,15 +258,10 @@ async function checkSyncGroups(syncGroups) {
   }
 }
 
-const pendingPathChecks = [];
-
-function schedulePathExistenceCheck(relativePath, label) {
-  pendingPathChecks.push(checkPathExists(relativePath, label, { expectDirectory: false }));
-}
-
 async function checkPathExists(relativePath, label, { expectDirectory }) {
   const normalizedPath = normalizeRelativePath(relativePath);
   assertPathSafe(relativePath, label);
+
   const absolutePath = path.join(repoRoot, normalizedPath);
   if (!(await exists(absolutePath))) {
     errors.push(`${label} points to missing path ${normalizedPath}.`);
@@ -279,8 +272,6 @@ async function checkPathExists(relativePath, label, { expectDirectory }) {
     errors.push(`${label} is marked as a directory but looks like a file: ${normalizedPath}.`);
   }
 }
-
-await Promise.all(pendingPathChecks);
 
 function assertPathSafe(relativePath, label) {
   const normalizedPath = normalizeRelativePath(relativePath);
