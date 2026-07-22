@@ -11,6 +11,12 @@ An interactive onboarding flow that gathers project facts, prepares harness
 configuration, previews planned writes, and guides the user through generation.
 _Avoid_: Installer, runner, initializer
 
+**Agent-Native Setup**:
+A guided setup experience where the user works through an existing coding agent,
+while Structor remains responsible only for deterministic planning, filesystem
+mutation, preservation, validation, and reporting.
+_Avoid_: Runner, hosted agent, LLM integration, autonomous setup
+
 **Initializer**:
 The deterministic renderer that turns harness configuration and templates into a
 Repository-local AI Harness Engineering Framework and optional consumer entrypoints.

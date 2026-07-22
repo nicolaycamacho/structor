@@ -1,0 +1,84 @@
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "planId": "setup-fixture-001",
+  "structor": {
+    "packageVersion": "0.2.4",
+    "sourceRevision": "090629a7b62ce346876edd71108458fd0ef446ca"
+  },
+  "scope": {
+    "workspace": ".",
+    "consumers": ["apps/web"]
+  },
+  "decisions": [
+    {
+      "id": "consumer-repositories",
+      "level": "recommended-confirmed",
+      "selection": "apps/web",
+      "provenance": ["apps/web/package.json"]
+    },
+    {
+      "id": "project-identity",
+      "level": "recommended-confirmed",
+      "selection": "fixture-web",
+      "provenance": ["apps/web/package.json"]
+    },
+    {
+      "id": "topology",
+      "level": "recommended-confirmed",
+      "selection": "workspace",
+      "provenance": ["apps/web/package.json"]
+    },
+    {
+      "id": "enabled-clients",
+      "level": "explicit",
+      "selection": "codex",
+      "provenance": []
+    },
+    {
+      "id": "existing-guidance",
+      "level": "explicit",
+      "selection": "preserve",
+      "provenance": []
+    }
+  ],
+  "reads": [
+    { "path": "apps/web/package.json", "reason": "Detect declared scripts" }
+  ],
+  "writes": [
+    {
+      "path": "demo-structor/ai/context.md",
+      "action": "create",
+      "precondition": { "kind": "absent" },
+      "contentHash": "sha256:70f4f25864b70c8306d4070d0125dcc6fcb62561d0402b62e36a5d304a6b4eaf"
+    }
+  ],
+  "commands": [
+    { "cwd": "demo-structor", "command": "npm run validate", "phase": "validation" }
+  ],
+  "preservation": {
+    "backupRequired": false,
+    "existingGuidance": [],
+    "backups": [],
+    "rollbackStrategy": {
+      "trigger": "filesystem-or-structor-invariant-failure",
+      "removeCreatedPaths": true,
+      "restoreBackups": true
+    }
+  },
+  "population": {
+    "approvedConsumers": ["apps/web"],
+    "automaticPromotions": ["package-name"],
+    "reviewRequiredClaims": ["architecture"]
+  },
+  "validationGates": [
+    { "id": "governance", "required": true, "command": "node scripts/validate-governance.mjs" }
+  ],
+  "evidenceOutputs": [
+    "evidence/setup/setup-fixture-001/installation-plan.json",
+    "evidence/setup/setup-fixture-001/approval-receipt.json",
+    "evidence/setup/setup-fixture-001/result.json",
+    "evidence/setup/setup-fixture-001/manifest.json",
+    "evidence/setup/setup-fixture-001/report.md"
+  ]
+}

@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent-Native Setup Evidence Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "runId", "sourceRevision", "planHash", "artifacts", "evidence", "delegation", "sanitized"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "runId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+    "planHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "artifacts": {
+      "type": "array",
+      "minItems": 4,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "hash"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "hash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "evidence": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "classification", "confidence", "sourcePath", "extractor", "contentHash"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "classification": { "type": "string", "enum": ["observed", "inferred", "unresolved"] },
+          "confidence": { "type": "string", "enum": ["high", "medium", "low"] },
+          "sourcePath": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "extractor": { "type": "string", "minLength": 1 },
+          "contentHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "delegation": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["role", "readScopes", "evidenceIds", "conflicts"],
+        "properties": {
+          "role": { "type": "string", "minLength": 1 },
+          "readScopes": { "type": "array", "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } },
+          "evidenceIds": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["summary", "resolution"],
+              "properties": {
+                "summary": { "type": "string", "minLength": 1 },
+                "resolution": { "type": "string", "minLength": 1 }
+              }
+            }
+          }
+        }
+      }
+    },
+    "sanitized": { "const": true }
+  }
+}

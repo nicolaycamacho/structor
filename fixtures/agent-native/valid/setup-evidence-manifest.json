@@ -1,0 +1,25 @@
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "runId": "setup-fixture-001",
+  "sourceRevision": "090629a7b62ce346876edd71108458fd0ef446ca",
+  "planHash": "sha256:9149a76163b57cb5fd989c68e28c1551d75ff8ab2d104a13c388a12e08ba3376",
+  "artifacts": [
+    { "path": "installation-plan.json", "hash": "sha256:a266bdbb17ff1afd152c9a8b8da23d18d9b894376705cf51fbff5c320b34377a" },
+    { "path": "approval-receipt.json", "hash": "sha256:a3ab30f6dc94a22bd82257d1be8ebf207efadcfc9a6c509d36652e01678ce267" },
+    { "path": "result.json", "hash": "sha256:c64f7237856867b776583be793e892a4f15b39c6bdf3dee6dcade17b3fc2e44e" },
+    { "path": "report.md", "hash": "sha256:8e946fe0c1824b166797179806f60317c528fe2073b9ae883cbc8a1c62f33912" }
+  ],
+  "evidence": [
+    {
+      "id": "package-name",
+      "classification": "observed",
+      "confidence": "high",
+      "sourcePath": "apps/web/package.json",
+      "extractor": "package-json-name",
+      "contentHash": "sha256:0fb050361a22970a240d18ab74e16a350d6b0de2ff54485c19c2529702f8b00c"
+    }
+  ],
+  "delegation": [],
+  "sanitized": true
+}

@@ -1,0 +1,66 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent-Native Setup Execution Result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "planHash", "executedAt", "executionOutcome", "readiness", "actualWrites", "commands", "validationOutcomes", "rollback", "evidenceBundle", "unresolvedRisks"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "planHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "executedAt": { "type": "string", "minLength": 1 },
+    "executionOutcome": { "type": "string", "enum": ["applied", "rolled_back", "failed"] },
+    "readiness": { "type": "string", "enum": ["ready", "ready_with_warnings", "blocked", "not_assessed"] },
+    "actualWrites": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "contentHash"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "contentHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cwd", "command", "status"],
+        "properties": {
+          "cwd": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "command": { "type": "string", "minLength": 1 },
+          "status": { "type": "string", "enum": ["passed", "failed", "skipped"] }
+        }
+      }
+    },
+    "validationOutcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "required", "status", "reason"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "required": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["passed", "failed", "skipped"] },
+          "reason": { "type": "string" }
+        }
+      }
+    },
+    "rollback": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["attempted", "completed", "restoredPaths"],
+      "properties": {
+        "attempted": { "type": "boolean" },
+        "completed": { "type": "boolean" },
+        "restoredPaths": { "type": "array", "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } }
+      }
+    },
+    "evidenceBundle": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+    "unresolvedRisks": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+  }
+}

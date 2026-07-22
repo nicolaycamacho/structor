@@ -1,0 +1,28 @@
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "planHash": "sha256:9149a76163b57cb5fd989c68e28c1551d75ff8ab2d104a13c388a12e08ba3376",
+  "executedAt": "2026-07-22T12:01:00.000Z",
+  "executionOutcome": "applied",
+  "readiness": "ready_with_warnings",
+  "actualWrites": [
+    {
+      "path": "demo-structor/ai/context.md",
+      "contentHash": "sha256:70f4f25864b70c8306d4070d0125dcc6fcb62561d0402b62e36a5d304a6b4eaf"
+    }
+  ],
+  "commands": [
+    { "cwd": "demo-structor", "command": "npm run validate", "status": "passed" }
+  ],
+  "validationOutcomes": [
+    { "id": "governance", "required": true, "status": "passed", "reason": "" },
+    { "id": "consumer-tests", "required": false, "status": "skipped", "reason": "Not approved in this fixture" }
+  ],
+  "rollback": {
+    "attempted": false,
+    "completed": false,
+    "restoredPaths": []
+  },
+  "evidenceBundle": "evidence/setup/setup-fixture-001",
+  "unresolvedRisks": ["Architecture guidance still requires review"]
+}
