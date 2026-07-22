@@ -22,14 +22,9 @@ import {
 } from "../scripts/init-harness.mjs";
 import {
   consumerEntrypointValues,
-  harnessTemplateValues,
+  harnessTemplateValuesForPlan,
 } from "../scripts/rendered-config.mjs";
-import {
-  consumerEntrypointsForSettings,
-  requiredHarnessRepoFilesForWorkspaceCheck,
-  requiredWorkspaceFilesForWorkspaceCheck,
-  workspaceEntrypointsForSettings,
-} from "../scripts/generated-harness-contract.mjs";
+import { createTopologyPlan } from "../scripts/topology-plan.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
@@ -609,11 +604,10 @@ function initConfigWithWorkspaceRoot(config, workspaceRoot) {
   };
 }
 
-function initCompletionCommands(harnessRoot) {
+function initCompletionCommands(plan) {
   return [
-    commandText(process.execPath, ["scripts/validate-governance.mjs"]),
-    commandText(process.execPath, ["scripts/check-workspace.mjs"]),
-    `Config: ${path.join(harnessRoot, configFileName)}`,
+    ...plan.validation.completionGates.map((gate) => commandText(process.execPath, [gate])),
+    `Config: ${path.join(plan.harness.root, configFileName)}`,
   ];
 }
 
@@ -829,15 +823,17 @@ async function doctor(options) {
   }
 
   if (resolvedConfig) {
-    const { outputRoot, workspaceRoot: resolvedWorkspaceRoot, consumers, support } = resolvedConfig;
-    const settings = { models: config.models, clientSupport: support };
-    const harnessRepoName = config.project.harnessRepoName;
-    const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);
-    const workspaceRequiredFiles = requiredWorkspaceFilesForWorkspaceCheck(settings);
-    const workspaceRoutingEntrypoints = workspaceEntrypointsForSettings(settings).filter(
+    const { plan } = resolvedConfig;
+    const outputRoot = plan.harness.root;
+    const resolvedWorkspaceRoot = plan.workspace.root;
+    const consumers = plan.consumers;
+    const harnessRepoName = plan.harness.repoName;
+    const repoRequiredFiles = plan.harness.requiredFiles;
+    const workspaceRequiredFiles = plan.workspace.requiredFiles;
+    const workspaceRoutingEntrypoints = plan.entrypoints.workspace.filter(
       (entrypoint) => entrypoint.routing !== "presence",
     );
-    const consumerRoutingEntrypoints = consumerEntrypointsForSettings(settings);
+    const consumerRoutingEntrypoints = plan.entrypoints.consumer;
 
     if (path.basename(outputRoot) === harnessRepoName) {
       printDoctorCheck(results, "OK", "generated harness folder name matches config", harnessRepoName);
@@ -956,32 +952,29 @@ function printNextSteps(config) {
 }
 
 function printSetupTransactionPreview(config, configPath) {
-  const settings = {
-    models: config.models,
-    clientSupport: {
-      codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
-      claudeRules: config.clientSupport?.claude?.rules ?? false,
-      claudeHooks: false,
-      claudeSkills: false,
-    },
-  };
+  const configDir = path.dirname(configPath);
+  const workspaceRoot = path.resolve(configDir, config.workspace?.root ?? ".");
+  const plan = createTopologyPlan({
+    config,
+    workspaceRoot,
+    outputRoot: path.resolve(workspaceRoot, config.output.path),
+  });
 
   section("Setup transaction preview");
   console.log(`Durable config: ${configPath}`);
-  console.log(`Generated harness: ${config.output.path}`);
+  console.log(`Generated harness: ${plan.harness.outputPath}`);
   console.log("Consumer entrypoints:");
-  for (const consumer of config.consumers) {
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
-      console.log(`  - ${consumer.path}/${entrypoint.path}`);
+  for (const consumer of plan.consumers) {
+    for (const entrypoint of plan.entrypoints.consumer) {
+      console.log(`  - ${consumer.config.path}/${entrypoint.path}`);
     }
   }
   console.log("Workspace entrypoints:");
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+  for (const entrypoint of plan.entrypoints.workspace) {
     console.log(`  - ${entrypoint.path}`);
   }
   console.log("Completion gates:");
-  console.log("  - node scripts/validate-governance.mjs");
-  console.log("  - node scripts/check-workspace.mjs");
+  for (const gate of plan.validation.completionGates) console.log(`  - node ${gate}`);
 }
 
 function groupedGuidanceConflicts(conflicts) {
@@ -1099,23 +1092,14 @@ function assertGeneratedScriptsReady(generatedFiles, scriptPaths) {
   }
 }
 
-async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
+async function assertNoEntrypointConflicts({ config, resolvedConfig, force }) {
   if (force) return;
 
-  const settings = { models: config.models, clientSupport: resolvedConfig.support };
+  const { plan } = resolvedConfig;
   const conflicts = [];
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(harnessRoot, config.workspace.root)
-    : path.dirname(harnessRoot);
-  const harnessValues = harnessTemplateValues(
-    config,
-    resolvedConfig.support,
-    resolvedConfig.consumers,
-    harnessRoot,
-    templateWorkspaceRoot,
-  );
+  const harnessValues = harnessTemplateValuesForPlan(plan);
 
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+  for (const entrypoint of plan.entrypoints.workspace) {
     const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);
     if (!(await exists(targetPath))) continue;
 
@@ -1130,13 +1114,13 @@ async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot
     }
   }
 
-  for (const resolvedConsumer of resolvedConfig.consumers) {
+  for (const resolvedConsumer of plan.consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const harnessRelativePath = resolvedConsumer.harnessRelativePath;
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
 
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+    for (const entrypoint of plan.entrypoints.consumer) {
       if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
       const targetPath = path.join(consumerRoot, entrypoint.path);
       if (!(await exists(targetPath))) continue;
@@ -1462,7 +1446,6 @@ async function init(options) {
       await assertNoEntrypointConflicts({
         config: initConfig,
         resolvedConfig: dryRunGenerated.resolvedConfig,
-        harnessRoot,
         force: options.force,
       });
 
@@ -1484,8 +1467,7 @@ async function init(options) {
       }
       assertGeneratedScriptsReady(generated.generatedFiles, [
         "scripts/bootstrap-workspace.mjs",
-        "scripts/validate-governance.mjs",
-        "scripts/check-workspace.mjs",
+        ...generated.resolvedConfig.plan.validation.completionGates,
       ]);
 
       const durableConfigExisted = await exists(configPath);
@@ -1524,8 +1506,7 @@ async function init(options) {
           ))),
       );
 
-      const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
-      for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+      for (const entrypoint of generated.resolvedConfig.plan.entrypoints.workspace) {
         const targetPath = path.join(generated.resolvedConfig.workspaceRoot, entrypoint.path);
         if (!(await exists(targetPath))) workspaceCreatedPaths.push(targetPath);
       }
@@ -1539,16 +1520,16 @@ async function init(options) {
       });
 
       section("Completion gates");
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/validate-governance.mjs",
-        failureLabel: "Generated governance validation failed.",
-      });
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/check-workspace.mjs",
-        failureLabel: "Workspace completion check failed.",
-      });
+      for (const gate of generated.resolvedConfig.plan.validation.completionGates) {
+        const failureLabel = gate === "scripts/validate-governance.mjs"
+          ? "Generated governance validation failed."
+          : "Workspace completion check failed.";
+        await runGeneratedNodeScript({
+          harnessRoot,
+          relativeScriptPath: gate,
+          failureLabel,
+        });
+      }
     } catch (error) {
       await cleanupFailedInit({
         harnessRoot,
@@ -1565,10 +1546,7 @@ async function init(options) {
 
     const finalGenerated = {
       resolvedConfig: dryRunGenerated.resolvedConfig,
-      consumerEntrypoints: consumerEntrypointsForSettings({
-        models: initConfig.models,
-        clientSupport: dryRunGenerated.resolvedConfig.support,
-      }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
+      consumerEntrypoints: dryRunGenerated.resolvedConfig.plan.entrypoints.consumer.flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
         consumer: consumer.name,
         consumerPath: consumer.path,
         path: entrypoint.path,
@@ -1577,7 +1555,7 @@ async function init(options) {
     printInitReadinessSummary({ generated: finalGenerated, harnessRoot, preservedGuidanceByConsumer });
     section("Setup ready");
     note("No post-success bootstrap steps are required.");
-    for (const command of initCompletionCommands(harnessRoot)) {
+    for (const command of initCompletionCommands(dryRunGenerated.resolvedConfig.plan)) {
       console.log(`  ${command}`);
     }
   } finally {

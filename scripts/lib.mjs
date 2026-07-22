@@ -3,6 +3,8 @@ import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+import { createTopologyPlan } from "./topology-plan.mjs";
+
 export const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 export const consumerRepoSignals = [
@@ -462,7 +464,7 @@ export async function resolveHarnessConfig(config, {
     throw new ConfigResolutionError(errors);
   }
 
-  return {
+  const resolvedConfig = {
     config,
     configDir: resolvedConfigDir,
     workspaceRoot,
@@ -472,6 +474,8 @@ export async function resolveHarnessConfig(config, {
     support: resolveClientSupport(config),
     consumers,
   };
+  resolvedConfig.plan = createTopologyPlan(resolvedConfig);
+  return resolvedConfig;
 }
 
 export function failIfErrors(title, errors) {
