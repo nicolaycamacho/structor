@@ -161,6 +161,10 @@
       "purpose": "Public CLI router."
     },
     {
+      "path": "scripts/setup-transaction.mjs",
+      "purpose": "Setup transaction planning, application, completion gates, and rollback."
+    },
+    {
       "path": "scripts/init-harness.mjs",
       "purpose": "Deterministic generated harness initializer."
     },
@@ -188,6 +192,7 @@
   "generation": {
     "configResolution": "scripts/lib.mjs",
     "initializer": "scripts/init-harness.mjs",
+    "transaction": "scripts/setup-transaction.mjs",
     "renderContext": "scripts/rendered-config.mjs",
     "contract": "scripts/generated-harness-contract.mjs",
     "templates": "template"
@@ -209,6 +214,7 @@
     "scripts/",
     "template/",
     "CHANGELOG.md",
+    "INSTALL_WITH_AGENT.md",
     "ROADMAP.md",
     "README.md",
     "SECURITY.md",
@@ -219,10 +225,12 @@
       "name": "CLI and init behavior",
       "paths": [
         "bin/structor.mjs",
+        "scripts/setup-transaction.mjs",
         "scripts/init-harness.mjs",
         "scripts/lib.mjs",
         "scripts/rendered-config.mjs",
         "test/cli.test.mjs",
+        "test/setup-transaction.test.mjs",
         "docs/reference/commands.md",
         "docs/guides/setting-up-a-harness.md",
         "REPO_MAP.md",

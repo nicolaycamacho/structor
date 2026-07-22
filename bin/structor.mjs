@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, stat } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
@@ -14,16 +14,9 @@ import {
   validateConfigShape,
 } from "../scripts/lib.mjs";
 import {
-  collectConsumerRootGuidanceConflicts,
-  filesystemTimestamp,
-  generateHarness,
-  installConsumerEntrypoints,
-  render,
-} from "../scripts/init-harness.mjs";
-import {
-  consumerEntrypointValues,
-  harnessTemplateValues,
-} from "../scripts/rendered-config.mjs";
+  applySetupTransaction,
+  planSetupTransaction,
+} from "../scripts/setup-transaction.mjs";
 import {
   consumerEntrypointsForSettings,
   requiredHarnessRepoFilesForWorkspaceCheck,
@@ -586,15 +579,6 @@ async function discoverWorkspaceConfigPath(workspaceRoot, explicitConfigPath = n
   return matches.length === 1 ? matches[0] : workspaceConfigPath;
 }
 
-async function writeConfig(configPath, config) {
-  await mkdir(path.dirname(configPath), { recursive: true });
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
-}
-
-function configContent(config) {
-  return `${JSON.stringify(config, null, 2)}\n`;
-}
-
 function durableConfigPathFor(workspaceRoot, outputPath) {
   return path.join(path.resolve(workspaceRoot, outputPath), configFileName);
 }
@@ -984,32 +968,13 @@ function printSetupTransactionPreview(config, configPath) {
   console.log("  - node scripts/check-workspace.mjs");
 }
 
-function groupedGuidanceConflicts(conflicts) {
-  const groups = new Map();
-  for (const conflict of conflicts) {
-    const current = groups.get(conflict.consumer) ?? {
-      consumer: conflict.consumer,
-      consumerPath: conflict.consumerPath,
-      consumerRoot: conflict.consumerRoot,
-      files: [],
-    };
-    current.files.push(conflict);
-    groups.set(conflict.consumer, current);
-  }
-  return [...groups.values()];
-}
-
-function preservedGuidancePlan(conflicts, timestamp) {
-  return Object.fromEntries(groupedGuidanceConflicts(conflicts).map((group) => [
-    group.consumer,
-    {
-      directory: `.structor/preserved-guidance/${timestamp}`,
-      files: group.files.map((file) => `.structor/preserved-guidance/${timestamp}/${file.path}`),
-    },
-  ]));
-}
-
-async function confirmPreserveExistingGuidance(rl, conflicts, timestamp, options) {
+async function confirmPreserveExistingGuidance(
+  rl,
+  conflicts,
+  conflictGroups,
+  timestamp,
+  options,
+) {
   if (conflicts.length === 0) return true;
   if (options.preserveExistingGuidance) return true;
   if (options.yes) {
@@ -1023,7 +988,7 @@ async function confirmPreserveExistingGuidance(rl, conflicts, timestamp, options
   console.log("Structor needs to replace root guidance entrypoints so agents route through the generated harness.");
   console.log("Structor will preserve your existing files as consumer-local source material before generating new root entrypoints.");
   console.log("Preserved guidance will be stored at:");
-  for (const group of groupedGuidanceConflicts(conflicts)) {
+  for (const group of conflictGroups) {
     console.log(`  ${path.join(group.consumerRoot, ".structor", "preserved-guidance", timestamp)}/`);
   }
   const choice = await askStaticChoice(rl, "Continue?", [
@@ -1068,145 +1033,6 @@ function printInitReadinessSummary({ generated, harnessRoot, preservedGuidanceBy
   console.log(`  Use the prompt at ${path.join(harnessRoot, "ai/templates/populate-generated-harness-prompt.md")}`);
   console.log("  Run it locally with Codex or Claude using a frontier model such as GPT-5.5 or Opus 4.8.");
   console.log("  Manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.");
-}
-
-async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {
-  const result = spawnSync(process.execPath, [relativeScriptPath, ...args], {
-    cwd: harnessRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  printCommandOutput(result);
-  if (result.status !== 0) {
-    throw new Error(failureLabel);
-  }
-}
-
-function assertGeneratedScriptsReady(generatedFiles, scriptPaths) {
-  const filesByPath = new Map(generatedFiles.map((file) => [file.targetRelative, file]));
-  const notReady = [];
-  for (const scriptPath of scriptPaths) {
-    const file = filesByPath.get(scriptPath);
-    if (!file || file.action === "skipped" || !file.rendered) {
-      notReady.push(scriptPath);
-    }
-  }
-
-  if (notReady.length > 0) {
-    throw new Error(
-      `Generated setup scripts were not refreshed or verified:\n${notReady.map((item) => `- ${item}`).join("\n")}\nInspect the existing files and re-run with --force if they should be replaced.`,
-    );
-  }
-}
-
-async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
-  if (force) return;
-
-  const settings = { models: config.models, clientSupport: resolvedConfig.support };
-  const conflicts = [];
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(harnessRoot, config.workspace.root)
-    : path.dirname(harnessRoot);
-  const harnessValues = harnessTemplateValues(
-    config,
-    resolvedConfig.support,
-    resolvedConfig.consumers,
-    harnessRoot,
-    templateWorkspaceRoot,
-  );
-
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
-    const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);
-    if (!(await exists(targetPath))) continue;
-
-    const templatePath = path.join(packageRoot, "template", entrypoint.template);
-    const [actual, template] = await Promise.all([
-      readFile(targetPath, "utf8"),
-      readFile(templatePath, "utf8"),
-    ]);
-    const expected = render(template, harnessValues);
-    if (actual !== expected) {
-      conflicts.push(`workspace:${entrypoint.path}`);
-    }
-  }
-
-  for (const resolvedConsumer of resolvedConfig.consumers) {
-    const consumer = resolvedConsumer.config;
-    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
-    const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
-
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
-      if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
-      const targetPath = path.join(consumerRoot, entrypoint.path);
-      if (!(await exists(targetPath))) continue;
-
-      const templatePath = path.join(packageRoot, "template", entrypoint.template);
-      const [actual, template] = await Promise.all([
-        readFile(targetPath, "utf8"),
-        readFile(templatePath, "utf8"),
-      ]);
-      const expected = render(template, values);
-      if (actual !== expected) {
-        conflicts.push(`consumer:${consumer.name}:${entrypoint.path}`);
-      }
-    }
-  }
-
-  if (conflicts.length > 0) {
-    throw new Error(
-      `Entrypoint conflicts detected before bootstrap:\n${conflicts.map((item) => `- ${item}`).join("\n")}\nRe-run with --force to overwrite known Structor pointer surfaces.`,
-    );
-  }
-}
-
-async function removeEmptyParents(startPath, stopPath) {
-  let current = path.dirname(startPath);
-  const resolvedStop = path.resolve(stopPath);
-  while (current.startsWith(resolvedStop) && current !== resolvedStop) {
-    try {
-      await rmdir(current);
-    } catch (error) {
-      if (error?.code === "ENOTEMPTY" || error?.code === "ENOENT") return;
-      throw error;
-    }
-    current = path.dirname(current);
-  }
-}
-
-async function cleanupFailedInit({
-  harnessRoot,
-  harnessRootExisted,
-  workspaceRoot,
-  workspaceCreatedPaths,
-  consumerCreatedPaths,
-  consumerRestores,
-  consumerPreservationDirs,
-  harnessCreatedPaths,
-}) {
-  for (const restore of consumerRestores) {
-    await writeFile(restore.targetPath, restore.content);
-  }
-
-  for (const preservePath of consumerPreservationDirs) {
-    await rm(preservePath, { recursive: true, force: true });
-    await removeEmptyParents(preservePath, workspaceRoot);
-  }
-
-  for (const targetPath of [...workspaceCreatedPaths, ...consumerCreatedPaths]) {
-    await rm(targetPath, { force: true });
-    await removeEmptyParents(targetPath, workspaceRoot);
-  }
-
-  if (!harnessRootExisted) {
-    await rm(harnessRoot, { recursive: true, force: true });
-    return;
-  }
-
-  for (const targetPath of harnessCreatedPaths) {
-    await rm(targetPath, { force: true });
-    await removeEmptyParents(targetPath, harnessRoot);
-  }
 }
 
 async function printContributorPlan(plan, options, sourceReady) {
@@ -1429,155 +1255,50 @@ async function init(options) {
 
     section("Dry-run preview");
     note("The initializer dry-run renders the generated harness plan before any files are written.");
-    const renderedConfig = configContent(initConfig);
-    const dryRunGenerated = await generateHarness(initConfig, {
+    const transaction = await planSetupTransaction({
+      config: initConfig,
       configPath,
-      configContent: renderedConfig,
-      requireExistingConsumers: true,
-      dryRun: true,
+      force: options.force,
     });
-    const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
-    const preservationTimestamp = filesystemTimestamp();
-    const preservedGuidanceByConsumer = preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp);
+    const {
+      rootGuidanceConflicts,
+      rootGuidanceConflictGroups,
+      preservationTimestamp,
+      preservedGuidanceByConsumer,
+    } = transaction;
 
     const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
     if (!apply) {
       warn("Stopped after dry-run preview.");
       return;
     }
-    if (!(await confirmPreserveExistingGuidance(rl, rootGuidanceConflicts, preservationTimestamp, options))) {
+    if (!(await confirmPreserveExistingGuidance(
+      rl,
+      rootGuidanceConflicts,
+      rootGuidanceConflictGroups,
+      preservationTimestamp,
+      options,
+    ))) {
       return;
     }
 
     section("Generate");
-    const harnessRoot = path.dirname(configPath);
-    const harnessRootExisted = await exists(harnessRoot);
-    const workspaceCreatedPaths = [];
-    const consumerCreatedPaths = [];
-    const consumerRestores = [];
-    const consumerPreservationDirs = [];
-    const harnessCreatedPaths = [];
-
-    try {
-      await assertNoEntrypointConflicts({
-        config: initConfig,
-        resolvedConfig: dryRunGenerated.resolvedConfig,
-        harnessRoot,
-        force: options.force,
-      });
-
-      const generated = await generateHarness(initConfig, {
-        configPath,
-        configContent: renderedConfig,
-        requireExistingConsumers: true,
-        force: options.force,
-        dryRun: false,
-        preservedGuidanceByConsumer,
-      });
-      harnessCreatedPaths.push(
-        ...generated.generatedFiles
-          .filter((file) => file.action === "created")
-          .map((file) => file.targetPath),
-      );
-      if (generated.manifestFile?.action === "created") {
-        harnessCreatedPaths.push(generated.manifestFile.targetPath);
-      }
-      assertGeneratedScriptsReady(generated.generatedFiles, [
-        "scripts/bootstrap-workspace.mjs",
-        "scripts/validate-governance.mjs",
-        "scripts/check-workspace.mjs",
-      ]);
-
-      const durableConfigExisted = await exists(configPath);
-      await writeConfig(configPath, initConfig);
-      success(`${durableConfigExisted ? "Updated" : "Wrote"} ${configPath}`);
-      if (!durableConfigExisted) harnessCreatedPaths.push(configPath);
-
-      const consumerEntrypoints = await installConsumerEntrypoints(generated.resolvedConfig, {
-        dryRun: false,
-        force: options.force,
-        preserveExistingGuidance: rootGuidanceConflicts.length > 0,
-        preservationTimestamp,
-        preservedGuidanceByConsumer,
-      });
-      generated.consumerEntrypoints = consumerEntrypoints;
-      consumerCreatedPaths.push(
-        ...consumerEntrypoints
-          .filter((entrypoint) => entrypoint.action === "created")
-          .map((entrypoint) => path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)),
-      );
-      consumerRestores.push(
-        ...consumerEntrypoints
-          .filter((entrypoint) => entrypoint.action === "wrote" && typeof entrypoint.previousContent === "string")
-          .map((entrypoint) => ({
-            targetPath: entrypoint.targetPath ?? path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path),
-            content: entrypoint.previousContent,
-          })),
-      );
-      consumerPreservationDirs.push(
-        ...new Set(consumerEntrypoints
-          .filter((entrypoint) => entrypoint.preservedGuidanceDirectory)
-          .map((entrypoint) => path.join(
-            generated.resolvedConfig.workspaceRoot,
-            entrypoint.consumerPath,
-            entrypoint.preservedGuidanceDirectory,
-          ))),
-      );
-
-      const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
-      for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
-        const targetPath = path.join(generated.resolvedConfig.workspaceRoot, entrypoint.path);
-        if (!(await exists(targetPath))) workspaceCreatedPaths.push(targetPath);
-      }
-
-      section("Workspace bootstrap");
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/bootstrap-workspace.mjs",
-        args: options.force ? ["--force"] : [],
-        failureLabel: "Workspace bootstrap failed.",
-      });
-
-      section("Completion gates");
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/validate-governance.mjs",
-        failureLabel: "Generated governance validation failed.",
-      });
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/check-workspace.mjs",
-        failureLabel: "Workspace completion check failed.",
-      });
-    } catch (error) {
-      await cleanupFailedInit({
-        harnessRoot,
-        harnessRootExisted,
-        workspaceRoot,
-        workspaceCreatedPaths,
-        consumerCreatedPaths,
-        consumerRestores,
-        consumerPreservationDirs,
-        harnessCreatedPaths,
-      });
-      throw error;
-    }
-
-    const finalGenerated = {
-      resolvedConfig: dryRunGenerated.resolvedConfig,
-      consumerEntrypoints: consumerEntrypointsForSettings({
-        models: initConfig.models,
-        clientSupport: dryRunGenerated.resolvedConfig.support,
-      }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
-        consumer: consumer.name,
-        consumerPath: consumer.path,
-        path: entrypoint.path,
-      }))),
-    };
-    printInitReadinessSummary({ generated: finalGenerated, harnessRoot, preservedGuidanceByConsumer });
+    const result = await applySetupTransaction(transaction, {
+      preserveExistingGuidance: rootGuidanceConflicts.length > 0,
+      onPhase: section,
+      onCommandOutput: printCommandOutput,
+      onConfigWritten: ({ action, path: writtenPath }) => {
+        success((action === "updated" ? "Updated " : "Wrote ") + writtenPath);
+      },
+    });
+    printInitReadinessSummary({
+      generated: result.generated,
+      harnessRoot: result.harnessRoot,
+      preservedGuidanceByConsumer,
+    });
     section("Setup ready");
     note("No post-success bootstrap steps are required.");
-    for (const command of initCompletionCommands(harnessRoot)) {
+    for (const command of initCompletionCommands(result.harnessRoot)) {
       console.log(`  ${command}`);
     }
   } finally {
