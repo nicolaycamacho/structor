@@ -5,7 +5,7 @@
 - Structor package: `0.2.4`
 - Contract: `1.0.0`
 - Plan schema: `1.0.0`
-- Source revision: `090629a7b62ce346876edd71108458fd0ef446ca`
+- Source revision: `def585a428d86e7c9dcda32b5d5890c2c843b976`
 
 ## Detected Facts
 
@@ -22,7 +22,7 @@
 
 ## Plan And Approval
 
-- Plan hash: `sha256:9149a76163b57cb5fd989c68e28c1551d75ff8ab2d104a13c388a12e08ba3376`
+- Plan hash: `sha256:b89711b9ec0604660c207660878fa00fc4b88ebf1954174bf71ed50464c26bdb`
 - Approval receipt matches the plan hash.
 - Hash binding does not prove whether a human or agent supplied approval.
 

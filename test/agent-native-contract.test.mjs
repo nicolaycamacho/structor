@@ -22,7 +22,7 @@ function samplePlan() {
     planId: "setup-2026-07-22-001",
     structor: {
       packageVersion: "0.2.4",
-      sourceRevision: "090629a7b62ce346876edd71108458fd0ef446ca",
+      sourceRevision: "def585a428d86e7c9dcda32b5d5890c2c843b976",
     },
     scope: {
       workspace: ".",
