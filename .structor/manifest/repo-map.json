@@ -208,6 +208,7 @@
     "schemas/",
     "scripts/",
     "template/",
+    "INSTALL_WITH_AGENT.md",
     "CHANGELOG.md",
     "ROADMAP.md",
     "README.md",

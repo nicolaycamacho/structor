@@ -10,15 +10,10 @@ import {
   exists,
   resolveHarnessConfig,
 } from "./lib.mjs";
-import {
-  consumerEntrypointsForSettings,
-  freshRenderScriptTemplatesForSettings,
-  shouldRenderTemplate as shouldRenderContractTemplate,
-  trustedGeneratedScriptTemplatesForSettings,
-} from "./generated-harness-contract.mjs";
+import { shouldRenderTemplate as shouldRenderContractTemplate } from "./generated-harness-contract.mjs";
 import {
   consumerEntrypointValues,
-  harnessTemplateValues,
+  harnessTemplateValuesForPlan,
   renderedGeneratedScriptHashes,
 } from "./rendered-config.mjs";
 
@@ -249,9 +244,11 @@ async function collectExistingFiles(basePath) {
   return files;
 }
 
-async function generatedScriptHashes(templateFiles, config, values) {
+async function generatedScriptHashes(templateFiles, plan, values) {
   const hashes = {};
-  const trustedScriptTemplates = new Set(trustedGeneratedScriptTemplatesForSettings(config));
+  const trustedScriptTemplates = new Set(
+    plan.harness.trustedScriptTemplates,
+  );
 
   for (const sourceRelative of templateFiles) {
     if (!trustedScriptTemplates.has(sourceRelative)) continue;
@@ -327,17 +324,15 @@ function rootGuidanceConflictError(conflicts) {
 }
 
 export async function collectConsumerRootGuidanceConflicts(resolvedConfig, options = {}) {
-  const { config, outputRoot: harnessRoot, support, consumers } = resolvedConfig;
-  const entrypoints = consumerEntrypointsForSettings({
-    models: config.models,
-    clientSupport: support,
-  }).filter((entrypoint) => rootGuidanceEntrypoints.has(entrypoint.path));
+  const { config, plan } = resolvedConfig;
+  const consumers = plan.consumers;
+  const entrypoints = plan.entrypoints.consumer.filter((entrypoint) => rootGuidanceEntrypoints.has(entrypoint.path));
   const conflicts = [];
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const harnessRelativePath = resolvedConsumer.harnessRelativePath;
     const configuredPreservedPath = options.preservedGuidanceByConsumer?.[consumer.name]?.directory;
 
     for (const entrypoint of entrypoints) {
@@ -376,18 +371,16 @@ export async function collectConsumerRootGuidanceConflicts(resolvedConfig, optio
 }
 
 export async function installConsumerEntrypoints(resolvedConfig, options) {
-  const { config, outputRoot: harnessRoot, support, consumers } = resolvedConfig;
-  const entrypoints = consumerEntrypointsForSettings({
-    models: config.models,
-    clientSupport: support,
-  });
+  const { config, plan } = resolvedConfig;
+  const consumers = plan.consumers;
+  const entrypoints = plan.entrypoints.consumer;
   const records = [];
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
     const preservedGuidance = options.preservedGuidanceByConsumer?.[consumer.name] ?? null;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const harnessRelativePath = resolvedConsumer.harnessRelativePath;
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath, {
       preservedGuidancePath: preservedGuidance?.directory,
     });
@@ -616,11 +609,7 @@ export async function generateHarness(config, {
       ]),
     );
   }
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(configDir, config.workspace.root)
-    : path.resolve(configDir);
-  const templateOutputRoot = path.resolve(templateWorkspaceRoot, outputPath);
-  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, templateOutputRoot, templateWorkspaceRoot, {
+  const values = harnessTemplateValuesForPlan(resolvedConfig.plan, {
     preservedGuidanceByConsumer: resolvedPreservedGuidanceByConsumer,
   });
   values.GENERATED_HARNESS_CONTRACT_MODULE = await readFile(
@@ -629,13 +618,16 @@ export async function generateHarness(config, {
   );
 
   const templateFiles = await collectTemplateFiles();
-  values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, config, values);
-  const freshRenderScriptTemplates = new Set(freshRenderScriptTemplatesForSettings(config));
+  values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, resolvedConfig.plan, values);
+  const freshRenderScriptTemplates = new Set(
+    resolvedConfig.plan.harness.freshRenderScriptTemplates,
+  );
 
   let renderedHtmlViewsScript = false;
   const generatedFiles = [];
+  const enabledTemplatePaths = new Set(resolvedConfig.plan.harness.templatePaths);
   for (const sourceRelative of templateFiles) {
-    if (!shouldRenderTemplate(sourceRelative, config)) continue;
+    if (!enabledTemplatePaths.has(sourceRelative)) continue;
     const result = await writeRenderedFile(sourceRelative, outputRoot, values, { dryRun, force });
     generatedFiles.push(result);
     if (freshRenderScriptTemplates.has(sourceRelative) && result.rendered) {
