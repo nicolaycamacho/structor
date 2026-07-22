@@ -14,7 +14,7 @@ npm run validate
 `npm run check:ci` runs fast structural checks for local iteration and CI
 hygiene, including config examples, shipped schemas, template files, task
 template structure, contract manifests, placeholder hygiene, public hygiene,
-model overlay thinness, and the docs manifest.
+model overlay thinness, the docs manifest, and the source-repo map.
 
 `npm run validate` runs `check:ci`, the Node test suite, and smoke-tested local
 generation flows.

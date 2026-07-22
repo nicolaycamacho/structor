@@ -1,0 +1,287 @@
+{
+  "version": 1,
+  "package": {
+    "name": "@structor-dev/cli",
+    "versionSource": "package.json",
+    "binary": "bin/structor.mjs"
+  },
+  "scripts": [
+    {
+      "name": "test",
+      "command": "node --test",
+      "purpose": "Run the Node test suite."
+    },
+    {
+      "name": "prepublishOnly",
+      "command": "npm run validate",
+      "purpose": "Run full validation before publishing."
+    },
+    {
+      "name": "check:ci",
+      "command": "node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map",
+      "purpose": "Run fast structural checks for local iteration and CI hygiene."
+    },
+    {
+      "name": "check:config",
+      "command": "node scripts/check-config.mjs",
+      "purpose": "Validate example harness configuration."
+    },
+    {
+      "name": "check:schemas",
+      "command": "node scripts/check-schemas.mjs",
+      "purpose": "Validate shipped schemas."
+    },
+    {
+      "name": "check:placeholders",
+      "command": "node scripts/check-placeholders.mjs",
+      "purpose": "Validate template placeholder usage."
+    },
+    {
+      "name": "check:examples",
+      "command": "node scripts/check-examples.mjs",
+      "purpose": "Validate examples and generated-tree references."
+    },
+    {
+      "name": "check:public-hygiene",
+      "command": "node scripts/check-public-hygiene.mjs",
+      "purpose": "Scan publishable files for public-release hygiene issues."
+    },
+    {
+      "name": "check:docs",
+      "command": "node scripts/check-docs-manifest.mjs",
+      "purpose": "Validate the canonical user-guide docs manifest."
+    },
+    {
+      "name": "check:repo-map",
+      "command": "node scripts/check-repo-map.mjs",
+      "purpose": "Validate the Structor source-repo map and machine-readable manifest."
+    },
+    {
+      "name": "check:templates",
+      "command": "node scripts/check-template-files.mjs",
+      "purpose": "Validate generated harness template file coverage."
+    },
+    {
+      "name": "check:task-template",
+      "command": "node scripts/check-task-template.mjs",
+      "purpose": "Validate generated task template shape."
+    },
+    {
+      "name": "check:contracts",
+      "command": "node scripts/check-contract-manifests.mjs",
+      "purpose": "Validate generated contract manifests."
+    },
+    {
+      "name": "check:model-overlays",
+      "command": "node scripts/check-model-overlays.mjs",
+      "purpose": "Validate model overlay thinness and routing."
+    },
+    {
+      "name": "check:smoke",
+      "command": "node scripts/smoke-template.mjs",
+      "purpose": "Smoke-render generated harness variants and validate outputs."
+    },
+    {
+      "name": "check:contributor",
+      "command": "node scripts/smoke-contributor.mjs",
+      "purpose": "Smoke-test manual contributor and packaged contributor flows."
+    },
+    {
+      "name": "validate",
+      "command": "npm run check:ci && npm run test && npm run check:smoke && npm run check:contributor",
+      "purpose": "Canonical full local validation before release or PR."
+    },
+    {
+      "name": "validate:governance",
+      "command": "node scripts/validate-governance.mjs",
+      "purpose": "Run governance validation where available."
+    },
+    {
+      "name": "init",
+      "command": "node bin/structor.mjs init",
+      "purpose": "Run the local setup wizard."
+    },
+    {
+      "name": "generate",
+      "command": "node bin/structor.mjs generate",
+      "purpose": "Render a generated harness from an existing config."
+    },
+    {
+      "name": "init:harness",
+      "command": "node scripts/init-harness.mjs",
+      "purpose": "Run the deterministic initializer directly."
+    },
+    {
+      "name": "setup:contributor",
+      "command": "node scripts/setup-contributor.mjs",
+      "purpose": "Create or refresh a local Structor contributor self-harness."
+    }
+  ],
+  "directories": [
+    {
+      "path": "bin",
+      "purpose": "CLI entrypoint and command routing."
+    },
+    {
+      "path": "contrib",
+      "purpose": "Contributor and self-harness preset material."
+    },
+    {
+      "path": "docs",
+      "purpose": "Canonical user-facing Structor guide corpus."
+    },
+    {
+      "path": "examples",
+      "purpose": "Example configs and generated-tree references."
+    },
+    {
+      "path": "schemas",
+      "purpose": "Harness configuration schemas."
+    },
+    {
+      "path": "scripts",
+      "purpose": "Generator implementation, validation, smoke checks, and helpers."
+    },
+    {
+      "path": "template",
+      "purpose": "Canonical generated harness templates."
+    },
+    {
+      "path": "test",
+      "purpose": "Node test suite."
+    },
+    {
+      "path": ".structor/manifest",
+      "purpose": "Source-repo machine-readable maintenance metadata."
+    }
+  ],
+  "entrypoints": [
+    {
+      "path": "bin/structor.mjs",
+      "purpose": "Public CLI router."
+    },
+    {
+      "path": "scripts/init-harness.mjs",
+      "purpose": "Deterministic generated harness initializer."
+    },
+    {
+      "path": "scripts/rendered-config.mjs",
+      "purpose": "Template render context and escaping helpers."
+    },
+    {
+      "path": "scripts/generated-harness-contract.mjs",
+      "purpose": "Generated harness artifact and validation contract."
+    },
+    {
+      "path": "scripts/setup-contributor.mjs",
+      "purpose": "Manual contributor self-harness setup."
+    },
+    {
+      "path": "scripts/smoke-template.mjs",
+      "purpose": "Generated harness smoke validation."
+    },
+    {
+      "path": "scripts/smoke-contributor.mjs",
+      "purpose": "Contributor workflow smoke validation."
+    }
+  ],
+  "generation": {
+    "configResolution": "scripts/lib.mjs",
+    "initializer": "scripts/init-harness.mjs",
+    "renderContext": "scripts/rendered-config.mjs",
+    "contract": "scripts/generated-harness-contract.mjs",
+    "templates": "template"
+  },
+  "validation": {
+    "repoMap": "scripts/check-repo-map.mjs",
+    "docsManifest": "scripts/check-docs-manifest.mjs",
+    "publicHygiene": "scripts/check-public-hygiene.mjs",
+    "smokeTemplate": "scripts/smoke-template.mjs",
+    "smokeContributor": "scripts/smoke-contributor.mjs"
+  },
+  "publishedFiles": [
+    "bin/",
+    "contrib/",
+    "docs/",
+    "examples/",
+    "harness.config.example.json",
+    "schemas/",
+    "scripts/",
+    "template/",
+    "INSTALL_WITH_AGENT.md",
+    "CHANGELOG.md",
+    "ROADMAP.md",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "syncGroups": [
+    {
+      "name": "CLI and init behavior",
+      "paths": [
+        "bin/structor.mjs",
+        "scripts/init-harness.mjs",
+        "scripts/lib.mjs",
+        "scripts/rendered-config.mjs",
+        "test/cli.test.mjs",
+        "docs/reference/commands.md",
+        "docs/guides/setting-up-a-harness.md",
+        "REPO_MAP.md",
+        ".structor/manifest/repo-map.json"
+      ]
+    },
+    {
+      "name": "Generated harness output",
+      "paths": [
+        "template/",
+        "scripts/generated-harness-contract.mjs",
+        "scripts/init-harness.mjs",
+        "scripts/rendered-config.mjs",
+        "scripts/smoke-template.mjs",
+        "examples/generated-harness-tree.md",
+        "docs/reference/generated-files.md",
+        "REPO_MAP.md",
+        ".structor/manifest/repo-map.json"
+      ]
+    },
+    {
+      "name": "Validation surface",
+      "paths": [
+        "package.json",
+        "scripts/check-docs-manifest.mjs",
+        "scripts/check-public-hygiene.mjs",
+        "scripts/check-repo-map.mjs",
+        "scripts/smoke-template.mjs",
+        "scripts/smoke-contributor.mjs",
+        "docs/capabilities/validation.md",
+        "REPO_MAP.md",
+        ".structor/manifest/repo-map.json"
+      ]
+    },
+    {
+      "name": "Contributor workflow",
+      "paths": [
+        "bin/structor.mjs",
+        "scripts/setup-contributor.mjs",
+        "scripts/smoke-contributor.mjs",
+        "contrib/self-harness/",
+        "docs/reference/contributor-setup.md",
+        "REPO_MAP.md",
+        ".structor/manifest/repo-map.json"
+      ]
+    },
+    {
+      "name": "Package and release behavior",
+      "paths": [
+        "package.json",
+        "package-lock.json",
+        "README.md",
+        "CHANGELOG.md",
+        "SECURITY.md",
+        "scripts/check-public-hygiene.mjs",
+        "REPO_MAP.md",
+        ".structor/manifest/repo-map.json"
+      ]
+    }
+  ]
+}
