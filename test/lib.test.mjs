@@ -557,6 +557,11 @@ test("resolveHarnessConfig honors explicit workspace root semantics for harness-
     assert.equal(await realpath(resolved.workspaceRoot), await realpath(workspaceRoot));
     assert.equal(await realpath(resolved.outputRoot), await realpath(harnessRoot));
     assert.equal(resolved.consumers[0].root, path.join(await realpath(workspaceRoot), "demo-app"));
+    assert.equal(await realpath(resolved.plan.workspace.root), await realpath(workspaceRoot));
+    assert.equal(await realpath(resolved.plan.harness.root), await realpath(harnessRoot));
+    assert.equal(resolved.plan.harness.workspacePath, "./demo-structor");
+    assert.equal(resolved.plan.harness.workspaceRootFromHarness, "..");
+    assert.equal(resolved.plan.consumers[0].workspacePath, "demo-app");
   });
 });
 

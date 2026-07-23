@@ -2,13 +2,7 @@
 
 import { readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import {
-  artifactTargetPath,
-  consumerEntrypointsForSettings,
-  enabledGeneratedArtifacts,
-  normalizeHarnessSettings,
-  workspaceEntrypointsForSettings,
-} from "./generated-harness-contract.mjs";
+import { createTopologyPlan } from "./topology-plan.mjs";
 import {
   collectFiles,
   failIfErrors,
@@ -98,14 +92,16 @@ function variantRank(config) {
 }
 
 function renderSection(configPath, config) {
-  const settings = normalizeHarnessSettings(config);
   const harnessRepoName = config.project.harnessRepoName;
-  const generatedFiles = [
-    ".structor/manifest.json",
-    ...enabledGeneratedArtifacts(settings).map(artifactTargetPath),
-  ].sort();
-  const workspaceEntrypoints = workspaceEntrypointsForSettings(settings).sort(compareEntrypoints);
-  const consumerEntrypoints = consumerEntrypointsForSettings(settings).sort(compareEntrypoints);
+  const workspaceRoot = path.resolve("workspace");
+  const plan = createTopologyPlan({
+    config,
+    workspaceRoot,
+    outputRoot: path.join(workspaceRoot, harnessRepoName),
+  });
+  const generatedFiles = [".structor/manifest.json", ...plan.harness.artifactPaths].sort();
+  const workspaceEntrypoints = plan.entrypoints.workspace.slice().sort(compareEntrypoints);
+  const consumerEntrypoints = plan.entrypoints.consumer.slice().sort(compareEntrypoints);
   const lines = [
     `## ${variantLabel(config)}`,
     "",

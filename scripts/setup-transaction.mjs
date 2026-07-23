@@ -13,32 +13,27 @@ import {
 } from "./init-harness.mjs";
 import { exists } from "./lib.mjs";
 import {
-  consumerEntrypointsForSettings,
-  workspaceEntrypointsForSettings,
-} from "./generated-harness-contract.mjs";
-import {
   consumerEntrypointValues,
-  harnessTemplateValues,
+  harnessTemplateValuesForPlan,
 } from "./rendered-config.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const completionScripts = [
-  {
-    phase: "Workspace bootstrap",
-    relativeScriptPath: "scripts/bootstrap-workspace.mjs",
-    failureLabel: "Workspace bootstrap failed.",
-  },
-  {
-    phase: "Completion gates",
-    relativeScriptPath: "scripts/validate-governance.mjs",
-    failureLabel: "Generated governance validation failed.",
-  },
-  {
-    phase: null,
-    relativeScriptPath: "scripts/check-workspace.mjs",
-    failureLabel: "Workspace completion check failed.",
-  },
-];
+function completionScriptsForPlan(plan) {
+  return [
+    {
+      phase: "Workspace bootstrap",
+      relativeScriptPath: "scripts/bootstrap-workspace.mjs",
+      failureLabel: "Workspace bootstrap failed.",
+    },
+    ...plan.validation.completionGates.map((relativeScriptPath, index) => ({
+      phase: index === 0 ? "Completion gates" : null,
+      relativeScriptPath,
+      failureLabel: relativeScriptPath === "scripts/validate-governance.mjs"
+        ? "Generated governance validation failed."
+        : "Workspace completion check failed.",
+    })),
+  ];
+}
 
 function configContent(config) {
   return `${JSON.stringify(config, null, 2)}\n`;
@@ -79,9 +74,9 @@ async function defaultExecuteGeneratedScript({ harnessRoot, relativeScriptPath, 
   if (result.status !== 0) throw new Error(failureLabel);
 }
 
-function assertGeneratedScriptsReady(generatedFiles) {
+function assertGeneratedScriptsReady(generatedFiles, plan) {
   const filesByPath = new Map(generatedFiles.map((file) => [file.targetRelative, file]));
-  const notReady = completionScripts
+  const notReady = completionScriptsForPlan(plan)
     .map((script) => script.relativeScriptPath)
     .filter((scriptPath) => {
       const file = filesByPath.get(scriptPath);
@@ -95,23 +90,14 @@ function assertGeneratedScriptsReady(generatedFiles) {
   }
 }
 
-async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
+async function assertNoEntrypointConflicts({ config, resolvedConfig, force }) {
   if (force) return;
 
-  const settings = { models: config.models, clientSupport: resolvedConfig.support };
+  const { plan } = resolvedConfig;
   const conflicts = [];
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(harnessRoot, config.workspace.root)
-    : path.dirname(harnessRoot);
-  const harnessValues = harnessTemplateValues(
-    config,
-    resolvedConfig.support,
-    resolvedConfig.consumers,
-    harnessRoot,
-    templateWorkspaceRoot,
-  );
+  const harnessValues = harnessTemplateValuesForPlan(plan);
 
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+  for (const entrypoint of plan.entrypoints.workspace) {
     const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);
     if (!(await exists(targetPath))) continue;
     const [actual, template] = await Promise.all([
@@ -121,13 +107,12 @@ async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot
     if (actual !== render(template, harnessValues)) conflicts.push(`workspace:${entrypoint.path}`);
   }
 
-  for (const resolvedConsumer of resolvedConfig.consumers) {
+  for (const resolvedConsumer of plan.consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
-    const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
+    const values = consumerEntrypointValues(config, consumer, resolvedConsumer.harnessRelativePath);
 
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
+    for (const entrypoint of plan.entrypoints.consumer) {
       if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
       const targetPath = path.join(consumerRoot, entrypoint.path);
       if (!(await exists(targetPath))) continue;
@@ -274,17 +259,17 @@ export async function applySetupTransaction(plan, {
 
   const { config, configPath, force, harnessRoot, dryRunGenerated } = plan;
   const resolvedConfig = dryRunGenerated.resolvedConfig;
-  const settings = { models: config.models, clientSupport: resolvedConfig.support };
+  const { plan: topologyPlan } = resolvedConfig;
   const harnessRootExisted = await exists(harnessRoot);
   const harnessTargets = [
     ...dryRunGenerated.generatedFiles.map((file) => file.targetPath),
     configPath,
     path.join(harnessRoot, ".structor", "manifest.json"),
   ];
-  const workspaceTargets = workspaceEntrypointsForSettings(settings)
+  const workspaceTargets = topologyPlan.entrypoints.workspace
     .map((entrypoint) => path.join(resolvedConfig.workspaceRoot, entrypoint.path));
-  const consumerTargets = resolvedConfig.consumers.flatMap((consumer) =>
-    consumerEntrypointsForSettings(settings).map((entrypoint) =>
+  const consumerTargets = topologyPlan.consumers.flatMap((consumer) =>
+    topologyPlan.entrypoints.consumer.map((entrypoint) =>
       path.join(consumer.confirmedRoot ?? consumer.root, entrypoint.path),
     ),
   );
@@ -313,7 +298,7 @@ export async function applySetupTransaction(plan, {
   ]);
 
   try {
-    await assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force });
+    await assertNoEntrypointConflicts({ config, resolvedConfig, force });
     const generated = await generateHarness(config, {
       configPath,
       configContent: plan.renderedConfig,
@@ -322,7 +307,7 @@ export async function applySetupTransaction(plan, {
       dryRun: false,
       preservedGuidanceByConsumer: plan.preservedGuidanceByConsumer,
     });
-    assertGeneratedScriptsReady(generated.generatedFiles);
+    assertGeneratedScriptsReady(generated.generatedFiles, topologyPlan);
 
     const durableConfigExisted = await exists(configPath);
     await mkdir(path.dirname(configPath), { recursive: true });
@@ -338,7 +323,7 @@ export async function applySetupTransaction(plan, {
     });
 
     const completedScripts = [];
-    for (const script of completionScripts) {
+    for (const script of completionScriptsForPlan(topologyPlan)) {
       if (script.phase) onPhase(script.phase);
       await executeGeneratedScript({
         harnessRoot,

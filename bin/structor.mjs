@@ -17,12 +17,7 @@ import {
   applySetupTransaction,
   planSetupTransaction,
 } from "../scripts/setup-transaction.mjs";
-import {
-  consumerEntrypointsForSettings,
-  requiredHarnessRepoFilesForWorkspaceCheck,
-  requiredWorkspaceFilesForWorkspaceCheck,
-  workspaceEntrypointsForSettings,
-} from "../scripts/generated-harness-contract.mjs";
+import { createTopologyPlan } from "../scripts/topology-plan.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
@@ -593,11 +588,10 @@ function initConfigWithWorkspaceRoot(config, workspaceRoot) {
   };
 }
 
-function initCompletionCommands(harnessRoot) {
+function initCompletionCommands(plan) {
   return [
-    commandText(process.execPath, ["scripts/validate-governance.mjs"]),
-    commandText(process.execPath, ["scripts/check-workspace.mjs"]),
-    `Config: ${path.join(harnessRoot, configFileName)}`,
+    ...plan.validation.completionGates.map((gate) => commandText(process.execPath, [gate])),
+    `Config: ${path.join(plan.harness.root, configFileName)}`,
   ];
 }
 
@@ -813,15 +807,17 @@ async function doctor(options) {
   }
 
   if (resolvedConfig) {
-    const { outputRoot, workspaceRoot: resolvedWorkspaceRoot, consumers, support } = resolvedConfig;
-    const settings = { models: config.models, clientSupport: support };
-    const harnessRepoName = config.project.harnessRepoName;
-    const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);
-    const workspaceRequiredFiles = requiredWorkspaceFilesForWorkspaceCheck(settings);
-    const workspaceRoutingEntrypoints = workspaceEntrypointsForSettings(settings).filter(
+    const { plan } = resolvedConfig;
+    const outputRoot = plan.harness.root;
+    const resolvedWorkspaceRoot = plan.workspace.root;
+    const consumers = plan.consumers;
+    const harnessRepoName = plan.harness.repoName;
+    const repoRequiredFiles = plan.harness.requiredFiles;
+    const workspaceRequiredFiles = plan.workspace.requiredFiles;
+    const workspaceRoutingEntrypoints = plan.entrypoints.workspace.filter(
       (entrypoint) => entrypoint.routing !== "presence",
     );
-    const consumerRoutingEntrypoints = consumerEntrypointsForSettings(settings);
+    const consumerRoutingEntrypoints = plan.entrypoints.consumer;
 
     if (path.basename(outputRoot) === harnessRepoName) {
       printDoctorCheck(results, "OK", "generated harness folder name matches config", harnessRepoName);
@@ -940,32 +936,29 @@ function printNextSteps(config) {
 }
 
 function printSetupTransactionPreview(config, configPath) {
-  const settings = {
-    models: config.models,
-    clientSupport: {
-      codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
-      claudeRules: config.clientSupport?.claude?.rules ?? false,
-      claudeHooks: false,
-      claudeSkills: false,
-    },
-  };
+  const configDir = path.dirname(configPath);
+  const workspaceRoot = path.resolve(configDir, config.workspace?.root ?? ".");
+  const plan = createTopologyPlan({
+    config,
+    workspaceRoot,
+    outputRoot: path.resolve(workspaceRoot, config.output.path),
+  });
 
   section("Setup transaction preview");
   console.log(`Durable config: ${configPath}`);
-  console.log(`Generated harness: ${config.output.path}`);
+  console.log(`Generated harness: ${plan.harness.outputPath}`);
   console.log("Consumer entrypoints:");
-  for (const consumer of config.consumers) {
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
-      console.log(`  - ${consumer.path}/${entrypoint.path}`);
+  for (const consumer of plan.consumers) {
+    for (const entrypoint of plan.entrypoints.consumer) {
+      console.log(`  - ${consumer.config.path}/${entrypoint.path}`);
     }
   }
   console.log("Workspace entrypoints:");
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
+  for (const entrypoint of plan.entrypoints.workspace) {
     console.log(`  - ${entrypoint.path}`);
   }
   console.log("Completion gates:");
-  console.log("  - node scripts/validate-governance.mjs");
-  console.log("  - node scripts/check-workspace.mjs");
+  for (const gate of plan.validation.completionGates) console.log(`  - node ${gate}`);
 }
 
 async function confirmPreserveExistingGuidance(
@@ -1298,7 +1291,7 @@ async function init(options) {
     });
     section("Setup ready");
     note("No post-success bootstrap steps are required.");
-    for (const command of initCompletionCommands(result.harnessRoot)) {
+    for (const command of initCompletionCommands(result.generated.resolvedConfig.plan)) {
       console.log(`  ${command}`);
     }
   } finally {
