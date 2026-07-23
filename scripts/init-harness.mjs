@@ -231,7 +231,10 @@ async function createRegenerationSafetyBackup({
   const workspaceEntrypointPaths = plan.entrypoints.workspace.map((entrypoint) =>
     path.join(workspaceRoot, entrypoint.path),
   );
-  const consumerEntrypointPaths = plan.entrypoints.consumer.map((entrypoint) => entrypoint.path);
+  const consumerEntrypointPaths = [...new Set([
+    ...plan.entrypoints.consumer.map((entrypoint) => entrypoint.path),
+    ".claude/CLAUDE.md",
+  ])];
   const consumers = plan.consumers.map((consumer) => ({
     entrypointPaths: consumerEntrypointPaths,
     root: consumer.confirmedRoot ?? consumer.root,
@@ -265,10 +268,10 @@ async function createRegenerationSafetyBackup({
   plan.consumers.forEach((consumer, index) => {
     const consumerRoot = consumer.confirmedRoot ?? consumer.root;
     const consumerSegment = safeBackupSegment(consumer.config.name, `consumer-${index + 1}`);
-    for (const entrypoint of plan.entrypoints.consumer) {
+    for (const entrypointPath of consumerEntrypointPaths) {
       candidatePaths.push({
-        sourcePath: path.join(consumerRoot, entrypoint.path),
-        backupPath: path.join("consumer-entrypoints", consumerSegment, entrypoint.path),
+        sourcePath: path.join(consumerRoot, entrypointPath),
+        backupPath: path.join("consumer-entrypoints", consumerSegment, entrypointPath),
       });
     }
     candidatePaths.push({
@@ -289,7 +292,7 @@ async function createRegenerationSafetyBackup({
 
   try {
     return await createSafetyBackup({
-      reason: "before-init",
+      reason: `before-${safeBackupSegment(command, "regeneration")}`,
       command,
       workspaceRoot,
       detectedState,

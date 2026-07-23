@@ -381,6 +381,11 @@ test("init harness creates a discoverable safety backup before regeneration", as
     await mkdir(path.join(outputRoot, "node_modules", "fixture"), { recursive: true });
     await writeFile(path.join(outputRoot, "node_modules", "fixture", "index.js"), "transient\n");
     await writeFile(path.join(consumerRoot, "AGENTS.md"), "# Consumer-owned context\n");
+    await mkdir(path.join(consumerRoot, ".claude"), { recursive: true });
+    await writeFile(
+      path.join(consumerRoot, ".claude", "CLAUDE.md"),
+      "# Existing Claude compatibility entrypoint\n",
+    );
     await mkdir(
       path.join(consumerRoot, ".structor", "preserved-guidance", "existing"),
       { recursive: true },
@@ -421,6 +426,19 @@ test("init harness creates a discoverable safety backup before regeneration", as
       await readFile(
         path.join(
           backupRoot,
+          "consumer-entrypoints",
+          "product-app",
+          ".claude",
+          "CLAUDE.md",
+        ),
+        "utf8",
+      ),
+      "# Existing Claude compatibility entrypoint\n",
+    );
+    assert.equal(
+      await readFile(
+        path.join(
+          backupRoot,
           "consumer-metadata",
           "product-app",
           ".structor",
@@ -442,11 +460,36 @@ test("init harness creates a discoverable safety backup before regeneration", as
     assert.equal(manifest.detectedState.hasStructorMetadata, true);
     assert.ok(manifest.copiedPaths.includes("test-structor"));
     assert.ok(manifest.copiedPaths.includes("product-app/AGENTS.md"));
+    assert.ok(manifest.copiedPaths.includes("product-app/.claude/CLAUDE.md"));
     assert.ok(manifest.copiedPaths.includes("product-app/.structor"));
     assert.ok(manifest.skippedPaths.includes("test-structor/node_modules"));
 
     const harnessGuidance = await readFile(path.join(outputRoot, "ai", "HARNESS.md"), "utf8");
     assert.match(harnessGuidance, /inspect `\.structor\/backups\/`\s+before regenerating/);
+  });
+});
+
+test("generate labels its safety backup for auditability", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+
+    assertSuccess(runInitHarness(configPath), "initial generation should succeed");
+    const result = runInitHarness(configPath, ["--backup-command", "generate"]);
+
+    assertSuccess(result, "generate regeneration should create a safety backup");
+    assert.match(result.stdout, /\.structor\/backups\/.*-before-generate/);
+    assert.match(result.stdout, /Proceeding with generate\.\.\./);
+
+    const backupNames = await readdir(path.join(root, ".structor", "backups"));
+    assert.equal(backupNames.length, 1);
+    const manifest = JSON.parse(
+      await readFile(
+        path.join(root, ".structor", "backups", backupNames[0], "manifest.json"),
+        "utf8",
+      ),
+    );
+    assert.equal(manifest.reason, "before-generate");
+    assert.equal(manifest.command, "generate");
   });
 });
 
