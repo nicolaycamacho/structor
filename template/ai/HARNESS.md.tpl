@@ -5,6 +5,19 @@ guidance, contracts, task structure, review policy, and validation checks.
 
 It does not implement product behavior and it is not a runner.
 
+## Safety Backups
+
+Before Structor regenerates existing managed state, it creates a timestamped,
+repo-local safety backup under the configured workspace root's
+`.structor/backups/`. If Structor state appears
+missing, overwritten, stale, or unexpectedly reset, inspect `.structor/backups/`
+before regenerating or editing harness files. Each backup
+manifest records when and why the backup was created and which paths were
+copied or skipped.
+
+Teams may choose to commit or ignore these backups according to repository
+policy. Structor does not silently impose either policy or prune old backups.
+
 ## What The Harness Owns
 
 - shared workflow and model-neutral guidance

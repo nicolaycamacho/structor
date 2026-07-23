@@ -180,7 +180,7 @@ function printCommandOutput(result) {
 }
 
 function passthroughGenerate(args) {
-  const result = spawnSync(process.execPath, [generatorPath, ...args], {
+  const result = spawnSync(process.execPath, [generatorPath, ...args, "--backup-command", "generate"], {
     cwd: process.cwd(),
     stdio: "inherit",
   });

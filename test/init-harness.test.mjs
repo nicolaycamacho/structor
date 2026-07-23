@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, writeFile, rm, symlink } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm, symlink } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
@@ -122,6 +122,7 @@ test("parseArgs reads flags and valued options", () => {
     "--install-consumer-entrypoints",
     "--allow-absolute-output",
     "--allow-template-repo-consumer",
+    "--backup-command", "generate",
   ]);
   assert.equal(options.config, "custom.json");
   assert.equal(options.dryRun, true);
@@ -129,6 +130,7 @@ test("parseArgs reads flags and valued options", () => {
   assert.equal(options.installConsumerEntrypoints, true);
   assert.equal(options.allowAbsoluteOutput, true);
   assert.equal(options.allowTemplateRepoConsumer, true);
+  assert.equal(options.backupCommand, "generate");
 });
 
 test("parseArgs rejects unknown arguments", () => {
@@ -362,6 +364,111 @@ test("init harness dry-run does not write a generation manifest", async () => {
     assertSuccess(runInitHarness(configPath, ["--dry-run"]), "dry run should not write generation manifest");
 
     await assert.rejects(readFile(path.join(outputRoot, ".structor", "manifest.json"), "utf8"));
+  });
+});
+
+test("init harness creates a discoverable safety backup before regeneration", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+    const consumerRoot = path.join(root, "product-app");
+
+    assertSuccess(
+      runInitHarness(configPath, ["--install-consumer-entrypoints"]),
+      "initial generation should succeed",
+    );
+    await writeFile(path.join(outputRoot, "ai", "PRODUCT.md"), "# Mature product context\n");
+    await mkdir(path.join(outputRoot, "node_modules", "fixture"), { recursive: true });
+    await writeFile(path.join(outputRoot, "node_modules", "fixture", "index.js"), "transient\n");
+    await writeFile(path.join(consumerRoot, "AGENTS.md"), "# Consumer-owned context\n");
+    await mkdir(
+      path.join(consumerRoot, ".structor", "preserved-guidance", "existing"),
+      { recursive: true },
+    );
+    await writeFile(
+      path.join(consumerRoot, ".structor", "preserved-guidance", "existing", "notes.md"),
+      "# Older preserved context\n",
+    );
+
+    const result = runInitHarness(configPath, [
+      "--install-consumer-entrypoints",
+      "--force",
+      "--preserve-existing-guidance",
+    ]);
+
+    assertSuccess(result, "regeneration should create a safety backup");
+    assert.match(result.stdout, /Existing Structor state detected\./);
+    assert.match(result.stdout, /Created safety backup:/);
+    assert.match(result.stdout, /\.structor\/backups\/.*-before-init/);
+    assert.match(result.stdout, /Proceeding with init\.\.\./);
+
+    const backupsRoot = path.join(root, ".structor", "backups");
+    const backupNames = await readdir(backupsRoot);
+    assert.equal(backupNames.length, 1);
+    const backupRoot = path.join(backupsRoot, backupNames[0]);
+    assert.equal(
+      await readFile(path.join(backupRoot, "harness", "ai", "PRODUCT.md"), "utf8"),
+      "# Mature product context\n",
+    );
+    assert.equal(
+      await readFile(
+        path.join(backupRoot, "consumer-entrypoints", "product-app", "AGENTS.md"),
+        "utf8",
+      ),
+      "# Consumer-owned context\n",
+    );
+    assert.equal(
+      await readFile(
+        path.join(
+          backupRoot,
+          "consumer-metadata",
+          "product-app",
+          ".structor",
+          "preserved-guidance",
+          "existing",
+          "notes.md",
+        ),
+        "utf8",
+      ),
+      "# Older preserved context\n",
+    );
+    assert.equal(await exists(path.join(backupRoot, "harness", "node_modules")), false);
+
+    const manifest = JSON.parse(await readFile(path.join(backupRoot, "manifest.json"), "utf8"));
+    assert.equal(manifest.reason, "before-init");
+    assert.equal(manifest.command, "init");
+    assert.equal(manifest.detectedState.hasGeneratedHarness, true);
+    assert.equal(manifest.detectedState.hasConsumerEntrypoints, true);
+    assert.equal(manifest.detectedState.hasStructorMetadata, true);
+    assert.ok(manifest.copiedPaths.includes("test-structor"));
+    assert.ok(manifest.copiedPaths.includes("product-app/AGENTS.md"));
+    assert.ok(manifest.copiedPaths.includes("product-app/.structor"));
+    assert.ok(manifest.skippedPaths.includes("test-structor/node_modules"));
+
+    const harnessGuidance = await readFile(path.join(outputRoot, "ai", "HARNESS.md"), "utf8");
+    assert.match(harnessGuidance, /inspect `\.structor\/backups\/`\s+before regenerating/);
+  });
+});
+
+test("init harness leaves existing state untouched when safety backup creation fails", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const outputRoot = path.join(root, "test-structor");
+    const agentsPath = path.join(outputRoot, "AGENTS.md");
+
+    assertSuccess(runInitHarness(configPath), "initial generation should succeed");
+    await writeFile(agentsPath, "# Existing mature harness guidance\n");
+    await mkdir(path.join(root, ".structor"), { recursive: true });
+    await writeFile(path.join(root, ".structor", "backups"), "blocked\n");
+
+    const result = runInitHarness(configPath, ["--force"]);
+
+    assert.notEqual(result.status, 0, `${result.stdout}\n${result.stderr}`);
+    assert.match(
+      result.stderr,
+      /Safety backup failed; generation stopped before existing Structor state was changed/,
+    );
+    assert.equal(await readFile(agentsPath, "utf8"), "# Existing mature harness guidance\n");
   });
 });
 
