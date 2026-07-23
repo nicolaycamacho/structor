@@ -47,10 +47,11 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 | File | Responsibility | Reads | Writes |
 | --- | --- | --- | --- |
 | `bin/structor.mjs` | Public CLI router and setup wizard shell. | `package.json`, harness config, workspace files, generator modules. | Generated harness files, workspace entrypoints, consumer entrypoints, contributor workspace files after preview/consent. |
+| `scripts/setup-transaction.mjs` | In-process setup transaction planner and applier. | Resolved init config, initializer results, generated completion scripts. | Generated harness, durable config, consumer/workspace entrypoints, rollback restoration on failure. |
 | `scripts/init-harness.mjs` | Deterministic initializer and template renderer. | `harness.config.json`, `template/**`, schema/helper modules. | Generated harness repository files and optional consumer entrypoints. |
 | `scripts/setup-contributor.mjs` | Manual Structor contributor setup helper. | `contrib/self-harness/**`, source checkout state. | Sibling `structor-self` harness and optional source-repo pointer files. |
 
-`bin/structor.mjs` should stay a CLI surface, not a service runtime. Deterministic generation belongs in `scripts/init-harness.mjs` and shared helpers.
+`bin/structor.mjs` should stay a CLI surface, not a service runtime. Deterministic generation belongs in `scripts/init-harness.mjs`; transaction ordering, completion gates, and rollback belong in `scripts/setup-transaction.mjs`.
 
 ## Init And Wizard Flow
 
@@ -60,10 +61,10 @@ High-level flow:
 
 1. Parse CLI options in `bin/structor.mjs`.
 2. Gather workspace, project, model, and consumer repo facts through confirmation-oriented prompts.
-3. Preview planned local writes before applying them.
-4. Call the deterministic initializer in `scripts/init-harness.mjs`.
+3. Build and preview the setup transaction through `scripts/setup-transaction.mjs` before applying writes.
+4. Use the deterministic initializer in `scripts/init-harness.mjs` to render the generated harness.
 5. Optionally preserve existing root guidance and install thin consumer entrypoints.
-6. Run completion gates so successful setup means generated governance validation and workspace checks completed.
+6. Let the setup transaction run completion gates and roll back its own writes on failure, so success means generated governance validation and workspace checks completed.
 
 The wizard must remain local-only. It must not run agents, call LLM APIs, mutate external services, open pull requests, or become an orchestrator.
 
@@ -114,6 +115,7 @@ Generated harness validation is separate from Structor package validation. Gener
 - `scripts/`
 - `template/`
 - `CHANGELOG.md`
+- `INSTALL_WITH_AGENT.md`
 - `ROADMAP.md`
 - `README.md`
 - `SECURITY.md`
@@ -140,7 +142,7 @@ Do not put Structor-specific product content into active generic templates under
 
 | Change area | Read first | Validate |
 | --- | --- | --- |
-| CLI command routing or setup wizard behavior | `AGENTS.md`, `CONTEXT.md`, `bin/structor.mjs`, `scripts/init-harness.mjs`, `test/cli.test.mjs` | `npm run check:ci`, `npm test`, `npm run validate` |
+| CLI command routing or setup wizard behavior | `AGENTS.md`, `CONTEXT.md`, `bin/structor.mjs`, `scripts/setup-transaction.mjs`, `scripts/init-harness.mjs`, `test/cli.test.mjs`, `test/setup-transaction.test.mjs` | `npm run check:ci`, `npm test`, `npm run validate` |
 | Deterministic generation | `scripts/init-harness.mjs`, `scripts/rendered-config.mjs`, `scripts/generated-harness-contract.mjs`, `template/**` | `npm run check:templates`, `npm run check:contracts`, `npm run check:smoke`, `npm run validate` |
 | Template or generated policy content | `template/ai/HARNESS.md.tpl`, `template/ai/HUB.md.tpl`, relevant template file, `scripts/generated-harness-contract.mjs` | `npm run check:templates`, `npm run check:placeholders`, `npm run check:smoke` |
 | Config schema or examples | `schemas/harness-config.schema.json`, `harness.config.example.json`, `examples/**`, `scripts/check-config.mjs`, `scripts/check-schemas.mjs` | `npm run check:config`, `npm run check:schemas`, `npm run check:examples` |
@@ -154,6 +156,7 @@ Do not put Structor-specific product content into active generic templates under
 ### CLI and init behavior
 
 - `bin/structor.mjs`
+- `scripts/setup-transaction.mjs`
 - `scripts/init-harness.mjs`
 - `scripts/lib.mjs`
 - `scripts/rendered-config.mjs`
