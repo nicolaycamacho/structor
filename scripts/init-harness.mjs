@@ -8,17 +8,17 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   assertSafeWriteTarget,
   exists,
+  isSameOrInsidePath,
   resolveHarnessConfig,
 } from "./lib.mjs";
 import {
-  consumerEntrypointsForSettings,
-  freshRenderScriptTemplatesForSettings,
-  shouldRenderTemplate as shouldRenderContractTemplate,
-  trustedGeneratedScriptTemplatesForSettings,
-} from "./generated-harness-contract.mjs";
+  createSafetyBackup,
+  hasExistingStructorState,
+} from "./safety-backup.mjs";
+import { shouldRenderTemplate as shouldRenderContractTemplate } from "./generated-harness-contract.mjs";
 import {
   consumerEntrypointValues,
-  harnessTemplateValues,
+  harnessTemplateValuesForPlan,
   renderedGeneratedScriptHashes,
 } from "./rendered-config.mjs";
 
@@ -33,6 +33,7 @@ const installConsumerEntrypointsArg = "--install-consumer-entrypoints";
 const preserveExistingGuidanceArg = "--preserve-existing-guidance";
 const allowAbsoluteOutputArg = "--allow-absolute-output";
 const allowTemplateRepoConsumerArg = "--allow-template-repo-consumer";
+const backupCommandArg = "--backup-command";
 const rootGuidanceEntrypoints = new Set(["AGENTS.md", "CLAUDE.md"]);
 
 export function parseArgs(argv) {
@@ -45,6 +46,7 @@ export function parseArgs(argv) {
     preserveExistingGuidance: false,
     allowAbsoluteOutput: false,
     allowTemplateRepoConsumer: false,
+    backupCommand: "init",
   };
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -57,6 +59,13 @@ export function parseArgs(argv) {
     else if (arg === preserveExistingGuidanceArg) options.preserveExistingGuidance = true;
     else if (arg === allowAbsoluteOutputArg) options.allowAbsoluteOutput = true;
     else if (arg === allowTemplateRepoConsumerArg) options.allowTemplateRepoConsumer = true;
+    else if (arg === backupCommandArg) {
+      const command = argv[++index];
+      if (!new Set(["generate", "init"]).has(command)) {
+        throw new Error(`Invalid safety backup command: ${command ?? "missing"}`);
+      }
+      options.backupCommand = command;
+    }
     else throw new Error(`Unknown argument: ${arg}`);
   }
 
@@ -204,6 +213,99 @@ async function packageMetadata() {
   };
 }
 
+function safeBackupSegment(value, fallback) {
+  const safe = value.replace(/[^A-Za-z0-9._-]/g, "-").replace(/-+/g, "-");
+  return safe || fallback;
+}
+
+async function createRegenerationSafetyBackup({
+  resolvedConfig,
+  configPath,
+  structorVersion,
+  command,
+}) {
+  const { outputRoot, plan, workspaceRoot } = resolvedConfig;
+  const plannedHarnessPaths = plan.harness.templatePaths.map((templatePath) =>
+    templatePath.replace(/\.tpl$/, ""),
+  );
+  const workspaceEntrypointPaths = plan.entrypoints.workspace.map((entrypoint) =>
+    path.join(workspaceRoot, entrypoint.path),
+  );
+  const consumerEntrypointPaths = [...new Set([
+    ...plan.entrypoints.consumer.map((entrypoint) => entrypoint.path),
+    ".claude/CLAUDE.md",
+  ])];
+  const consumers = plan.consumers.map((consumer) => ({
+    entrypointPaths: consumerEntrypointPaths,
+    root: consumer.confirmedRoot ?? consumer.root,
+  }));
+  const detectedState = await hasExistingStructorState({
+    outputRoot,
+    plannedHarnessPaths,
+    workspaceRoot,
+    workspaceEntrypointPaths,
+    consumers,
+  });
+  if (!Object.values(detectedState).some(Boolean)) {
+    return {
+      created: false,
+      backupPath: null,
+      copiedPaths: [],
+      skippedPaths: [],
+    };
+  }
+
+  const candidatePaths = [];
+  if (detectedState.hasGeneratedHarness) {
+    candidatePaths.push({ sourcePath: outputRoot, backupPath: "harness" });
+  }
+  for (const entrypoint of plan.entrypoints.workspace) {
+    candidatePaths.push({
+      sourcePath: path.join(workspaceRoot, entrypoint.path),
+      backupPath: path.join("workspace-entrypoints", entrypoint.path),
+    });
+  }
+  plan.consumers.forEach((consumer, index) => {
+    const consumerRoot = consumer.confirmedRoot ?? consumer.root;
+    const consumerSegment = safeBackupSegment(consumer.config.name, `consumer-${index + 1}`);
+    for (const entrypointPath of consumerEntrypointPaths) {
+      candidatePaths.push({
+        sourcePath: path.join(consumerRoot, entrypointPath),
+        backupPath: path.join("consumer-entrypoints", consumerSegment, entrypointPath),
+      });
+    }
+    candidatePaths.push({
+      sourcePath: path.join(consumerRoot, ".structor"),
+      backupPath: path.join("consumer-metadata", consumerSegment, ".structor"),
+    });
+  });
+  candidatePaths.push({
+    sourcePath: path.join(workspaceRoot, ".structor"),
+    backupPath: path.join("workspace-metadata", ".structor"),
+  });
+  if (configPath && !isSameOrInsidePath(configPath, outputRoot)) {
+    candidatePaths.push({
+      sourcePath: configPath,
+      backupPath: path.join("config", path.basename(configPath)),
+    });
+  }
+
+  try {
+    return await createSafetyBackup({
+      reason: `before-${safeBackupSegment(command, "regeneration")}`,
+      command,
+      workspaceRoot,
+      detectedState,
+      candidatePaths,
+      structorVersion,
+    });
+  } catch (error) {
+    throw new Error(
+      `Safety backup failed; generation stopped before existing Structor state was changed.\n${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 export function shouldRenderTemplate(sourceRelative, config) {
   return shouldRenderContractTemplate(sourceRelative, config);
 }
@@ -249,9 +351,11 @@ async function collectExistingFiles(basePath) {
   return files;
 }
 
-async function generatedScriptHashes(templateFiles, config, values) {
+async function generatedScriptHashes(templateFiles, plan, values) {
   const hashes = {};
-  const trustedScriptTemplates = new Set(trustedGeneratedScriptTemplatesForSettings(config));
+  const trustedScriptTemplates = new Set(
+    plan.harness.trustedScriptTemplates,
+  );
 
   for (const sourceRelative of templateFiles) {
     if (!trustedScriptTemplates.has(sourceRelative)) continue;
@@ -327,17 +431,15 @@ function rootGuidanceConflictError(conflicts) {
 }
 
 export async function collectConsumerRootGuidanceConflicts(resolvedConfig, options = {}) {
-  const { config, outputRoot: harnessRoot, support, consumers } = resolvedConfig;
-  const entrypoints = consumerEntrypointsForSettings({
-    models: config.models,
-    clientSupport: support,
-  }).filter((entrypoint) => rootGuidanceEntrypoints.has(entrypoint.path));
+  const { config, plan } = resolvedConfig;
+  const consumers = plan.consumers;
+  const entrypoints = plan.entrypoints.consumer.filter((entrypoint) => rootGuidanceEntrypoints.has(entrypoint.path));
   const conflicts = [];
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const harnessRelativePath = resolvedConsumer.harnessRelativePath;
     const configuredPreservedPath = options.preservedGuidanceByConsumer?.[consumer.name]?.directory;
 
     for (const entrypoint of entrypoints) {
@@ -376,18 +478,16 @@ export async function collectConsumerRootGuidanceConflicts(resolvedConfig, optio
 }
 
 export async function installConsumerEntrypoints(resolvedConfig, options) {
-  const { config, outputRoot: harnessRoot, support, consumers } = resolvedConfig;
-  const entrypoints = consumerEntrypointsForSettings({
-    models: config.models,
-    clientSupport: support,
-  });
+  const { config, plan } = resolvedConfig;
+  const consumers = plan.consumers;
+  const entrypoints = plan.entrypoints.consumer;
   const records = [];
 
   for (const resolvedConsumer of consumers) {
     const consumer = resolvedConsumer.config;
     const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
     const preservedGuidance = options.preservedGuidanceByConsumer?.[consumer.name] ?? null;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
+    const harnessRelativePath = resolvedConsumer.harnessRelativePath;
     const values = consumerEntrypointValues(config, consumer, harnessRelativePath, {
       preservedGuidancePath: preservedGuidance?.directory,
     });
@@ -582,6 +682,7 @@ export async function generateHarness(config, {
   preserveExistingGuidance = false,
   preservationTimestamp = null,
   preservedGuidanceByConsumer = {},
+  backupCommand = "init",
 } = {}) {
   const manifestConfigContent = configContent
     ?? (configPath ? await readFile(path.resolve(configPath), "utf8") : `${JSON.stringify(config, null, 2)}\n`);
@@ -616,11 +717,7 @@ export async function generateHarness(config, {
       ]),
     );
   }
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(configDir, config.workspace.root)
-    : path.resolve(configDir);
-  const templateOutputRoot = path.resolve(templateWorkspaceRoot, outputPath);
-  const values = harnessTemplateValues(config, support, resolvedConfig.consumers, templateOutputRoot, templateWorkspaceRoot, {
+  const values = harnessTemplateValuesForPlan(resolvedConfig.plan, {
     preservedGuidanceByConsumer: resolvedPreservedGuidanceByConsumer,
   });
   values.GENERATED_HARNESS_CONTRACT_MODULE = await readFile(
@@ -629,13 +726,31 @@ export async function generateHarness(config, {
   );
 
   const templateFiles = await collectTemplateFiles();
-  values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, config, values);
-  const freshRenderScriptTemplates = new Set(freshRenderScriptTemplatesForSettings(config));
+  values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, resolvedConfig.plan, values);
+  const freshRenderScriptTemplates = new Set(
+    resolvedConfig.plan.harness.freshRenderScriptTemplates,
+  );
+  const metadata = await packageMetadata();
+  const safetyBackup = dryRun
+    ? { created: false, backupPath: null, copiedPaths: [], skippedPaths: [] }
+    : await createRegenerationSafetyBackup({
+      resolvedConfig,
+      configPath,
+      structorVersion: metadata.version,
+      command: backupCommand,
+    });
+  if (safetyBackup.created) {
+    console.log("Existing Structor state detected.");
+    console.log("Created safety backup:");
+    console.log(`${relativePath(resolvedConfig.workspaceRoot, safetyBackup.backupPath)}/`);
+    console.log(`Proceeding with ${backupCommand}...`);
+  }
 
   let renderedHtmlViewsScript = false;
   const generatedFiles = [];
+  const enabledTemplatePaths = new Set(resolvedConfig.plan.harness.templatePaths);
   for (const sourceRelative of templateFiles) {
-    if (!shouldRenderTemplate(sourceRelative, config)) continue;
+    if (!enabledTemplatePaths.has(sourceRelative)) continue;
     const result = await writeRenderedFile(sourceRelative, outputRoot, values, { dryRun, force });
     generatedFiles.push(result);
     if (freshRenderScriptTemplates.has(sourceRelative) && result.rendered) {
@@ -706,6 +821,7 @@ export async function generateHarness(config, {
     generatedFiles,
     consumerEntrypoints,
     manifestFile,
+    safetyBackup,
   };
 }
 
@@ -724,6 +840,7 @@ async function main() {
     preserveExistingGuidance: options.preserveExistingGuidance,
     allowAbsoluteOutput: options.allowAbsoluteOutput,
     allowTemplateRepoConsumer: options.allowTemplateRepoConsumer,
+    backupCommand: options.backupCommand,
   });
 }
 

@@ -1,5 +1,7 @@
 import path from "node:path";
 
+import { createTopologyPlan } from "./topology-plan.mjs";
+
 const rawSlugPattern = /^[a-z0-9][a-z0-9-]*$/;
 
 export function markdownText(value) {
@@ -57,21 +59,18 @@ function consumerNames(consumers) {
   return consumers.map((consumer) => rawSlug(consumer.name, "consumer.name"));
 }
 
-function consumerConfig(resolvedConsumers, workspaceRoot) {
-  return resolvedConsumers.map(({ config: consumer, requestedRoot, root: consumerRoot }) => {
+function consumerConfig(resolvedConsumers) {
+  return resolvedConsumers.map(({ config: consumer, workspacePath }) => {
     return {
       ...consumer,
       name: rawSlug(consumer.name, "consumer.name"),
-      workspacePath: path.relative(workspaceRoot, requestedRoot ?? consumerRoot).replaceAll(path.sep, "/") || ".",
+      workspacePath,
     };
   });
 }
 
-function guidanceMigrationConsumerSections(resolvedConsumers, workspaceRoot, harnessRoot, preservedGuidanceByConsumer = {}) {
-  const harnessPath = path.relative(workspaceRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
-  const renderedHarnessPath = harnessPath.startsWith(".") ? harnessPath : `./${harnessPath}`;
-  return resolvedConsumers.map(({ config: consumer, requestedRoot, root: consumerRoot }) => {
-    const consumerPath = path.relative(workspaceRoot, requestedRoot ?? consumerRoot).replaceAll(path.sep, "/") || ".";
+function guidanceMigrationConsumerSections(plan, preservedGuidanceByConsumer = {}) {
+  return plan.consumers.map(({ config: consumer, workspacePath: consumerPath }) => {
     const preservedPath = preservedGuidanceByConsumer[consumer.name]?.directory ?? "none";
     return [
       `## ${markdownText(consumer.name)}`,
@@ -79,7 +78,7 @@ function guidanceMigrationConsumerSections(resolvedConsumers, workspaceRoot, har
       "Consumer repo:",
       `  ${markdownPathCodeSpan(consumerPath.startsWith(".") ? consumerPath : `./${consumerPath}`)}`,
       "Generated harness:",
-      `  ${markdownPathCodeSpan(renderedHarnessPath)}`,
+      `  ${markdownPathCodeSpan(plan.harness.workspacePath)}`,
       "Preserved guidance:",
       `  ${markdownPathCodeSpan(preservedPath)}`,
       "Migration targets:",
@@ -98,20 +97,21 @@ export function renderedGeneratedScriptHashes(hashes) {
   return jsonLiteral(hashes);
 }
 
-export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot, workspaceRoot = path.dirname(outputRoot), options = {}) {
-  const workspaceHarnessPath = path.relative(workspaceRoot, outputRoot).replaceAll(path.sep, "/") || ".";
-
+export function harnessTemplateValuesForPlan(plan, options = {}) {
+  const config = plan.config;
+  const support = plan.clientSupport;
+  const resolvedConsumers = plan.consumers;
   return {
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_CODE: markdownCodeSpan(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
     PROJECT_SLUG: rawSlug(config.project.slug, "project.slug"),
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
-    WORKSPACE_HARNESS_PATH: workspaceHarnessPath.startsWith(".") ? workspaceHarnessPath : `./${workspaceHarnessPath}`,
-    WORKSPACE_ROOT_FROM_HARNESS_JSON: javascriptLiteral(path.relative(outputRoot, workspaceRoot).replaceAll(path.sep, "/") || "."),
+    WORKSPACE_HARNESS_PATH: plan.harness.workspacePath,
+    WORKSPACE_ROOT_FROM_HARNESS_JSON: javascriptLiteral(plan.harness.workspaceRootFromHarness),
     CONSUMER_REPOS_LIST: consumerList(config.consumers),
     CONSUMER_REPO_NAMES_JSON: javascriptLiteral(consumerNames(config.consumers)),
-    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(resolvedConsumers, workspaceRoot)),
+    CONSUMER_CONFIG_JSON: jsonLiteral(consumerConfig(resolvedConsumers)),
     PRIMARY_CONSUMER_NAME: rawSlug(config.consumers[0].name, "consumer.name"),
     MODEL_OPENAI_ENABLED: javascriptBoolean(config.models.openai),
     MODEL_ANTHROPIC_ENABLED: javascriptBoolean(config.models.anthropic),
@@ -120,12 +120,20 @@ export function harnessTemplateValues(config, support, resolvedConsumers, output
     CLIENT_CLAUDE_HOOKS_ENABLED: javascriptBoolean(support.claudeHooks),
     CLIENT_CLAUDE_SKILLS_ENABLED: javascriptBoolean(support.claudeSkills),
     GUIDANCE_MIGRATION_CONSUMER_SECTIONS: guidanceMigrationConsumerSections(
-      resolvedConsumers,
-      workspaceRoot,
-      outputRoot,
+      plan,
       options.preservedGuidanceByConsumer,
     ),
   };
+}
+
+export function harnessTemplateValues(config, support, resolvedConsumers, outputRoot, workspaceRoot = path.dirname(outputRoot), options = {}) {
+  return harnessTemplateValuesForPlan(createTopologyPlan({
+    config,
+    support,
+    consumers: resolvedConsumers,
+    outputRoot,
+    workspaceRoot,
+  }), options);
 }
 
 export function preservedGuidanceSection(preservedGuidancePath) {

@@ -1,0 +1,147 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent-Native Setup Installation Plan",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "planId", "structor", "scope", "decisions", "reads", "writes", "commands", "preservation", "population", "validationGates", "evidenceOutputs"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "planId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+    "structor": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["packageVersion", "sourceRevision"],
+      "properties": {
+        "packageVersion": { "type": "string", "minLength": 1 },
+        "sourceRevision": { "type": "string", "pattern": "^[a-f0-9]{40}$" }
+      }
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workspace", "consumers"],
+      "properties": {
+        "workspace": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+        "consumers": { "type": "array", "minItems": 1, "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } }
+      }
+    },
+    "decisions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "level", "selection", "provenance"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "level": { "type": "string", "enum": ["inferred", "recommended-confirmed", "explicit"] },
+          "selection": { "type": "string", "minLength": 1 },
+          "provenance": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+        }
+      }
+    },
+    "reads": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "reason"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "reason": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "writes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "action", "precondition", "contentHash"],
+        "properties": {
+          "path": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "action": { "type": "string", "enum": ["create", "replace", "preserve"] },
+          "precondition": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["kind"],
+            "properties": {
+              "kind": { "type": "string", "enum": ["absent", "content-hash"] },
+              "contentHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+            }
+          },
+          "contentHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "commands": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["cwd", "command", "phase"],
+        "properties": {
+          "cwd": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+          "command": { "type": "string", "minLength": 1 },
+          "phase": { "type": "string", "enum": ["setup", "population", "validation"] }
+        }
+      }
+    },
+    "preservation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backupRequired", "existingGuidance", "backups", "rollbackStrategy"],
+      "properties": {
+        "backupRequired": { "type": "boolean" },
+        "existingGuidance": { "type": "array", "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } },
+        "backups": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["sourcePath", "backupPath"],
+            "properties": {
+              "sourcePath": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" },
+              "backupPath": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" }
+            }
+          }
+        },
+        "rollbackStrategy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["trigger", "removeCreatedPaths", "restoreBackups"],
+          "properties": {
+            "trigger": { "const": "filesystem-or-structor-invariant-failure" },
+            "removeCreatedPaths": { "const": true },
+            "restoreBackups": { "const": true }
+          }
+        }
+      }
+    },
+    "population": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["approvedConsumers", "automaticPromotions", "reviewRequiredClaims"],
+      "properties": {
+        "approvedConsumers": { "type": "array", "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } },
+        "automaticPromotions": { "type": "array", "items": { "type": "string", "minLength": 1 } },
+        "reviewRequiredClaims": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+      }
+    },
+    "validationGates": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "required", "command"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]*$" },
+          "required": { "type": "boolean" },
+          "command": { "type": "string", "minLength": 1 }
+        }
+      }
+    },
+    "evidenceOutputs": { "type": "array", "minItems": 5, "items": { "type": "string", "pattern": "^(?![A-Za-z]:)(?![\\/])(?!.*(?:^|[\\/])\\.\\.(?:[\\/]|$)).+$" } }
+  }
+}

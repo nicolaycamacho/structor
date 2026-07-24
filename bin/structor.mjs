@@ -22,6 +22,11 @@ import {
   render,
 } from "../scripts/init-harness.mjs";
 import {
+  applySetupTransaction,
+  planSetupTransaction,
+} from "../scripts/setup-transaction.mjs";
+import { createTopologyPlan } from "../scripts/topology-plan.mjs";
+import {
   consumerEntrypointValues,
   harnessTemplateValues,
   markdownCodeSpan,

@@ -6,8 +6,12 @@ import { failIfErrors, repoRoot } from "./lib.mjs";
 
 const schemasDirectory = "schemas";
 const activeSchemas = new Set([
+  "approval-receipt.schema.json",
   "contract-manifest.schema.json",
+  "execution-result.schema.json",
   "harness-config.schema.json",
+  "installation-plan.schema.json",
+  "setup-evidence-manifest.schema.json",
 ]);
 
 const entries = await readdir(path.join(repoRoot, schemasDirectory), { withFileTypes: true });

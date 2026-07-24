@@ -1,0 +1,14 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Agent-Native Setup Approval Receipt",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["contractVersion", "schemaVersion", "planHash", "approvedAt", "acknowledgement"],
+  "properties": {
+    "contractVersion": { "const": "1.0.0" },
+    "schemaVersion": { "const": "1.0.0" },
+    "planHash": { "type": "string", "pattern": "^sha256:[a-f0-9]{64}$" },
+    "approvedAt": { "type": "string", "minLength": 1 },
+    "acknowledgement": { "const": "I approve this exact installation plan." }
+  }
+}

@@ -1,7 +1,8 @@
 # {{PROJECT_NAME}} Product Context
 
-This is the durable product context for the {{PROJECT_NAME}} engineering
-harness. Agents should treat this as the source of truth for product semantics.
+This is the durable product context for the {{PROJECT_NAME}} AI Harness
+Engineering Framework. Agents should treat this as the source of truth for
+product semantics.
 
 ## Problem
 
