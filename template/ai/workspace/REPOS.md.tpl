@@ -17,3 +17,11 @@ and product-specific validation.
 
 The harness may describe repo ownership and expected checks. It must not become
 the implementation source of truth for consumer applications.
+
+<!-- structor:populate:start -->
+## Local Consumer Evidence
+
+Run `structor populate --dry-run` from the workspace to preview deterministic
+local starter-guidance updates. Review any populated evidence before relying on
+it as durable policy.
+<!-- structor:populate:end -->

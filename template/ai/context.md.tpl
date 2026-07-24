@@ -15,3 +15,11 @@
 ## Consumer Repos
 
 {{CONSUMER_REPOS_LIST}}
+
+<!-- structor:populate:start -->
+## Local Consumer Evidence
+
+Run `structor populate --dry-run` from the workspace to preview deterministic
+local starter-guidance updates. Review any populated evidence before relying on
+it as durable policy.
+<!-- structor:populate:end -->

@@ -14,6 +14,8 @@ import {
   packageCommand,
   parseArgs,
   relativeFrom,
+  renderPopulateContextEvidence,
+  renderPopulateReposEvidence,
   shouldExcludeCandidate,
   slugify,
 } from "../bin/structor.mjs";
@@ -782,6 +784,83 @@ test("doctor warns for consumers without validation commands but exits zero", as
   assert.match(outputText(result), /WARN consumer validation command documented: app - no validation commands configured/);
 });
 
+test("populate previews deterministic canonical guidance updates before a confirmed write", async () => {
+  await withTempDir(async (root) => {
+    const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace();
+    try {
+      await writeFile(
+        path.join(consumerRoot, "package.json"),
+        `${JSON.stringify({ name: "demo-app", description: "Local demo application", scripts: { test: "node --version" } }, null, 2)}\n`,
+      );
+      await mkdir(path.join(consumerRoot, ".structor", "preserved-guidance", "2026-07-24T10-00-00"), { recursive: true });
+      await writeFile(
+        path.join(consumerRoot, ".structor", "preserved-guidance", "2026-07-24T10-00-00", "manifest.json"), "{}\n");
+
+      const contextPath = path.join(harnessRoot, "ai", "context.md");
+      const before = await readFile(contextPath, "utf8");
+      await writeFile(contextPath, `${before}\nUser-owned note outside the population section.\n`);
+      const beforeDryRun = await readFile(contextPath, "utf8");
+      const dryRun = runCli(["populate", "--workspace", workspaceRoot, "--dry-run"]);
+
+      assertSuccess(dryRun, "populate dry-run should succeed");
+      assert.match(outputText(dryRun), /Dry run only\. No files were written\./);
+      assert.match(outputText(dryRun), /will update existing populated section ai\/context\.md/);
+      assert.match(outputText(dryRun), /Existing populated sections will be replaced/);
+      assert.match(outputText(dryRun), /ai\/context\.md/);
+      assert.equal(await readFile(contextPath, "utf8"), beforeDryRun, "dry-run must not modify canonical guidance");
+
+      const write = runCli(["populate", "--workspace", workspaceRoot, "--yes"]);
+      assertSuccess(write, "populate --yes should write the previewed guidance");
+      assert.match(outputText(write), /Review required: populated files are personalized starter guidance/);
+      assert.match(await readFile(contextPath, "utf8"), /demo-app/);
+      assert.match(await readFile(contextPath, "utf8"), /Local demo application/);
+      assert.match(await readFile(contextPath, "utf8"), /Preserved guidance detected/);
+      assert.match(await readFile(contextPath, "utf8"), /User-owned note outside the population section/);
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+});
+
+test("populate evidence renderers preserve consumer data as Markdown data", () => {
+  const consumers = [
+    {
+      config: { name: "app", path: "./app", purpose: "Primary\n## injected", validation: {} },
+      packageName: "@demo/app",
+      packageDescription: "Application\n## injected",
+      validation: ["test: npm test"],
+      preservedGuidance: [".structor/preserved-guidance/one"],
+    },
+    {
+      config: { name: "worker", path: "./worker", purpose: "Background worker", validation: {} },
+      packageName: null,
+      packageDescription: null,
+      validation: [],
+      preservedGuidance: [],
+    },
+  ];
+
+  const context = renderPopulateContextEvidence(consumers);
+  const repos = renderPopulateReposEvidence(consumers);
+
+  assert.match(context, /`app` at `\.\/app`/);
+  assert.match(context, /\\#\\# injected/);
+  assert.match(context, /none recorded/);
+  assert.match(repos, /`worker`: Background worker/);
+  assert.match(repos, /\\#\\# injected/);
+});
+
+test("populate refuses non-interactive writes without --yes", async () => {
+  const { workspaceRoot } = await createDoctorWorkspace();
+  try {
+    const result = runCli(["populate", "--workspace", workspaceRoot]);
+    assert.notEqual(result.status, 0, "non-interactive populate must require explicit consent");
+    assert.match(outputText(result), /requires --yes when stdin is not interactive/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("slugify normalizes arbitrary names", () => {
   assert.equal(slugify("My Cool App"), "my-cool-app");
   assert.equal(slugify("--weird__name--"), "weird-name");
@@ -829,9 +908,10 @@ test("nextValidationCommands targets the generated output path", () => {
   assert.ok(commands.includes("node scripts/check-workspace.mjs"));
 });
 
-test("help documents contribute structor", () => {
+test("help documents populate and contribute structor", () => {
   const result = runCli(["help"]);
   assertSuccess(result, "structor help");
+  assert.match(result.stdout, /structor populate/);
   assert.match(result.stdout, /contribute structor/);
 });
 
