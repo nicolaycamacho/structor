@@ -275,7 +275,16 @@ pointers, and validate the result with evidence.
 
 ### Populate Generated Harness Prompt
 
-Run this [prompt](https://github.com/nicolaycamacho/structor/blob/main/template/ai/templates/populate-generated-harness-prompt.md.tpl) into Codex or Claude Code from the root of the generated structor repo to populate it with customised data from your repo(s) including the preserved guidance files, if applicable.
+After `structor init`, run `structor populate --workspace <workspace>` to preview
+deterministic local starter-guidance updates. Use `--dry-run` to inspect the
+planned canonical writes without changing files; use `--yes` for an explicit
+non-interactive write. The command updates only `ai/context.md` and
+`ai/workspace/REPOS.md` in the generated harness from local config, consumer
+package metadata, configured validation commands, and preserved-guidance paths.
+
+The output remains starter guidance, not approved project truth. Review and
+refine it before treating the harness as guidance-ready. For deeper, manual
+analysis, the generated [populate prompt](https://github.com/nicolaycamacho/structor/blob/main/template/ai/templates/populate-generated-harness-prompt.md.tpl) remains available.
 
 ## Manual Setup
 

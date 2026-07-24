@@ -76,7 +76,16 @@ docs.
 
 ## Running The Generated Harness Population Task
 
-Open the generated harness task:
+For deterministic starter guidance, first run:
+
+```sh
+structor populate --workspace <workspace>
+```
+
+Use `--dry-run` to preview and `--yes` only for an explicitly approved
+non-interactive write. This command does not certify readiness.
+
+For deeper manual review, open the generated harness task:
 
 ```text
 ai/tasks/populate-generated-harness.md

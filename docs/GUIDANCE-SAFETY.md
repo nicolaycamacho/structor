@@ -76,10 +76,12 @@ guidance against the generated harness and propose reviewed updates for:
 - workflow and review guidance
 - project context that belongs in canonical harness docs
 
-Structor does not run this interpretive harness population during deterministic
-setup. The user runs the populate-generated-harness task locally, preferably
-with a frontier model such as GPT-5.5 or Opus 4.8, reviews the result manually,
-and commits only the guidance they accept.
+Structor does not run interpretive harness population during deterministic
+setup. After setup, `structor populate` can make preview-first deterministic
+starter updates to `ai/context.md` and `ai/workspace/REPOS.md` from local
+configuration and consumer evidence. It requires confirmation (or `--yes`) and
+does not call an LLM or external service. The user still reviews the result
+manually and commits only guidance they accept.
 
 Recommended workflow:
 
@@ -103,7 +105,8 @@ This means Structor files, routing, and deterministic setup gates completed, but
 the generated harness still needs reviewed project-specific guidance before it
 should steer real implementation work.
 
-After the user completes and manually verifies harness population:
+After the user completes and manually verifies or refines harness population,
+then completes a separate readiness review, the workspace may record:
 
 ```text
 setup_complete: true

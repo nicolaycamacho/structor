@@ -9,6 +9,7 @@ import readline from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
   assertSafeConsumerPath,
+  assertSafeWriteTarget,
   hasConsumerRepositorySignal,
   resolveHarnessConfig,
   validateConfigShape,
@@ -23,6 +24,8 @@ import {
 import {
   consumerEntrypointValues,
   harnessTemplateValues,
+  markdownCodeSpan,
+  markdownText,
 } from "../scripts/rendered-config.mjs";
 import {
   consumerEntrypointsForSettings,
@@ -35,6 +38,8 @@ const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
 const configFileName = "harness.config.json";
 const structorRepoUrlDefault = "https://github.com/nicolaycamacho/structor.git";
+const populateSectionStart = "<!-- structor:populate:start -->";
+const populateSectionEnd = "<!-- structor:populate:end -->";
 const reset = "\x1b[0m";
 const styles = {
   bold: "\x1b[1m",
@@ -139,7 +144,7 @@ export function parseArgs(argv) {
     else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
     else if (arg === "--preserve-existing-guidance") options.preserveExistingGuidance = true;
     else if (arg === "--force") options.force = true;
-    else if (arg === "--dry-run" && command === "contribute") options.dryRun = true;
+    else if (arg === "--dry-run" && (command === "contribute" || command === "populate")) options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
     else if (arg === "--repo-url" && command === "contribute") options.repoUrl = rest[++index];
     else if (arg === "--config") options.config = rest[++index];
@@ -167,7 +172,7 @@ function assertKnownOptionKeys(command, options, allowedKeys) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor generate --config <path> [generator options]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -584,6 +589,156 @@ async function discoverWorkspaceConfigPath(workspaceRoot, explicitConfigPath = n
 
   await visitDirectory(workspaceRoot);
   return matches.length === 1 ? matches[0] : workspaceConfigPath;
+}
+
+async function consumerPopulateEvidence(consumer) {
+  const packageJson = await maybeReadJson(path.join(consumer.root, "package.json"));
+  const validation = Object.entries(consumer.config.validation ?? {})
+    .filter(([, command]) => typeof command === "string" && command.trim() !== "")
+    .map(([name, command]) => `${name}: ${command}`);
+  const preservedRoot = path.join(consumer.root, ".structor", "preserved-guidance");
+  const preservedGuidance = (await isDirectory(preservedRoot))
+    ? (await readdir(preservedRoot, { withFileTypes: true }))
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => `.structor/preserved-guidance/${entry.name}`)
+      .sort()
+    : [];
+
+  return {
+    ...consumer,
+    packageName: typeof packageJson?.name === "string" ? packageJson.name : null,
+    packageDescription: typeof packageJson?.description === "string" ? packageJson.description : null,
+    validation,
+    preservedGuidance,
+  };
+}
+
+export function renderPopulateContextEvidence(consumers) {
+  const consumerLines = consumers.flatMap((consumer) => [
+    `- ${markdownCodeSpan(consumer.config.name)} at ${markdownCodeSpan(consumer.config.path)}.`,
+    ...(consumer.packageName ? [`  - Package: ${markdownCodeSpan(consumer.packageName)}.`] : []),
+    ...(consumer.packageDescription ? [`  - Description: ${markdownText(consumer.packageDescription)}.`] : []),
+    ...(consumer.validation.length > 0
+      ? [`  - Configured validation: ${consumer.validation.map(markdownCodeSpan).join(", ")}.`]
+      : ["  - Configured validation: none recorded in the harness config."]),
+    ...(consumer.preservedGuidance.length > 0
+      ? [`  - Preserved guidance detected: ${consumer.preservedGuidance.map(markdownCodeSpan).join(", ")}.`]
+      : []),
+  ]);
+  return `## Local Consumer Evidence
+
+${consumerLines.join("\n")}
+
+## Review Required
+
+- Confirm product, architecture, contracts, and workflow claims before relying on them.
+- Review preserved guidance as source material; do not copy it into canonical policy blindly.
+- Keep model overlays and consumer entrypoints thin.
+`;
+}
+
+export function renderPopulateReposEvidence(consumers) {
+  const consumerLines = consumers.flatMap((consumer) => [
+    `- ${markdownCodeSpan(consumer.config.name)}: ${markdownText(consumer.config.purpose)}`,
+    `  - Path: ${markdownCodeSpan(consumer.config.path)}`,
+    ...(consumer.validation.length > 0
+      ? [`  - Validation declared in config: ${consumer.validation.map(markdownCodeSpan).join(", ")}`]
+      : ["  - Validation declared in config: none"]),
+  ]);
+  return `## Local Consumer Evidence
+
+${consumerLines.join("\n")}
+
+Review this evidence before relying on it as durable policy.
+`;
+}
+
+function withPopulateSection(existingContent, evidence) {
+  const section = `${populateSectionStart}\n${evidence}${populateSectionEnd}`;
+  const startIndex = existingContent.indexOf(populateSectionStart);
+  const endIndex = existingContent.indexOf(populateSectionEnd);
+  if (startIndex === -1 || endIndex === -1 || endIndex < startIndex) {
+    return { action: "appended population section", content: `${existingContent.trimEnd()}\n\n${section}\n` };
+  }
+  return {
+    action: "will update existing populated section",
+    content: `${existingContent.slice(0, startIndex)}${section}${existingContent.slice(endIndex + populateSectionEnd.length)}`,
+  };
+}
+
+async function populate(options) {
+  const workspaceRoot = path.resolve(options.workspace ?? process.cwd());
+  const configPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
+  if (!(await exists(configPath))) {
+    throw new Error(`Structor setup is incomplete: no harness config found at ${configPath}. Run structor init first or pass --config.`);
+  }
+  const config = await readJson(configPath);
+  const resolvedConfig = await resolveHarnessConfig(config, {
+    label: configPath,
+    configPath,
+    outputPath: config.output.path,
+    requireExistingConsumers: true,
+  });
+  if (!(await isDirectory(resolvedConfig.outputRoot))) {
+    throw new Error(`Structor setup is incomplete: generated harness directory is missing at ${resolvedConfig.outputRoot}. Run structor init first.`);
+  }
+
+  const consumers = await Promise.all(resolvedConfig.consumers.map(consumerPopulateEvidence));
+  const plannedFiles = [
+    { relativePath: "ai/context.md", evidence: renderPopulateContextEvidence(consumers) },
+    { relativePath: "ai/workspace/REPOS.md", evidence: renderPopulateReposEvidence(consumers) },
+  ];
+  for (const file of plannedFiles) {
+    file.targetPath = path.join(resolvedConfig.outputRoot, file.relativePath);
+    file.previousContent = await readIfExists(file.targetPath);
+    if (file.previousContent === null) {
+      throw new Error(`Structor setup is incomplete: required canonical file is missing: ${file.targetPath}. Run structor init first.`);
+    }
+    const update = withPopulateSection(file.previousContent, file.evidence);
+    file.action = update.content === file.previousContent ? "unchanged" : update.action;
+    file.content = update.content;
+  }
+
+  section("Structor populate preview");
+  console.log(`Config: ${configPath}`);
+  console.log(`Generated harness: ${resolvedConfig.outputRoot}`);
+  for (const file of plannedFiles) console.log(`  - ${file.action} ${file.relativePath}`);
+  section("Review required");
+  warn("Review required: populated files are personalized starter guidance, not verified project truth.");
+  note("No LLMs, APIs, networks, package installs, commits, or external services are used.");
+  note("setup_complete remains true; guidance_ready remains false until human review.");
+  if (plannedFiles.some((file) => file.action === "will update existing populated section")) {
+    warn("Existing populated sections will be replaced; surrounding canonical content is preserved.");
+  }
+  if (options.dryRun) {
+    note("Dry run only. No files were written.");
+    return;
+  }
+  if (!options.yes && !process.stdin.isTTY) {
+    throw new Error("Structor populate requires --yes when stdin is not interactive.");
+  }
+  if (!options.yes) {
+    const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+    try {
+      if (!(await askYesNo(rl, "Write these canonical generated-harness updates?", false))) {
+        warn("Stopped before writing canonical guidance files.");
+        return;
+      }
+    } finally {
+      rl.close();
+    }
+  }
+  for (const file of plannedFiles) {
+    if (file.action === "unchanged") continue;
+    await assertSafeWriteTarget({
+      targetPath: file.targetPath,
+      rootPath: resolvedConfig.outputRoot,
+      label: `Populate target ${file.relativePath}`,
+    });
+    await writeFile(file.targetPath, file.content);
+    console.log(`wrote ${file.targetPath}`);
+  }
+  success("Structor populate completed. Review the generated guidance before treating it as ready.");
 }
 
 async function writeConfig(configPath, config) {
@@ -1603,6 +1758,12 @@ async function main() {
   }
   if (command === "generate") {
     passthroughGenerate(rawArgs);
+    return;
+  }
+  if (command === "populate") {
+    assertNoUnknownCommandFlags(command, options);
+    assertKnownOptionKeys(command, options, ["workspace", "config", "yes", "dryRun"]);
+    await populate(options);
     return;
   }
   if (command === "contribute") {

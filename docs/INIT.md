@@ -27,8 +27,8 @@ During local development from this repo, use:
 npm run init -- --workspace ..
 ```
 
-The current CLI supports `init`, `generate`, and `doctor`. It does not include a
-runner command.
+The current CLI supports `init`, `generate`, `populate`, and `doctor`. It does
+not include a runner command.
 
 ## Commands
 
@@ -41,6 +41,13 @@ and leaves any interpretive guidance migration as local post-init work.
 existing `harness.config.json` and renders the generated harness from committed
 templates. Use it when you already have a reviewed config or need to preview the
 rendered file plan with a dry run.
+
+`structor populate` is the local post-init personalization path. It inspects
+the configured consumer repositories and preserved-guidance directories, then
+previews deterministic updates to `ai/context.md` and `ai/workspace/REPOS.md`.
+`--dry-run` never writes; write mode warns, previews updates, and requires an
+interactive confirmation or `--yes`. It does not call LLMs, APIs, networks, or
+external services, and it leaves `guidance_ready: false` until user review.
 
 `structor doctor` is the inspection path. It should report local setup and
 guidance-readiness signals without becoming a repair loop, workflow runner, or
@@ -66,9 +73,9 @@ The default first-run path is:
 9. If root guidance exists, consent to preserve-and-replace or abort setup.
 10. Let Structor install or verify consumer and workspace entrypoints, then run
    generated governance and workspace completion gates before success.
-11. Use the generated populate-generated-harness task with a frontier model such
-   as GPT-5.5 or Opus 4.8 to migrate preserved guidance into canonical harness
-   docs before relying on the harness for real project work.
+11. Run `structor populate --workspace <workspace>` to preview deterministic
+   starter-guidance updates. Confirm only after reviewing the planned canonical
+   writes.
 12. Manually verify generated content, navigation, references, and commands,
    then write a final report with verification evidence and remaining risks.
 
@@ -271,18 +278,17 @@ Recommended post-init workflow:
    commands.
 5. Write a final report with verification evidence and remaining risks.
 
-After the user runs and manually verifies the local populate-generated-harness
-task:
+After the user runs `structor populate`, manually verifies or refines the local
+guidance, and completes a separate readiness review, the workspace may record:
 
 ```text
 setup_complete: true
 guidance_ready: true
 ```
 
-Structor does not run interpretive migration itself. It generates local
-population guidance/task material; the user runs that task locally with their
-preferred agent, preferably a frontier model such as GPT-5.5 or Opus 4.8, and
-manually verifies the result.
+Structor does not certify interpretive migration itself. `populate` only writes
+deterministic starter guidance from local evidence; it never mechanically
+promotes `guidance_ready` to true.
 
 ## Validation Split
 
