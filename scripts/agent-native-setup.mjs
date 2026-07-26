@@ -151,43 +151,6 @@ function enabledClients(config) {
 }
 
 const consumerValidationKinds = ["lint", "test", "build", "health"];
-function assertSafeConsumerValidationCommand(command, id) {
-  const shellControl = /[|&;<>\r\n`]|\$\(/;
-  const packageMutation = /(^|\s)(npm|pnpm|yarn|bun)\s+(install|add|remove|update|ci)\b/i;
-  const externalTool = /(^|\s)(curl|wget|ssh|scp|rsync|nc|netcat|gh)\b|(^|\s)git\s+push\b/i;
-  if (shellControl.test(command) || packageMutation.test(command) || externalTool.test(command)) {
-    throw new Error(
-      `Configured consumer validation ${id} is unsafe for agent-native setup; remove network, package-management, external-mutation, and shell-control operations.`,
-    );
-  }
-  consumerValidationInvocation(command, id);
-}
-
-function consumerValidationInvocation(command, id) {
-  const tokens = [];
-  let token = "";
-  let quote = null;
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index];
-    if (quote) {
-      if (character === quote) quote = null;
-      else token += character;
-    } else if (character === "'" || character === '"') {
-      quote = character;
-    } else if (/\s/.test(character)) {
-      if (token) {
-        tokens.push(token);
-        token = "";
-      }
-    } else {
-      token += character;
-    }
-  }
-  if (quote) throw new Error(`Configured consumer validation ${id} has an unterminated quote.`);
-  if (token) tokens.push(token);
-  if (tokens.length === 0) throw new Error(`Configured consumer validation ${id} is empty.`);
-  return { executable: tokens[0], args: tokens.slice(1) };
-}
 
 function evidenceBundleRoot(workspaceRoot, planId) {
   return path.join(workspaceRoot, "evidence", "setup", planId);
@@ -210,7 +173,6 @@ function plannedConsumerValidationCommands(resolvedConfig, workspaceRoot) {
     consumerValidationKinds.flatMap((kind) => {
       const command = consumer.config.validation[kind];
       if (!command) return [];
-      assertSafeConsumerValidationCommand(command, `${consumer.config.name}-${kind}`);
       return [{
         id: `${consumer.config.name}-${kind}`,
         cwd: repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root),
@@ -499,24 +461,13 @@ function validationResults(plan, statuses, rollback = false) {
           ? (rollback
             ? "This validation failed and the structural transaction rolled back."
             : "Configured consumer validation failed without rolling back setup.")
-          : "The validation was skipped because setup did not reach this gate.",
+          : gate.required
+            ? "The validation was skipped because setup did not reach this gate."
+            : "Configured consumer validation was skipped because its side effects cannot be constrained by the setup transaction.",
     };
   });
 }
 
-function runConsumerValidations(plan, workspaceRoot, statuses) {
-  for (let index = 3; index < plan.commands.length; index += 1) {
-    const plannedCommand = plan.commands[index];
-    const invocation = consumerValidationInvocation(plannedCommand.command, plannedCommand.command);
-    const result = spawnSync(invocation.executable, invocation.args, {
-      cwd: path.join(workspaceRoot, plannedCommand.cwd),
-      encoding: "utf8",
-      shell: false,
-      stdio: ["ignore", "pipe", "pipe"],
-    });
-    statuses[index] = result.status === 0 ? "passed" : "failed";
-  }
-}
 
 async function finalizeSuccessfulExecution({
   plan,
@@ -527,11 +478,10 @@ async function finalizeSuccessfulExecution({
   statuses,
   executedAt,
 }) {
-  runConsumerValidations(plan, workspaceRoot, statuses);
-  const consumerFailures = plan.commands
+  const skippedConsumerValidations = plan.commands
     .map((command, index) => ({ command, status: statuses[index] }))
     .filter(({ command, status }) =>
-      command.phase === "consumer-validation" && status === "failed");
+      command.phase === "consumer-validation" && status === "skipped");
   const result = {
     contractVersion: plan.contractVersion,
     schemaVersion: plan.schemaVersion,
@@ -546,8 +496,8 @@ async function finalizeSuccessfulExecution({
     evidenceBundle: `evidence/setup/${plan.planId}`,
     unresolvedRisks: [
       "Populated natural-language guidance requires human review",
-      ...consumerFailures.map(({ command }) =>
-        `Consumer validation failed without rolling back setup: ${command.command}`),
+      ...skippedConsumerValidations.map(({ command }) =>
+        `Consumer validation skipped because its effects cannot be constrained: ${command.command}`),
     ],
   };
   const evidence = await writeEvidenceBundle({

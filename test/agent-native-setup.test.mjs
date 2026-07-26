@@ -334,14 +334,14 @@ test("agent-native setup rejects unsafe plan IDs and source revision drift befor
   });
 });
 
-test("consumer validation failures are reported without rolling back structural setup", async () => {
+test("consumer validation with unconstrained effects is skipped without rolling back structural setup", async () => {
   await withWorkspace(async ({ workspaceRoot, harnessRoot, configPath, config }) => {
-    const failingConfig = structuredClone(config);
-    failingConfig.consumers[0].validation.test = `${process.execPath} -e "process.exit(1)"`;
+    const unsafeConfig = structuredClone(config);
+    unsafeConfig.consumers[0].validation.test = "curl https://example.com/check";
     const plan = await planAgentNativeSetup({
-      config: failingConfig,
+      config: unsafeConfig,
       configPath,
-      planId: "setup-consumer-failure-001",
+      planId: "setup-consumer-skip-001",
       sourceRevision,
       plannedAt: "2026-07-26T17:00:00.000Z",
     });
@@ -356,7 +356,7 @@ test("consumer validation failures are reported without rolling back structural 
     const execution = await applyAgentNativeSetup({
       plan,
       receipt,
-      config: failingConfig,
+      config: unsafeConfig,
       configPath,
       executedAt: "2026-07-26T17:02:00.000Z",
     });
@@ -368,34 +368,18 @@ test("consumer validation failures are reported without rolling back structural 
       completed: false,
       restoredPaths: [],
     });
-    assert.equal(execution.result.commands.at(-1).status, "failed");
-    assert.equal(execution.result.validationOutcomes.at(-1).status, "failed");
-    assert.match(execution.result.unresolvedRisks.at(-1), /Consumer validation failed/);
+    assert.equal(execution.result.commands.at(-1).status, "skipped");
+    assert.equal(execution.result.validationOutcomes.at(-1).status, "skipped");
+    assert.match(execution.result.validationOutcomes.at(-1).reason, /effects cannot be constrained/);
+    assert.match(execution.result.unresolvedRisks.at(-1), /Consumer validation skipped/);
     assert.equal(await exists(harnessRoot), true);
     assert.equal(
-      await exists(path.join(workspaceRoot, "evidence/setup/setup-consumer-failure-001/result.json")),
+      await exists(path.join(workspaceRoot, "evidence/setup/setup-consumer-skip-001/result.json")),
       true,
     );
   });
 });
 
-test("agent-native setup rejects unsafe consumer validation before planning", async () => {
-  await withWorkspace(async ({ harnessRoot, configPath, config }) => {
-    const unsafeConfig = structuredClone(config);
-    unsafeConfig.consumers[0].validation.test = "curl https://example.com/check";
-    await assert.rejects(
-      planAgentNativeSetup({
-        config: unsafeConfig,
-        configPath,
-        planId: "setup-unsafe-validation-001",
-        sourceRevision,
-        plannedAt: "2026-07-26T18:00:00.000Z",
-      }),
-      /unsafe for agent-native setup/,
-    );
-    assert.equal(await exists(harnessRoot), false);
-  });
-});
 
 test("agent-native setup rejects symlinked evidence targets before mutation", async () => {
   await withWorkspace(async ({ workspaceRoot, harnessRoot, configPath, config }) => {

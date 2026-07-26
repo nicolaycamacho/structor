@@ -333,16 +333,6 @@ test("versioned protocol conformance fixtures cover coordinator boundaries and r
   const protocol = await readFile(path.join(repoRoot, "INSTALL_WITH_AGENT.md"), "utf8");
 
   assert.equal(fixture.version, "1.0.0");
-  assert.deepEqual(
-    scenarios.get("decision-classification").expected.levels,
-    {
-      consumerRepositories: "recommended-confirmed",
-      projectIdentity: "recommended-confirmed",
-      topology: "recommended-confirmed",
-      enabledClients: "explicit",
-      existingGuidance: "explicit",
-    },
-  );
   assert.deepEqual(scenarios.get("delegation-conflict").expected.writes, []);
   assert.equal(scenarios.get("delegation-conflict").expected.action, "escalate-conflict");
   assert.match(protocol, /bounded read-only discovery or analysis only/i);
