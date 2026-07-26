@@ -1,5 +1,8 @@
 import path from "node:path";
 
+import {
+  expandedHarnessProfile,
+} from "./generated-harness-contract.mjs";
 import { createTopologyPlan } from "./topology-plan.mjs";
 
 const rawSlugPattern = /^[a-z0-9][a-z0-9-]*$/;
@@ -70,7 +73,7 @@ function consumerConfig(resolvedConsumers) {
 }
 
 function expandedProfileRouting(profile) {
-  if (profile !== "expanded") {
+  if (profile !== expandedHarnessProfile) {
     return "- Advanced contracts, review structures, quality tracking, model overlays, plans, and specialized templates are available by setting `profile` to `expanded` and regenerating after review.";
   }
   return [
@@ -88,7 +91,7 @@ function expandedProfileRouting(profile) {
 }
 
 function expandedReadinessGates(profile) {
-  if (profile !== "expanded") return "";
+  if (profile !== expandedHarnessProfile) return "";
   return [
     "| Overlay drift | `node scripts/check-overlay-drift.mjs` | Required when a model overlay is enabled |",
     "| Claude compatibility | `node scripts/check-claude-compatibility.mjs` | Required when Anthropic support is enabled |",
@@ -96,7 +99,7 @@ function expandedReadinessGates(profile) {
 }
 
 function expandedReadinessDomains(profile) {
-  if (profile !== "expanded") return "";
+  if (profile !== expandedHarnessProfile) return "";
   return [
     "- `ai/contracts/*` reflects real repo boundaries and protected surfaces.",
     "- `ai/templates/task-brief-template.md` matches the team task intake shape.",
@@ -114,7 +117,7 @@ function guidanceMigrationConsumerSections(plan, preservedGuidanceByConsumer = {
       "  ai/PRODUCT-SUMMARY.md",
       "  ai/WORKFLOW.md",
       "  ai/READINESS.md",
-      ...(plan.profile === "expanded"
+      ...(plan.profile === expandedHarnessProfile
         ? [
             "  ai/ARCHITECTURE.md",
             "  ai/QUALITY.md",

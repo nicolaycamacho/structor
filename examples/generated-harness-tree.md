@@ -4,7 +4,7 @@ This checked-in file is a text artifact for public inspection. It is not a gener
 
 The tree below is derived from the checked-in example configs and `scripts/generated-harness-contract.mjs`. `npm run check:ci` verifies that this artifact stays synchronized with the expected generated file, workspace pointer, and consumer pointer surfaces.
 
-## OpenAI-only example
+## OpenAI-only - focused profile example
 
 Source config: `examples/single-repo/harness.config.json`
 
@@ -40,7 +40,7 @@ workspace/
     AGENTS.md  # consumer pointer to example-frontend-structor/consumer/AGENTS.md
 ```
 
-## Anthropic-only example
+## Anthropic-only - focused profile example
 
 Source config: `examples/anthropic-only/harness.config.json`
 
@@ -72,7 +72,7 @@ workspace/
     CLAUDE.md  # consumer pointer to example-api-structor/consumer/CLAUDE.md
 ```
 
-## OpenAI and Anthropic example
+## OpenAI and Anthropic - expanded profile example
 
 Source config: `examples/frontend-backend/harness.config.json`
 
@@ -179,7 +179,7 @@ workspace/
     CLAUDE.md  # consumer pointer to example-platform-structor/consumer/CLAUDE.md
 ```
 
-## OpenAI and Anthropic example
+## OpenAI and Anthropic - focused profile example
 
 Source config: `examples/openai-and-anthropic/harness.config.json`
 
