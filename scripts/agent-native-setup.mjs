@@ -532,6 +532,8 @@ export async function applyAgentNativeSetup({
       },
       beforeCompletionGates: async () => {
         await writeFile(path.join(candidate.workspaceRoot, contextWrite.path), contextContent);
+      },
+      afterCompletionGates: async () => {
         for (const write of plan.writes) {
           const content = await readFile(path.join(candidate.workspaceRoot, write.path));
           const contentHash = sha256(content);
@@ -540,8 +542,6 @@ export async function applyAgentNativeSetup({
           }
           actualWrites.push({ path: write.path, contentHash });
         }
-      },
-      afterCompletionGates: async () => {
         successfulExecution = await finalizeSuccessfulExecution({
           plan,
           receipt,
