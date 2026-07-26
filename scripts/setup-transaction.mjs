@@ -217,16 +217,38 @@ async function restoreTree(rootPath, snapshots, rollbackRoot = rootPath) {
   await restoreSnapshots(snapshots, rollbackRoot);
 }
 
-export async function planSetupTransaction({ config, configPath, force = false, preservationTimestamp = filesystemTimestamp() }) {
+export async function planSetupTransaction({
+  config,
+  configPath,
+  force = false,
+  preservationTimestamp = filesystemTimestamp(),
+  generationTimestamp = new Date().toISOString(),
+}) {
   const renderedConfig = configContent(config);
-  const dryRunGenerated = await generateHarness(config, {
+  let dryRunGenerated = await generateHarness(config, {
     configPath,
     configContent: renderedConfig,
     requireExistingConsumers: true,
     force,
     dryRun: true,
+    generatedAt: generationTimestamp,
   });
   const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
+  const preservedGuidanceByConsumer = preservedGuidancePlan(
+    rootGuidanceConflicts,
+    preservationTimestamp,
+  );
+  if (rootGuidanceConflicts.length > 0) {
+    dryRunGenerated = await generateHarness(config, {
+      configPath,
+      configContent: renderedConfig,
+      requireExistingConsumers: true,
+      force,
+      dryRun: true,
+      generatedAt: generationTimestamp,
+      preservedGuidanceByConsumer,
+    });
+  }
   return {
     config,
     configPath,
@@ -237,7 +259,8 @@ export async function planSetupTransaction({ config, configPath, force = false, 
     rootGuidanceConflicts,
     rootGuidanceConflictGroups: groupedGuidanceConflicts(rootGuidanceConflicts),
     preservationTimestamp,
-    preservedGuidanceByConsumer: preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp),
+    generationTimestamp,
+    preservedGuidanceByConsumer,
   };
 }
 
@@ -250,6 +273,11 @@ export async function applySetupTransaction(plan, {
     if (result.stderr) process.stderr.write(result.stderr);
   },
   onConfigWritten = () => {},
+  beforeCompletionGates = async () => {},
+  afterCompletionGates = async () => {},
+  onCommandStatus = () => {},
+  createRegenerationBackup = true,
+  rollbackTrees = [],
 } = {}) {
   if (plan.rootGuidanceConflicts.length > 0 && !preserveExistingGuidance) {
     throw new Error(
@@ -287,6 +315,7 @@ export async function applySetupTransaction(plan, {
     workspaceSnapshots,
     consumerSnapshots,
     preservationSnapshots,
+    rollbackTreeSnapshots,
   ] = await Promise.all([
     snapshotTargets(harnessTargets),
     snapshotTree(path.join(harnessRoot, "ai", "views")),
@@ -295,6 +324,7 @@ export async function applySetupTransaction(plan, {
     Promise.all(
       preservationTargets.map(async ({ preservationPath }) => snapshotTree(preservationPath)),
     ),
+    Promise.all(rollbackTrees.map(({ rootPath }) => snapshotTree(rootPath))),
   ]);
 
   try {
@@ -306,6 +336,8 @@ export async function applySetupTransaction(plan, {
       force,
       dryRun: false,
       preservedGuidanceByConsumer: plan.preservedGuidanceByConsumer,
+      generatedAt: plan.generationTimestamp,
+      createRegenerationBackup,
     });
     assertGeneratedScriptsReady(generated.generatedFiles, topologyPlan);
 
@@ -320,21 +352,31 @@ export async function applySetupTransaction(plan, {
       preserveExistingGuidance,
       preservationTimestamp: plan.preservationTimestamp,
       preservedGuidanceByConsumer: plan.preservedGuidanceByConsumer,
+      generatedAt: plan.generationTimestamp,
     });
 
+    await beforeCompletionGates({ generated, resolvedConfig });
     const completedScripts = [];
     for (const script of completionScriptsForPlan(topologyPlan)) {
       if (script.phase) onPhase(script.phase);
-      await executeGeneratedScript({
-        harnessRoot,
-        relativeScriptPath: script.relativeScriptPath,
-        args: script.relativeScriptPath === "scripts/bootstrap-workspace.mjs" && force ? ["--force"] : [],
-        failureLabel: script.failureLabel,
-        onCommandOutput,
-      });
+      onCommandStatus({ script, status: "running" });
+      try {
+        await executeGeneratedScript({
+          harnessRoot,
+          relativeScriptPath: script.relativeScriptPath,
+          args: script.relativeScriptPath === "scripts/bootstrap-workspace.mjs" && force ? ["--force"] : [],
+          failureLabel: script.failureLabel,
+          onCommandOutput,
+        });
+      } catch (error) {
+        onCommandStatus({ script, status: "failed" });
+        throw error;
+      }
+      onCommandStatus({ script, status: "passed" });
       completedScripts.push(script.relativeScriptPath);
     }
 
+    await afterCompletionGates({ completedScripts, generated, resolvedConfig });
     return {
       setupComplete: true,
       completedScripts,
@@ -347,6 +389,10 @@ export async function applySetupTransaction(plan, {
       for (let index = 0; index < preservationTargets.length; index += 1) {
         const { consumerRoot, preservationPath } = preservationTargets[index];
         await restoreTree(preservationPath, preservationSnapshots[index], consumerRoot);
+      }
+      for (let index = 0; index < rollbackTrees.length; index += 1) {
+        const { rootPath, rollbackRoot = rootPath } = rollbackTrees[index];
+        await restoreTree(rootPath, rollbackTreeSnapshots[index], rollbackRoot);
       }
       await restoreSnapshots(consumerSnapshots, resolvedConfig.workspaceRoot);
       await restoreSnapshots(workspaceSnapshots, resolvedConfig.workspaceRoot);

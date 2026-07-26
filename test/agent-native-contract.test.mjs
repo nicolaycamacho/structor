@@ -190,7 +190,7 @@ test("versioned setup evidence fixtures conform to the public artifact schemas",
   }
 });
 
-test("agent installation contract stays non-promotional while foundations are open", async () => {
+test("agent installation contract documents the supported flow and reconciled foundations", async () => {
   const contract = await readFile(path.join(repoRoot, "INSTALL_WITH_AGENT.md"), "utf8");
   const requiredSections = [
     "## Release Gate",
@@ -207,9 +207,11 @@ test("agent installation contract stays non-promotional while foundations are op
     "## Final Report",
   ];
 
-  assert.match(contract, /Status: contract-only/i);
+  assert.match(contract, /Status: supported and recommended/i);
   assert.match(contract, /#88[\s\S]*#100[\s\S]*#105[\s\S]*#107/);
-  assert.match(contract, /must not run or orchestrate agents/i);
+  assert.match(contract, /does not run or orchestrate agents/i);
+  assert.match(contract, /structor agent plan/);
+  assert.match(contract, /structor agent apply/);
   for (const section of requiredSections) assert.ok(contract.includes(section), `Missing ${section}`);
 });
 
@@ -322,4 +324,35 @@ test("setup evidence fixture binds the approved plan and every reported artifact
   for (const command of result.commands) {
     assert.ok(report.includes(`Command: \`${command.command}\` (cwd: \`${command.cwd}\`, status: \`${command.status}\`)`));
   }
+});
+test("versioned protocol conformance fixtures cover coordinator boundaries and readiness", async () => {
+  const fixture = JSON.parse(
+    await readFile(path.join(repoRoot, "fixtures/agent-native/protocol-conformance.json"), "utf8"),
+  );
+  const scenarios = new Map(fixture.scenarios.map((scenario) => [scenario.id, scenario]));
+  const protocol = await readFile(path.join(repoRoot, "INSTALL_WITH_AGENT.md"), "utf8");
+
+  assert.equal(fixture.version, "1.0.0");
+  assert.deepEqual(scenarios.get("delegation-conflict").expected.writes, []);
+  assert.equal(scenarios.get("delegation-conflict").expected.action, "escalate-conflict");
+  assert.match(protocol, /bounded read-only discovery or analysis only/i);
+  assert.match(protocol, /Material conflicts return to the coordinator/i);
+  assert.equal(scenarios.get("active-skill-conflict").expected.action, "stop-before-planning");
+  assert.match(protocol, /Discovery must stop if any required instruction would trigger edits/i);
+  assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.allowed, ["consumer/package.json"]);
+  assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.writes, []);
+  for (const forbidden of scenarios.get("forbidden-read-boundary").expected.forbidden) {
+    const requiredBoundary = forbidden.includes("src/")
+      ? /source bodies/i
+      : forbidden.includes(".env")
+        ? /credentials/i
+        : /unrelated sibling repositories/i;
+    assert.match(protocol, requiredBoundary, forbidden);
+  }
+  assert.deepEqual(scenarios.get("consumer-readiness").expected, {
+    executionOutcome: "applied",
+    readiness: "ready_with_warnings",
+    rollback: false,
+  });
+  assert.match(protocol, /consumer lint, test, build, or optional readiness failure[\s\S]*does not by itself roll back setup/i);
 });

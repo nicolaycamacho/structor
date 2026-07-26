@@ -25,6 +25,9 @@ npx @structor-dev/cli init
 previews the planned setup transaction, writes a generated harness only after
 approval, installs or verifies thin agent entrypoints, and reports setup
 completion after deterministic local gates pass.
+For the plan-hash-approval flow used by coding agents and manual automation,
+see [Install Structor With An Agent](INSTALL_WITH_AGENT.md).
+
 
 It creates a sibling generated harness repo:
 
@@ -49,6 +52,7 @@ scripts/            generated validation and workspace checks
 - [Docs index](docs/index.md)
 - [Quickstart](docs/guides/quickstart.md)
 - [Setting up a harness](docs/guides/setting-up-a-harness.md)
+- [Install with an agent](INSTALL_WITH_AGENT.md)
 - [Populating a harness](docs/guides/populating-a-harness.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
 - [What Structor is](docs/concepts/what-structor-is.md)

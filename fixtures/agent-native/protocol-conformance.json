@@ -1,0 +1,86 @@
+{
+  "version": "1.0.0",
+  "scenarios": [
+    {
+      "id": "decision-classification",
+      "input": {
+        "facts": [
+          "package-json-name"
+        ],
+        "choices": [
+          "consumer-repositories",
+          "project-identity",
+          "topology",
+          "enabled-clients",
+          "existing-guidance"
+        ]
+      },
+      "expected": {
+        "levels": {
+          "consumerRepositories": "recommended-confirmed",
+          "projectIdentity": "recommended-confirmed",
+          "topology": "recommended-confirmed",
+          "enabledClients": "explicit",
+          "existingGuidance": "explicit"
+        },
+        "mutation": "none-before-hash-approval"
+      }
+    },
+    {
+      "id": "delegation-conflict",
+      "input": {
+        "workerScope": "approved-consumers-read-only",
+        "findingConflict": true
+      },
+      "expected": {
+        "owner": "coordinator",
+        "action": "escalate-conflict",
+        "writes": []
+      }
+    },
+    {
+      "id": "active-skill-conflict",
+      "input": {
+        "requiredAction": "edit-before-plan-approval"
+      },
+      "expected": {
+        "action": "stop-before-planning",
+        "writes": []
+      }
+    },
+    {
+      "id": "forbidden-read-boundary",
+      "input": {
+        "candidates": [
+          "consumer/package.json",
+          "consumer/src/app.js",
+          "consumer/.env",
+          "sibling/package.json"
+        ]
+      },
+      "expected": {
+        "allowed": [
+          "consumer/package.json"
+        ],
+        "forbidden": [
+          "consumer/src/app.js",
+          "consumer/.env",
+          "sibling/package.json"
+        ],
+        "writes": []
+      }
+    },
+    {
+      "id": "consumer-readiness",
+      "input": {
+        "structuralGates": "passed",
+        "consumerTest": "failed"
+      },
+      "expected": {
+        "executionOutcome": "applied",
+        "readiness": "ready_with_warnings",
+        "rollback": false
+      }
+    }
+  ]
+}

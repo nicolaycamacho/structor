@@ -1,42 +1,90 @@
 # Install Structor With An Agent
 
-Status: contract-only; not yet a supported or recommended installation path.
+Status: supported and recommended for deterministic focused-profile setup.
 
-This file is the model-neutral protocol for a future Agent-Native Setup flow.
-The host coding agent owns the conversation and calls deterministic Structor
-interfaces. Structor must not run or orchestrate agents, call an LLM API, or
-mutate external systems.
+This file is the model-neutral Agent-Native Setup protocol. The host coding
+agent owns the conversation and calls deterministic Structor interfaces.
+Structor does not run or orchestrate agents, call an LLM API, or mutate
+external systems.
 
 ## Release Gate
 
-Do not present Agent-Native Setup as available or recommended until the
-deterministic foundations owned by #88, #100, #105, and #107 are implemented or
-explicitly reconciled and an end-to-end conformance fixture passes.
+The deterministic foundations from #88, #100, #105, and #107 are reconciled in
+the supported plan/apply path. End-to-end conformance covers immutable planning,
+exact hash approval, preservation, population, validation, rollback, evidence,
+and manual CLI parity.
 
-- #88 owns deterministic post-init population.
-- #100 owns safety backups before potentially destructive regeneration.
-- #105 owns setup transaction ordering, apply, completion gates, and rollback.
-- #107 owns the reusable topology plan.
+The supported adapter currently accepts the `focused` harness profile. Other
+profiles must use the guided `structor init` flow until their agent-native
+conformance fixtures are added.
+The supported adapter creates fresh harness and workspace entrypoints. Existing
+consumer-root guidance is preserved at deterministic planned paths; regenerate
+an existing Structor harness through the guided `structor init` flow.
 
-The current contract slice defines schemas, canonical hashing, approval binding,
-and fixtures only. It does not define an apply command and does not authorize an
-agent to improvise one from internal modules.
+
+## Pasteable Bootstrap Prompt
+
+```text
+Install Structor using the model-neutral protocol in INSTALL_WITH_AGENT.md from
+the exact Structor revision <40-character-sha>. Inspect only the workspace
+<absolute-workspace-path> and the consumer repositories I explicitly approve.
+Prepare the focused-profile config draft outside the workspace, run
+`structor agent plan`, show me the complete immutable plan and its canonical
+hash, and wait for my explicit approval of that exact hash before running
+`structor agent apply`. Preserve existing root guidance, make no application
+source changes, and report execution outcome and readiness separately.
+```
 
 ## Supported Invocation
 
-No invocation is supported while the release gate is closed. A future supported
-adapter may start from the public repository or a release URL, but before reading
-this protocol for execution it must resolve an immutable release or 40-character
-commit and record that revision in the installation plan.
+Run the adapter from an immutable package that records `gitHead`, or from a
+clean Git checkout at the exact 40-character commit supplied to
+`--source-revision`. Prepare a
+config draft outside the selected workspace using the normal config shape from
+`harness.config.example.json`; the adapter derives `workspace.root` and the
+final harness config path from `--workspace` and `output.path`.
 
-A future thin adapter may use this bootstrap prompt after the release gate opens:
+```bash
+structor agent plan \
+  --workspace /absolute/path/to/workspace \
+  --config-draft /tmp/harness-config-draft.json \
+  --plan-id setup-20260726-001 \
+  --source-revision 0123456789abcdef0123456789abcdef01234567 \
+  > /tmp/installation-plan.json
 
-> Read `INSTALL_WITH_AGENT.md` from the exact Structor revision I provide. Check
-> its release gate, perform bounded read-only discovery, ask one decision at a
-> time, and stop before writes until I approve the exact canonical plan hash.
+structor agent hash --plan /tmp/installation-plan.json
+```
 
-Never execute a mutable `main`-branch copy of this contract without first pinning
-the exact revision that was read.
+The plan command writes JSON only to stdout. Structor does not mutate the
+selected workspace; any redirected plan artifact is created by the invoking
+shell and should remain outside that workspace until approval.
+
+Review the complete plan and create an approval receipt for the printed hash:
+
+```json
+{
+  "contractVersion": "1.0.0",
+  "schemaVersion": "1.0.0",
+  "planHash": "sha256:<exact-plan-hash>",
+  "approvedAt": "<ISO-8601 timestamp>",
+  "acknowledgement": "I approve this exact installation plan."
+}
+```
+
+Then apply the exact pair:
+
+```bash
+structor agent apply \
+  --workspace /absolute/path/to/workspace \
+  --config-draft /tmp/harness-config-draft.json \
+  --plan /tmp/installation-plan.json \
+  --approval /tmp/approval-receipt.json
+```
+
+Apply recomputes the plan from current state and rejects config, source,
+rendered-byte, or approval-hash drift before workspace mutation. Never execute
+a mutable `main`-branch copy without first pinning the exact revision read.
+The executing package or clean checkout must match the requested revision.
 
 ## Version Pinning
 
@@ -65,7 +113,7 @@ an approval receipt whose plan hash differs from the exact plan supplied.
 
 ## Guided Flow
 
-After the release gate opens, the coordinator follows these phases:
+The coordinator follows these phases:
 
 1. Explain the current phase briefly and check active host instructions.
 2. Pin the Structor source and contract versions.
@@ -199,7 +247,7 @@ failures block readiness. Skipped optional checks produce warnings.
 
 Retry requires a fresh state check. If the intended plan changes, obtain a new
 hash and approval. Recovery instructions must identify backups and preserved
-guidance once the #100 backup foundation supplies their stable paths.
+guidance at the stable paths recorded in the approved plan and evidence bundle.
 
 ## Delegation And Active Skills
 
@@ -219,11 +267,11 @@ writes, commits, delegated mutations, or other changes before plan approval.
 
 ## Manual-Flow Parity
 
-The manual CLI remains complete and supported while this release gate is closed.
-After integration, conversational and manual flows may gather decisions
-differently, but both must produce the same plan, approval, result, rollback,
-validation, readiness, and evidence contracts. No adapter may weaken the manual
-flow's preservation or confirmation guarantees.
+The public `structor agent plan|hash|apply` CLI and conversational hosts call
+the same deterministic planning and application seams. They may gather
+decisions differently, but both produce the same plan, approval, result,
+rollback, validation, readiness, and evidence contracts. No adapter may weaken
+the manual flow's preservation or confirmation guarantees.
 
 ## Validation Gates
 

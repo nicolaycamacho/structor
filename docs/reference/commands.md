@@ -1,7 +1,7 @@
 # Commands
 
-The current CLI supports `init`, `generate`, `contribute structor`, and
-`doctor`. It does not include a runner command.
+The current CLI supports `init`, `agent`, `generate`, `contribute structor`,
+and `doctor`. It does not include a runner command.
 
 ## `structor init`
 
@@ -19,8 +19,25 @@ Useful options include:
 - `--preserve-existing-guidance`
 
 `--yes` is not permission to replace existing non-matching root guidance. Use
-`--preserve-existing-guidance` only when preserve-then-replace is explicitly
-intended.
+`--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
+
+## `structor agent`
+
+Produce, hash, and apply the immutable Agent-Native Setup contract:
+
+```sh
+structor agent plan --workspace <path> --config-draft <path> \
+  --plan-id <id> --source-revision <40-character-sha>
+structor agent hash --plan <installation-plan.json>
+structor agent apply --workspace <path> --config-draft <path> \
+  --plan <installation-plan.json> --approval <approval-receipt.json>
+```
+
+The plan command emits JSON without mutating the selected workspace. Apply
+requires an approval receipt bound to the exact canonical plan hash. See
+[Install Structor With An Agent](../../INSTALL_WITH_AGENT.md) for the complete
+model-neutral protocol.
+
 
 ## `structor generate`
 

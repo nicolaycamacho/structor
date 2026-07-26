@@ -47,6 +47,8 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 | File | Responsibility | Reads | Writes |
 | --- | --- | --- | --- |
 | `bin/structor.mjs` | Public CLI router and setup wizard shell. | `package.json`, harness config, workspace files, generator modules. | Generated harness files, workspace entrypoints, consumer entrypoints, contributor workspace files after preview/consent. |
+| `scripts/agent-native-cli.mjs` | Deterministic agent-native plan, hash, and apply command adapter. | Config draft, plan, approval receipt, setup modules. | Approved planned setup writes and canonical evidence bundle during apply only. |
+| `scripts/agent-native-setup.mjs` | Shared agent-native plan/apply implementation. | Config, consumer package manifests, current planned target state. | Exact approved setup writes, rollback restoration, and evidence bundle. |
 | `scripts/setup-transaction.mjs` | In-process setup transaction planner and applier. | Resolved init config, initializer results, generated completion scripts. | Generated harness, durable config, consumer/workspace entrypoints, rollback restoration on failure. |
 | `scripts/init-harness.mjs` | Deterministic initializer and template renderer. | `harness.config.json`, `template/**`, schema/helper modules. | Generated harness repository files and optional consumer entrypoints. |
 | `scripts/setup-contributor.mjs` | Manual Structor contributor setup helper. | `contrib/self-harness/**`, source checkout state. | Sibling `structor-self` harness and optional source-repo pointer files. |
@@ -143,6 +145,7 @@ Do not put Structor-specific product content into active generic templates under
 | Change area | Read first | Validate |
 | --- | --- | --- |
 | CLI command routing or setup wizard behavior | `AGENTS.md`, `CONTEXT.md`, `bin/structor.mjs`, `scripts/setup-transaction.mjs`, `scripts/init-harness.mjs`, `test/cli.test.mjs`, `test/setup-transaction.test.mjs` | `npm run check:ci`, `npm test`, `npm run validate` |
+| Agent-native plan/apply behavior | `INSTALL_WITH_AGENT.md`, `scripts/agent-native-cli.mjs`, `scripts/agent-native-setup.mjs`, `scripts/agent-native-contract.mjs`, `test/agent-native-*.test.mjs` | Focused agent-native tests, `npm run check:ci`, `npm run validate` |
 | Deterministic generation | `scripts/init-harness.mjs`, `scripts/rendered-config.mjs`, `scripts/generated-harness-contract.mjs`, `template/**` | `npm run check:templates`, `npm run check:contracts`, `npm run check:smoke`, `npm run validate` |
 | Template or generated policy content | `template/ai/HARNESS.md.tpl`, `template/ai/HUB.md.tpl`, relevant template file, `scripts/generated-harness-contract.mjs` | `npm run check:templates`, `npm run check:placeholders`, `npm run check:smoke` |
 | Config schema or examples | `schemas/harness-config.schema.json`, `harness.config.example.json`, `examples/**`, `scripts/check-config.mjs`, `scripts/check-schemas.mjs` | `npm run check:config`, `npm run check:schemas`, `npm run check:examples` |
@@ -158,6 +161,10 @@ Do not put Structor-specific product content into active generic templates under
 - `bin/structor.mjs`
 - `scripts/setup-transaction.mjs`
 - `scripts/init-harness.mjs`
+- `scripts/agent-native-cli.mjs`
+- `scripts/agent-native-setup.mjs`
+- `test/agent-native-cli.test.mjs`
+- `test/agent-native-setup.test.mjs`
 - `scripts/lib.mjs`
 - `scripts/rendered-config.mjs`
 - `test/cli.test.mjs`
