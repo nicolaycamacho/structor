@@ -19,6 +19,7 @@ import {
   planConsumerRootGuidancePreservation,
 } from "./init-harness.mjs";
 import { markdownCodeSpan } from "./rendered-config.mjs";
+import { assertSafeWriteTarget } from "./lib.mjs";
 import { applySetupTransaction, planSetupTransaction } from "./setup-transaction.mjs";
 
 const populateSectionStart = "<!-- structor:populate:start -->";
@@ -150,12 +151,66 @@ function enabledClients(config) {
 }
 
 const consumerValidationKinds = ["lint", "test", "build", "health"];
+function assertSafeConsumerValidationCommand(command, id) {
+  const shellControl = /[|&;<>\r\n`]|\$\(/;
+  const packageMutation = /(^|\s)(npm|pnpm|yarn|bun)\s+(install|add|remove|update|ci)\b/i;
+  const externalTool = /(^|\s)(curl|wget|ssh|scp|rsync|nc|netcat|gh)\b|(^|\s)git\s+push\b/i;
+  if (shellControl.test(command) || packageMutation.test(command) || externalTool.test(command)) {
+    throw new Error(
+      `Configured consumer validation ${id} is unsafe for agent-native setup; remove network, package-management, external-mutation, and shell-control operations.`,
+    );
+  }
+  consumerValidationInvocation(command, id);
+}
+
+function consumerValidationInvocation(command, id) {
+  const tokens = [];
+  let token = "";
+  let quote = null;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index];
+    if (quote) {
+      if (character === quote) quote = null;
+      else token += character;
+    } else if (character === "'" || character === '"') {
+      quote = character;
+    } else if (/\s/.test(character)) {
+      if (token) {
+        tokens.push(token);
+        token = "";
+      }
+    } else {
+      token += character;
+    }
+  }
+  if (quote) throw new Error(`Configured consumer validation ${id} has an unterminated quote.`);
+  if (token) tokens.push(token);
+  if (tokens.length === 0) throw new Error(`Configured consumer validation ${id} is empty.`);
+  return { executable: tokens[0], args: tokens.slice(1) };
+}
+
+function evidenceBundleRoot(workspaceRoot, planId) {
+  return path.join(workspaceRoot, "evidence", "setup", planId);
+}
+
+async function assertSafeEvidenceBundleTargets(workspaceRoot, planId) {
+  const bundleRoot = evidenceBundleRoot(workspaceRoot, planId);
+  for (const artifact of canonicalInstallationEvidenceOutputPaths) {
+    await assertSafeWriteTarget({
+      targetPath: path.join(bundleRoot, artifact),
+      rootPath: workspaceRoot,
+      label: `Agent-native evidence ${artifact}`,
+    });
+  }
+  return bundleRoot;
+}
 
 function plannedConsumerValidationCommands(resolvedConfig, workspaceRoot) {
   return resolvedConfig.consumers.flatMap((consumer) =>
     consumerValidationKinds.flatMap((kind) => {
       const command = consumer.config.validation[kind];
       if (!command) return [];
+      assertSafeConsumerValidationCommand(command, `${consumer.config.name}-${kind}`);
       return [{
         id: `${consumer.config.name}-${kind}`,
         cwd: repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root),
@@ -363,15 +418,30 @@ function reportMarkdown({ plan, result, consumers }) {
     `- ${decision.id}: ${decision.selection} (${decision.level}; provenance: ${decision.provenance.join(", ") || "explicit"})`).join("\n");
   const facts = consumers.map((consumer) =>
     `- ${consumer.sourcePath} declares package ${consumer.packageName ?? "without a name"}.`).join("\n");
-  const changes = result.actualWrites.map((write) => `- Applied ${write.path}.`).join("\n");
+  const changes = result.actualWrites.length > 0
+    ? result.actualWrites.map((write) => `- Applied ${write.path}.`).join("\n")
+    : "- No durable planned writes remained after execution.";
+  const preservation = [
+    ...plan.preservation.existingGuidance.map((guidancePath) =>
+      `- Existing guidance considered: ${guidancePath}.`),
+    ...plan.preservation.backups.map((backup) =>
+      `- Preserved ${backup.sourcePath} at ${backup.backupPath}.`),
+  ].join("\n") || "- No existing guidance required preservation.";
+  const rollback = result.rollback.attempted
+    ? [
+      `- Rollback completed: \`${result.rollback.completed}\`.`,
+      ...result.rollback.restoredPaths.map((restoredPath) => `- Restored ${restoredPath}.`),
+    ].join("\n")
+    : "- Rollback was not attempted.";
+  const risks = result.unresolvedRisks.map((risk) => `- ${risk}`).join("\n")
+    || "- No unresolved risks recorded.";
   const commands = result.commands.map((command) =>
     `- Command: \`${command.command}\` (cwd: \`${command.cwd}\`, status: \`${command.status}\`)`).join("\n");
-  return `# Setup Report\n\n## Versions\n\n- Structor package: \`${plan.structor.packageVersion}\`\n- Contract: \`${plan.contractVersion}\`\n- Plan schema: \`${plan.schemaVersion}\`\n- Source revision: \`${plan.structor.sourceRevision}\`\n\n## Detected Facts\n\n${facts}\n\n## Decisions And Provenance\n\n${decisions}\n- Evidence bundle: \`${result.evidenceBundle}\`\n\n## Plan And Approval\n\n- Plan hash: \`${result.planHash}\`\n- Approval receipt matches the plan hash.\n- Hash binding does not prove whether a human or agent supplied approval.\n\n## Changes\n\n${changes}\n\n## Validation\n\n${commands}\n\n## Population\n\n- Promoted only manifest-declared mechanical facts.\n- Architecture, ownership, security, workflow, deployment, and domain guidance remain review-required.\n\n## Outcome And Readiness\n\n- Execution outcome: \`${result.executionOutcome}\`\n- Readiness: \`${result.readiness}\`\n\n## Risks And Recovery\n\n- Review populated starter guidance before treating it as trusted policy.\n- Create and approve a new plan before retrying changed work.\n`;
+  return `# Setup Report\n\n## Versions\n\n- Structor package: \`${plan.structor.packageVersion}\`\n- Contract: \`${plan.contractVersion}\`\n- Plan schema: \`${plan.schemaVersion}\`\n- Source revision: \`${plan.structor.sourceRevision}\`\n\n## Detected Facts\n\n${facts}\n\n## Decisions And Provenance\n\n${decisions}\n- Evidence bundle: \`${result.evidenceBundle}\`\n\n## Plan And Approval\n\n- Plan hash: \`${result.planHash}\`\n- Approval receipt matches the plan hash.\n- Hash binding does not prove whether a human or agent supplied approval.\n\n## Changes And Preservation\n\n${changes}\n${preservation}\n\n## Validation\n\n${commands}\n\n## Population\n\n- Promoted only manifest-declared mechanical facts.\n- Architecture, ownership, security, workflow, deployment, and domain guidance remain review-required.\n\n## Outcome And Readiness\n\n- Execution outcome: \`${result.executionOutcome}\`\n- Readiness: \`${result.readiness}\`\n\n## Rollback\n\n${rollback}\n\n## Risks And Recovery\n\n${risks}\n- Review populated starter guidance before treating it as trusted policy.\n- Recovery requires inspecting preserved paths above, correcting the cause, and approving a fresh plan hash.\n`;
 }
 
 async function writeEvidenceBundle({ plan, receipt, result, consumers, workspaceRoot }) {
-  const bundleRelative = `evidence/setup/${plan.planId}`;
-  const bundleRoot = path.join(workspaceRoot, bundleRelative);
+  const bundleRoot = await assertSafeEvidenceBundleTargets(workspaceRoot, plan.planId);
   repositoryRelative(workspaceRoot, bundleRoot);
   await mkdir(bundleRoot, { recursive: true });
   const artifacts = {
@@ -437,10 +507,11 @@ function validationResults(plan, statuses, rollback = false) {
 function runConsumerValidations(plan, workspaceRoot, statuses) {
   for (let index = 3; index < plan.commands.length; index += 1) {
     const plannedCommand = plan.commands[index];
-    const result = spawnSync(plannedCommand.command, {
+    const invocation = consumerValidationInvocation(plannedCommand.command, plannedCommand.command);
+    const result = spawnSync(invocation.executable, invocation.args, {
       cwd: path.join(workspaceRoot, plannedCommand.cwd),
       encoding: "utf8",
-      shell: true,
+      shell: false,
       stdio: ["ignore", "pipe", "pipe"],
     });
     statuses[index] = result.status === 0 ? "passed" : "failed";
@@ -518,11 +589,13 @@ export async function applyAgentNativeSetup({
   const contextContent = candidate.transaction.dryRunGenerated.generatedFiles.find(
     (file) => file.targetRelative === "ai/context.md",
   ).content;
+  const evidenceRoot = await assertSafeEvidenceBundleTargets(candidate.workspaceRoot, plan.planId);
   try {
     await applySetupTransaction(candidate.transaction, {
       preserveExistingGuidance,
       createRegenerationBackup: false,
       ...(executeGeneratedScript ? { executeGeneratedScript } : {}),
+      rollbackTrees: [{ rootPath: evidenceRoot, rollbackRoot: candidate.workspaceRoot }],
       onCommandStatus: ({ script, status }) => {
         if (status === "running") return;
         const index = plan.commands.findIndex((command) =>

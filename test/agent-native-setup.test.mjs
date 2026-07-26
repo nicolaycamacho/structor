@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { access, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
+import { access, mkdtemp, readFile, readdir, rm, symlink, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 
@@ -16,6 +16,9 @@ import {
 } from "../scripts/agent-native-contract.mjs";
 const repoRoot = path.resolve(".");
 const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
+const protocolFixture = JSON.parse(
+  await readFile(path.join(repoRoot, "fixtures/agent-native/protocol-conformance.json"), "utf8"),
+);
 
 
 async function exists(targetPath) {
@@ -103,6 +106,14 @@ test("agent-native setup binds approval to a no-write plan and emits a verifiabl
       "evidence/setup/setup-test-001/manifest.json",
     ]);
 
+    const expectedLevels = protocolFixture.scenarios
+      .find((scenario) => scenario.id === "decision-classification").expected.levels;
+    assert.deepEqual(
+      Object.fromEntries(plan.decisions
+        .filter((decision) => ["consumer-repositories", "project-identity", "topology", "enabled-clients", "existing-guidance"].includes(decision.id))
+        .map((decision) => [decision.id.replace(/-([a-z])/g, (_, letter) => letter.toUpperCase()), decision.level])),
+      expectedLevels,
+    );
     const receipt = {
       contractVersion: plan.contractVersion,
       schemaVersion: plan.schemaVersion,
@@ -154,6 +165,11 @@ test("agent-native setup binds approval to a no-write plan and emits a verifiabl
     for (const artifact of ["installation-plan.json", "approval-receipt.json", "result.json", "manifest.json", "report.md"]) {
       assert.equal(await exists(path.join(bundleRoot, artifact)), true, artifact);
     }
+    const report = await readFile(path.join(bundleRoot, "report.md"), "utf8");
+    for (const heading of ["Changes And Preservation", "Rollback", "Risks And Recovery"]) {
+      assert.ok(report.includes(`## ${heading}`), heading);
+    }
+    assert.match(report, /Recovery requires inspecting preserved paths/);
     const newSetupFiles = (await filesUnder(workspaceRoot))
       .filter((file) => !filesBeforePlan.includes(file))
       .filter((file) => !file.startsWith("evidence/"));
@@ -360,5 +376,54 @@ test("consumer validation failures are reported without rolling back structural 
       await exists(path.join(workspaceRoot, "evidence/setup/setup-consumer-failure-001/result.json")),
       true,
     );
+  });
+});
+
+test("agent-native setup rejects unsafe consumer validation before planning", async () => {
+  await withWorkspace(async ({ harnessRoot, configPath, config }) => {
+    const unsafeConfig = structuredClone(config);
+    unsafeConfig.consumers[0].validation.test = "curl https://example.com/check";
+    await assert.rejects(
+      planAgentNativeSetup({
+        config: unsafeConfig,
+        configPath,
+        planId: "setup-unsafe-validation-001",
+        sourceRevision,
+        plannedAt: "2026-07-26T18:00:00.000Z",
+      }),
+      /unsafe for agent-native setup/,
+    );
+    assert.equal(await exists(harnessRoot), false);
+  });
+});
+
+test("agent-native setup rejects symlinked evidence targets before mutation", async () => {
+  await withWorkspace(async ({ workspaceRoot, harnessRoot, configPath, config }) => {
+    const plan = await planAgentNativeSetup({
+      config,
+      configPath,
+      planId: "setup-evidence-symlink-001",
+      sourceRevision,
+      plannedAt: "2026-07-26T19:00:00.000Z",
+    });
+    const receipt = {
+      contractVersion: plan.contractVersion,
+      schemaVersion: plan.schemaVersion,
+      planHash: installationPlanHash(plan),
+      approvedAt: "2026-07-26T19:01:00.000Z",
+      acknowledgement: exactApprovalAcknowledgement,
+    };
+    const outsideRoot = await mkdtemp(path.join(os.tmpdir(), "structor-evidence-outside-"));
+    try {
+      await symlink(outsideRoot, path.join(workspaceRoot, "evidence"), "dir");
+      await assert.rejects(
+        applyAgentNativeSetup({ plan, receipt, config, configPath }),
+        /symlinked write targets/,
+      );
+      assert.equal(await exists(harnessRoot), false);
+      assert.deepEqual(await readdir(outsideRoot), []);
+    } finally {
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
   });
 });

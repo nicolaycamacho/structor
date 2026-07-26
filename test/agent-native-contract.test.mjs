@@ -330,6 +330,7 @@ test("versioned protocol conformance fixtures cover coordinator boundaries and r
     await readFile(path.join(repoRoot, "fixtures/agent-native/protocol-conformance.json"), "utf8"),
   );
   const scenarios = new Map(fixture.scenarios.map((scenario) => [scenario.id, scenario]));
+  const protocol = await readFile(path.join(repoRoot, "INSTALL_WITH_AGENT.md"), "utf8");
 
   assert.equal(fixture.version, "1.0.0");
   assert.deepEqual(
@@ -344,12 +345,24 @@ test("versioned protocol conformance fixtures cover coordinator boundaries and r
   );
   assert.deepEqual(scenarios.get("delegation-conflict").expected.writes, []);
   assert.equal(scenarios.get("delegation-conflict").expected.action, "escalate-conflict");
+  assert.match(protocol, /bounded read-only discovery or analysis only/i);
+  assert.match(protocol, /Material conflicts return to the coordinator/i);
   assert.equal(scenarios.get("active-skill-conflict").expected.action, "stop-before-planning");
+  assert.match(protocol, /Discovery must stop if any required instruction would trigger edits/i);
   assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.allowed, ["consumer/package.json"]);
   assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.writes, []);
+  for (const forbidden of scenarios.get("forbidden-read-boundary").expected.forbidden) {
+    const requiredBoundary = forbidden.includes("src/")
+      ? /source bodies/i
+      : forbidden.includes(".env")
+        ? /credentials/i
+        : /unrelated sibling repositories/i;
+    assert.match(protocol, requiredBoundary, forbidden);
+  }
   assert.deepEqual(scenarios.get("consumer-readiness").expected, {
     executionOutcome: "applied",
     readiness: "ready_with_warnings",
     rollback: false,
   });
+  assert.match(protocol, /consumer lint, test, build, or optional readiness failure[\s\S]*does not by itself roll back setup/i);
 });

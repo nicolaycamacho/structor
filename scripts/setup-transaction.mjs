@@ -277,6 +277,7 @@ export async function applySetupTransaction(plan, {
   afterCompletionGates = async () => {},
   onCommandStatus = () => {},
   createRegenerationBackup = true,
+  rollbackTrees = [],
 } = {}) {
   if (plan.rootGuidanceConflicts.length > 0 && !preserveExistingGuidance) {
     throw new Error(
@@ -314,6 +315,7 @@ export async function applySetupTransaction(plan, {
     workspaceSnapshots,
     consumerSnapshots,
     preservationSnapshots,
+    rollbackTreeSnapshots,
   ] = await Promise.all([
     snapshotTargets(harnessTargets),
     snapshotTree(path.join(harnessRoot, "ai", "views")),
@@ -322,6 +324,7 @@ export async function applySetupTransaction(plan, {
     Promise.all(
       preservationTargets.map(async ({ preservationPath }) => snapshotTree(preservationPath)),
     ),
+    Promise.all(rollbackTrees.map(({ rootPath }) => snapshotTree(rootPath))),
   ]);
 
   try {
@@ -386,6 +389,10 @@ export async function applySetupTransaction(plan, {
       for (let index = 0; index < preservationTargets.length; index += 1) {
         const { consumerRoot, preservationPath } = preservationTargets[index];
         await restoreTree(preservationPath, preservationSnapshots[index], consumerRoot);
+      }
+      for (let index = 0; index < rollbackTrees.length; index += 1) {
+        const { rootPath, rollbackRoot = rootPath } = rollbackTrees[index];
+        await restoreTree(rootPath, rollbackTreeSnapshots[index], rollbackRoot);
       }
       await restoreSnapshots(consumerSnapshots, resolvedConfig.workspaceRoot);
       await restoreSnapshots(workspaceSnapshots, resolvedConfig.workspaceRoot);

@@ -20,6 +20,7 @@ Useful options include:
 
 `--yes` is not permission to replace existing non-matching root guidance. Use
 `--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
+
 ## `structor agent`
 
 Produce, hash, and apply the immutable Agent-Native Setup contract:
