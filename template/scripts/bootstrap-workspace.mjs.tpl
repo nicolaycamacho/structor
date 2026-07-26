@@ -10,6 +10,7 @@ import { assertSafeWriteTarget, exists } from "./lib/path-safety.mjs";
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const workspaceRoot = path.resolve(repoRoot, {{WORKSPACE_ROOT_FROM_HARNESS_JSON}});
 const consumers = {{CONSUMER_CONFIG_JSON}};
+const profile = {{HARNESS_PROFILE_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
@@ -17,7 +18,7 @@ const models = {
 const clientSupport = {
   claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
 };
-const workspaceEntrypoints = workspaceEntrypointsForSettings({ models, clientSupport });
+const workspaceEntrypoints = workspaceEntrypointsForSettings({ profile, models, clientSupport });
 
 function parseArgs(argv) {
   return {

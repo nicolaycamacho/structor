@@ -136,7 +136,10 @@ function compareEntrypoints(left, right) {
 }
 
 function variantLabel(config) {
-  if (config.models.openai && !config.models.anthropic) return "OpenAI-only example";
-  if (!config.models.openai && config.models.anthropic) return "Anthropic-only example";
-  return "OpenAI and Anthropic example";
+  const models = config.models.openai && !config.models.anthropic
+    ? "OpenAI-only"
+    : !config.models.openai && config.models.anthropic
+      ? "Anthropic-only"
+      : "OpenAI and Anthropic";
+  return `${models} - ${config.profile ?? "expanded"} profile example`;
 }

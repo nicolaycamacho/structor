@@ -1,5 +1,6 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
+  "profile": "expanded",
   "project": {
     "name": "Example Platform",
     "slug": "example-platform",

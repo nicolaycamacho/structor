@@ -34,6 +34,8 @@ import {
 } from "../scripts/rendered-config.mjs";
 import {
   consumerEntrypointsForSettings,
+  expandedHarnessProfile,
+  focusedHarnessProfile,
   requiredHarnessRepoFilesForWorkspaceCheck,
   requiredWorkspaceFilesForWorkspaceCheck,
   workspaceEntrypointsForSettings,
@@ -543,6 +545,7 @@ function printConfigSummary(config, configPath) {
   console.log(`Config: ${configPath}`);
   console.log(`Project: ${config.project.name} (${config.project.slug})`);
   console.log(`Generated repo: ${config.output.path}`);
+  console.log(`Profile: ${config.profile ?? expandedHarnessProfile}`);
   console.log(`Models: ${config.models.openai ? "Codex" : ""}${config.models.openai && config.models.anthropic ? " + " : ""}${config.models.anthropic ? "Claude" : ""}`);
   console.log("Consumer repos:");
   for (const consumer of config.consumers) {
@@ -691,7 +694,9 @@ async function populate(options) {
   const consumers = await Promise.all(resolvedConfig.consumers.map(consumerPopulateEvidence));
   const plannedFiles = [
     { relativePath: "ai/context.md", evidence: renderPopulateContextEvidence(consumers) },
-    { relativePath: "ai/workspace/REPOS.md", evidence: renderPopulateReposEvidence(consumers) },
+    ...(resolvedConfig.plan.profile === expandedHarnessProfile
+      ? [{ relativePath: "ai/workspace/REPOS.md", evidence: renderPopulateReposEvidence(consumers) }]
+      : []),
   ];
   for (const file of plannedFiles) {
     file.targetPath = path.join(resolvedConfig.outputRoot, file.relativePath);
@@ -990,7 +995,7 @@ async function doctor(options) {
 
   if (resolvedConfig) {
     const { outputRoot, workspaceRoot: resolvedWorkspaceRoot, consumers, support } = resolvedConfig;
-    const settings = { models: config.models, clientSupport: support };
+    const settings = { profile: config.profile, models: config.models, clientSupport: support };
     const harnessRepoName = config.project.harnessRepoName;
     const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);
     const workspaceRequiredFiles = requiredWorkspaceFilesForWorkspaceCheck(settings);
@@ -1117,6 +1122,7 @@ function printNextSteps(config) {
 
 function printSetupTransactionPreview(config, configPath) {
   const settings = {
+    profile: config.profile,
     models: config.models,
     clientSupport: {
       codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
@@ -1262,7 +1268,7 @@ function assertGeneratedScriptsReady(generatedFiles, scriptPaths) {
 async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
   if (force) return;
 
-  const settings = { models: config.models, clientSupport: resolvedConfig.support };
+  const settings = { profile: config.profile, models: config.models, clientSupport: resolvedConfig.support };
   const conflicts = [];
   const templateWorkspaceRoot = config.workspace?.root
     ? path.resolve(harnessRoot, config.workspace.root)
@@ -1548,6 +1554,7 @@ async function init(options) {
     note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
 
     const config = {
+      profile: startingConfig ? (startingConfig.profile ?? expandedHarnessProfile) : focusedHarnessProfile,
       project: {
         name: projectName,
         slug: projectSlug,
@@ -1684,7 +1691,7 @@ async function init(options) {
           ))),
       );
 
-      const settings = { models: initConfig.models, clientSupport: generated.resolvedConfig.support };
+      const settings = { profile: initConfig.profile, models: initConfig.models, clientSupport: generated.resolvedConfig.support };
       for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
         const targetPath = path.join(generated.resolvedConfig.workspaceRoot, entrypoint.path);
         if (!(await exists(targetPath))) workspaceCreatedPaths.push(targetPath);
@@ -1726,6 +1733,7 @@ async function init(options) {
     const finalGenerated = {
       resolvedConfig: dryRunGenerated.resolvedConfig,
       consumerEntrypoints: consumerEntrypointsForSettings({
+        profile: initConfig.profile,
         models: initConfig.models,
         clientSupport: dryRunGenerated.resolvedConfig.support,
       }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({

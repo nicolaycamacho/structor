@@ -3,14 +3,16 @@
 This folder holds canonical shared guidance for the {{PROJECT_NAME}} AI Harness
 Engineering Framework.
 
+Generated profile: {{HARNESS_PROFILE}}.
+
 ## Scope
 
 - shared policy for AI-assisted development
 - context routing and task shape
-- product, architecture, and design context ready to fill from consumer repos
-- contracts and boundary rules
-- review skills and validation policy
-- quality tracking and repeated-mistake capture
+- product and repository context ready to fill from consumer repos
+- workflow, readiness, and validation policy
+- focused first-session guidance, with advanced policy available in the
+  `expanded` profile
 
 ## Rules
 

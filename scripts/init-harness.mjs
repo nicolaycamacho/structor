@@ -632,6 +632,7 @@ async function writeGenerationManifest({
         slug: config.project.slug,
         harnessRepoName: config.project.harnessRepoName,
       },
+      profile: resolvedConfig.plan.profile,
       models: {
         openai: Boolean(config.models.openai),
         anthropic: Boolean(config.models.anthropic),

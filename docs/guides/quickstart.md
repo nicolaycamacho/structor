@@ -27,8 +27,8 @@ services.
 
 1. Run `npx @structor-dev/cli init` from the parent workspace folder.
 2. Confirm the detected consumer repositories, or enter the intended paths.
-3. Review the inferred project identity, generated harness directory, selected
-   agent clients, and validation command summary.
+3. Review the inferred project identity, generated harness directory, `focused`
+   profile, selected agent clients, and validation command summary.
 4. Review the dry-run preview of the generated harness plan.
 5. Confirm generation only if the preview is correct.
 6. If root guidance exists, choose preserve-and-replace or abort.

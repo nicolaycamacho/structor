@@ -6,6 +6,11 @@
   "required": ["project", "output", "models", "consumers"],
   "properties": {
     "$schema": { "type": "string" },
+    "profile": {
+      "type": "string",
+      "enum": ["focused", "expanded"],
+      "description": "Generated harness surface profile. Omitted legacy configs retain expanded behavior."
+    },
     "workspace": {
       "type": "object",
       "additionalProperties": false,

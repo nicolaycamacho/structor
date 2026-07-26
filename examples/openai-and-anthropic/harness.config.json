@@ -1,5 +1,6 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
+  "profile": "focused",
   "project": {
     "name": "Example Worker",
     "slug": "example-worker",

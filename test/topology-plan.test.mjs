@@ -78,6 +78,50 @@ test("topology plan describes multiple consumers and their validation", () => {
   );
 });
 
+test("topology plan uses the focused profile when explicitly configured", () => {
+  const workspaceRoot = path.resolve("/workspace");
+  const config = sampleConfig({ profile: "focused" });
+  const plan = createTopologyPlan({
+    config,
+    workspaceRoot,
+    outputRoot: path.join(workspaceRoot, config.project.harnessRepoName),
+  });
+
+  assert.equal(plan.profile, "focused");
+  assert.ok(plan.harness.artifactPaths.includes("ai/HUB.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/PRODUCT-SUMMARY.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/WORKFLOW.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/READINESS.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/templates/populate-generated-harness-prompt.md"));
+  assert.ok(!plan.harness.artifactPaths.includes("ai/contracts/README.md"));
+  assert.ok(!plan.harness.artifactPaths.includes("ai/QUALITY.md"));
+  assert.ok(!plan.harness.artifactPaths.includes("ai/model-overlays/openai/AGENTS.md"));
+  assert.ok(!plan.harness.artifactPaths.includes("scripts/generate-html-views.mjs"));
+
+  const expandedPlan = createTopologyPlan({
+    config: sampleConfig({ profile: "expanded" }),
+    workspaceRoot,
+    outputRoot: path.join(workspaceRoot, config.project.harnessRepoName),
+  });
+  assert.ok(plan.harness.artifactPaths.length < expandedPlan.harness.artifactPaths.length);
+});
+
+test("topology plan preserves expanded behavior for legacy configs without a profile", () => {
+  const workspaceRoot = path.resolve("/workspace");
+  const config = sampleConfig();
+  const plan = createTopologyPlan({
+    config,
+    workspaceRoot,
+    outputRoot: path.join(workspaceRoot, config.project.harnessRepoName),
+  });
+
+  assert.equal(plan.profile, "expanded");
+  assert.ok(plan.harness.artifactPaths.includes("ai/contracts/README.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/QUALITY.md"));
+  assert.ok(plan.harness.artifactPaths.includes("ai/model-overlays/openai/AGENTS.md"));
+  assert.ok(plan.harness.artifactPaths.includes("scripts/generate-html-views.mjs"));
+});
+
 test("topology plan gates artifacts and entrypoints for every supported model combination", () => {
   const workspaceRoot = path.resolve("/workspace");
   const cases = [

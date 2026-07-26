@@ -1,6 +1,17 @@
 # {{PROJECT_NAME}} Harness Hub
 
-This is the routing layer for the {{PROJECT_NAME}} AI Harness Engineering Framework.
+This is the canonical navigation layer for the {{PROJECT_NAME}} AI Harness
+Engineering Framework.
+
+## First Session
+
+1. Read `./ai/context.md` and `./ai/PRODUCT-SUMMARY.md` to verify the project
+   and repository facts.
+2. If existing guidance was preserved, follow
+   `./ai/tasks/populate-generated-harness.md` and review every proposed change.
+3. Record the real work and validation flow in `./ai/WORKFLOW.md`.
+4. Run `node scripts/validate-governance.mjs`, then use `./ai/READINESS.md`
+   to identify the next manual review.
 
 ## Baseline
 
@@ -12,39 +23,11 @@ Always read:
 
 ## Routing
 
-- Product, user journeys, or business context:
-  `./ai/PRODUCT-SUMMARY.md`, `./ai/PRODUCT.md`
-- Architecture, repo boundaries, or module design:
-  `./ai/ARCHITECTURE.md`
-- UI or design direction:
-  `./ai/DESIGN.md`
-- Harness policy, bootstrap, validation, or model overlay changes:
-  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/READINESS.md`,
-  `./ai/QUALITY.md`, `./ai/DECISIONS.md`, `./ai/knowledge-manifest.json`
-- Codex/Claude client surfaces, `.codex/**`, `.claude/**`, or overlay drift:
-  `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/QUALITY.md`,
-  `./ai/CODEX-HOOKS.md`,
-  and the matching generated client validator
-- Workspace, repo ownership, local stack, session bootstrap, or validation
-  ownership:
-  `./ai/workspace/REPOS.md`, `./ai/workspace/SYSTEM-MAP.md`,
-  `./ai/workspace/SESSION-BOOTSTRAP.md`, `./ai/workspace/LOCAL-STACK.md`,
-  `./ai/workspace/TEST-STRATEGY.md`
-- Runner or automation questions:
-  `./ai/WORKFLOW.md`, `./ai/RUNNER-SAFETY.md`,
-  `./ai/RUNNER-READINESS.md`, `./ai/VERSIONING.md`
-- Contracts or repo boundaries:
-  `./ai/contracts/README.md` and the matching contract doc
-- Task template changes:
-  `./ai/templates/README.md` and the matching template
-- Generated HTML review views:
-  `./ai/views/index.html` plus canonical Markdown, JSON, and YAML sources
-- Shared specs:
-  `./ai/specs/README.md` and the matching spec
-- Review requests:
-  `./ai/skills/README.md` and the matching review skill
-- Repeated agent mistakes:
-  `./ai/AGENT-GARBAGE-COLLECTION.md`
+- Product or repository context: `./ai/PRODUCT-SUMMARY.md`, `./ai/context.md`
+- Workflow or validation guidance: `./ai/WORKFLOW.md`, `./ai/READINESS.md`
+- Preserved-guidance population: `./ai/tasks/populate-generated-harness.md`
+
+{{EXPANDED_PROFILE_ROUTING}}
 
 ## Load Rules
 

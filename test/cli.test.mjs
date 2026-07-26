@@ -85,7 +85,7 @@ console.log("fixture setup complete");
   return fixtureRoot;
 }
 
-async function createDoctorWorkspace({ validation = { test: "npm test" } } = {}) {
+async function createDoctorWorkspace({ validation = { test: "npm test" }, profile } = {}) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-doctor-"));
   const consumerRoot = path.join(workspaceRoot, "app");
   const harnessRoot = path.join(workspaceRoot, "demo-structor");
@@ -93,6 +93,7 @@ async function createDoctorWorkspace({ validation = { test: "npm test" } } = {})
   await mkdir(consumerRoot, { recursive: true });
   await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ scripts: { test: "node --version" } }, null, 2)}\n`);
   await writeFile(configPath, `${JSON.stringify({
+    ...(profile ? { profile } : {}),
     project: {
       name: "Demo",
       slug: "demo",
@@ -291,6 +292,8 @@ test("init defaults to generating the harness after the dry-run preview", async 
 
     const durableConfig = JSON.parse(await readFile(path.join(harnessRoot, "harness.config.json"), "utf8"));
     assert.deepEqual(durableConfig.workspace, { root: ".." });
+    assert.equal(durableConfig.profile, "focused");
+    assert.equal(existsSync(path.join(harnessRoot, "ai", "QUALITY.md")), false);
     assert.equal(durableConfig.project.slug, "example-app");
     assert.equal(durableConfig.project.harnessRepoName, "example-app-structor");
     assert.equal(durableConfig.output.path, "./example-app-structor");
@@ -820,6 +823,20 @@ test("populate previews deterministic canonical guidance updates before a confir
       await rm(workspaceRoot, { recursive: true, force: true });
     }
   });
+});
+
+test("populate supports the focused first-session journey", async () => {
+  const { workspaceRoot, harnessRoot } = await createDoctorWorkspace({ profile: "focused" });
+  try {
+    assert.equal(existsSync(path.join(harnessRoot, "ai", "workspace", "REPOS.md")), false);
+    const result = runCli(["populate", "--workspace", workspaceRoot, "--dry-run"]);
+
+    assertSuccess(result, "focused populate dry-run should succeed");
+    assert.match(outputText(result), /ai\/context\.md/);
+    assert.doesNotMatch(outputText(result), /ai\/workspace\/REPOS\.md/);
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
 });
 
 test("populate evidence renderers preserve consumer data as Markdown data", () => {

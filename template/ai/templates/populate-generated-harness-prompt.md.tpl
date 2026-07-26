@@ -214,7 +214,7 @@ Required artifacts are the generated harness artifacts corresponding to:
 - Product context
 - Repository context
 - Validation context
-- Contract matrix
+- Contract matrix, when the selected profile includes one
 
 Resolve their actual paths from the generated harness contract and filesystem.
 
@@ -283,9 +283,9 @@ It should route users and agents to:
 - Product context
 - Architecture context
 - Validation guidance
-- Contract documentation
-- Ownership documentation
-- Review guidance
+- Available contract documentation
+- Available ownership documentation
+- Available review guidance
 - Preserved guidance notes
 - Risk documentation
 - Manual follow-up items
