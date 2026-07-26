@@ -153,11 +153,68 @@ and workflow rules against the current consumer repo.
 `);
 }
 
+const preservedGuidanceReadmeContent = `# Preserved Guidance
+
+Structor found existing root guidance files before generating Structor root
+entrypoints.
+
+These files were preserved as local source material. Structor did not delete,
+upload, merge, analyze, or reinterpret them.
+
+Use the generated populate-generated-harness task in the Structor harness with
+a frontier model such as GPT-5.5 or Opus 4.8 to review this material and
+migrate still-relevant repo-specific knowledge into canonical harness docs.
+
+Manually verify generated content, navigation, references, and commands before
+treating the harness as guidance-ready.
+
+Do not blindly copy this guidance. Verify paths, commands, architecture claims,
+and workflow rules against the current consumer repo.
+`;
+
+export async function planConsumerRootGuidancePreservation({
+  consumer,
+  consumerRoot,
+  conflicts,
+  timestamp,
+  generatedAt,
+}) {
+  const preserveRelative = preservedGuidanceDirectory(timestamp);
+  const preserveRoot = path.join(consumerRoot, preserveRelative);
+  const preservedFiles = await Promise.all(conflicts.map(async (conflict) => ({
+    source: conflict.path,
+    sourcePath: conflict.targetPath,
+    preservedAs: `${preserveRelative}/${conflict.path}`,
+    targetPath: path.join(preserveRoot, conflict.path),
+    content: await readFile(conflict.targetPath),
+  })));
+  const manifest = {
+    createdBy: "structor",
+    createdAt: generatedAt,
+    reason: "Existing root guidance files were preserved before Structor generated new root entrypoints.",
+    consumer: { name: consumer.name, path: consumer.path },
+    preservedFiles: preservedFiles.map(({ source, preservedAs }) => ({ source, preservedAs })),
+    additionalGuidanceCandidates: await collectAdditionalGuidanceCandidates(consumerRoot),
+    nextStep: "Run the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8, then manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.",
+  };
+  return {
+    consumer: consumer.name,
+    directory: preserveRelative,
+    outputs: [
+      ...preservedFiles,
+      { targetPath: path.join(preserveRoot, "README.md"), content: preservedGuidanceReadmeContent },
+      { targetPath: path.join(preserveRoot, "manifest.json"), content: `${JSON.stringify(manifest, null, 2)}\n` },
+    ],
+    files: preservedFiles.map((file) => file.preservedAs),
+  };
+}
+
 async function preserveConsumerRootGuidance({
   consumer,
   consumerRoot,
   conflicts,
   timestamp,
+  generatedAt,
 }) {
   const preserveRelative = preservedGuidanceDirectory(timestamp);
   const preserveRoot = path.join(consumerRoot, preserveRelative);
@@ -187,7 +244,7 @@ async function preserveConsumerRootGuidance({
   await writePreservedGuidanceReadme(preserveRoot);
   const manifest = {
     createdBy: "structor",
-    createdAt: new Date().toISOString(),
+    createdAt: generatedAt,
     reason: "Existing root guidance files were preserved before Structor generated new root entrypoints.",
     consumer: {
       name: consumer.name,
@@ -368,16 +425,34 @@ async function generatedScriptHashes(templateFiles, plan, values) {
   return renderedGeneratedScriptHashes(hashes);
 }
 
+function dryRunActionVerb(action) {
+  return {
+    created: "create",
+    skipped: "skip",
+    verified: "verify",
+    wrote: "write",
+  }[action] ?? action;
+}
 export async function writeRenderedFile(sourceRelative, targetRoot, values, options, templateRoot = path.join(repoRoot, "template")) {
+
   const sourcePath = path.join(templateRoot, sourceRelative);
   const targetRelative = sourceRelative.replace(/\.tpl$/, "");
   const targetPath = path.join(targetRoot, targetRelative);
   const content = render(await readFile(sourcePath, "utf8"), values);
 
   if (options.dryRun) {
-    const action = (await exists(targetPath)) ? (options.force ? "overwrite" : "skip existing") : "create";
-    console.log(`would ${action} ${targetPath}`);
-    return { action: "dry-run", rendered: false, targetPath, targetRelative };
+    const existed = await exists(targetPath);
+    let action = existed ? "skipped" : "created";
+    let rendered = !existed;
+    if (existed && options.force) {
+      action = "wrote";
+      rendered = true;
+    } else if (existed && await readFile(targetPath, "utf8") === content) {
+      action = "verified";
+      rendered = true;
+    }
+    console.log(`would ${dryRunActionVerb(action)} ${targetPath}`);
+    return { action, rendered, targetPath, targetRelative, content };
   }
 
   if ((await exists(targetPath)) && !options.force) {
@@ -539,6 +614,7 @@ export async function installConsumerEntrypoints(resolvedConfig, options) {
           consumerRoot,
           conflicts: rootConflicts,
           timestamp: options.preservationTimestamp ?? filesystemTimestamp(),
+          generatedAt: options.generatedAt ?? new Date().toISOString(),
         });
         values.PRESERVED_GUIDANCE_SECTION = consumerEntrypointValues(config, consumer, harnessRelativePath, {
           preservedGuidancePath: preservedRecord.directory,
@@ -561,9 +637,18 @@ export async function installConsumerEntrypoints(resolvedConfig, options) {
       };
 
       if (options.dryRun) {
-        const action = (await exists(targetPath)) ? (options.force ? "overwrite" : "skip existing") : "create";
-        console.log(`would ${action} consumer entrypoint ${targetPath}`);
-        records.push({ ...record, action: "dry-run" });
+        const existed = await exists(targetPath);
+        let action = existed ? "skipped" : "created";
+        let rendered = !existed;
+        if (existed && options.force) {
+          action = "wrote";
+          rendered = true;
+        } else if (existed && await readFile(targetPath, "utf8") === content) {
+          action = "verified";
+          rendered = true;
+        }
+        console.log(`would ${dryRunActionVerb(action)} consumer entrypoint ${targetPath}`);
+        records.push({ ...record, action, rendered, targetPath, content });
         continue;
       }
       if (await exists(targetPath)) {
@@ -617,13 +702,15 @@ async function writeGenerationManifest({
   outputRoot,
   resolvedConfig,
   support,
+  generatedAt,
+  dryRun,
 }) {
   const manifestPath = path.join(outputRoot, ".structor", "manifest.json");
   const metadata = await packageMetadata();
   const manifest = {
     generatorName: metadata.name,
     generatorVersion: metadata.version,
-    generatedAt: new Date().toISOString(),
+    generatedAt,
     config: {
       path: relativePath(resolvedConfig.workspaceRoot, configPath),
       sha256: sha256(configContent),
@@ -651,6 +738,16 @@ async function writeGenerationManifest({
     })),
     consumerEntrypoints,
   };
+  const content = `${JSON.stringify(manifest, null, 2)}\n`;
+  if (dryRun) {
+    return {
+      action: (await exists(manifestPath)) ? "wrote" : "created",
+      rendered: true,
+      targetPath: manifestPath,
+      targetRelative: path.relative(outputRoot, manifestPath).replaceAll(path.sep, "/"),
+      content,
+    };
+  }
 
   await assertSafeWriteTarget({
     targetPath: manifestPath,
@@ -659,7 +756,7 @@ async function writeGenerationManifest({
   });
   const existed = await exists(manifestPath);
   await mkdir(path.dirname(manifestPath), { recursive: true });
-  await writeFile(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+  await writeFile(manifestPath, content);
   console.log(`wrote ${manifestPath}`);
   return {
     action: existed ? "wrote" : "created",
@@ -682,8 +779,10 @@ export async function generateHarness(config, {
   allowTemplateRepoConsumer = false,
   preserveExistingGuidance = false,
   preservationTimestamp = null,
+  generatedAt = new Date().toISOString(),
   preservedGuidanceByConsumer = {},
   backupCommand = "init",
+  createRegenerationBackup = true,
 } = {}) {
   const manifestConfigContent = configContent
     ?? (configPath ? await readFile(path.resolve(configPath), "utf8") : `${JSON.stringify(config, null, 2)}\n`);
@@ -732,7 +831,7 @@ export async function generateHarness(config, {
     resolvedConfig.plan.harness.freshRenderScriptTemplates,
   );
   const metadata = await packageMetadata();
-  const safetyBackup = dryRun
+  const safetyBackup = dryRun || !createRegenerationBackup
     ? { created: false, backupPath: null, copiedPaths: [], skippedPaths: [] }
     : await createRegenerationSafetyBackup({
       resolvedConfig,
@@ -801,21 +900,22 @@ export async function generateHarness(config, {
       preserveExistingGuidance,
       preservationTimestamp: resolvedPreservationTimestamp,
       preservedGuidanceByConsumer: resolvedPreservedGuidanceByConsumer,
+      generatedAt,
     })
     : [];
 
-  const manifestFile = !dryRun
-    ? await writeGenerationManifest({
-      config,
-      configContent: manifestConfigContent,
-      configPath,
-      consumerEntrypoints,
-      generatedFiles,
-      outputRoot,
-      resolvedConfig,
-      support,
-    })
-    : null;
+  const manifestFile = await writeGenerationManifest({
+    config,
+    configContent: manifestConfigContent,
+    configPath,
+    consumerEntrypoints,
+    generatedFiles,
+    outputRoot,
+    resolvedConfig,
+    support,
+    generatedAt,
+    dryRun,
+  });
 
   return {
     resolvedConfig,

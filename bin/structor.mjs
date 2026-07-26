@@ -43,6 +43,7 @@ import {
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const generatorPath = path.join(packageRoot, "scripts/init-harness.mjs");
+const agentNativePath = path.join(packageRoot, "scripts/agent-native-cli.mjs");
 const configFileName = "harness.config.json";
 const structorRepoUrlDefault = "https://github.com/nicolaycamacho/structor.git";
 const populateSectionStart = "<!-- structor:populate:start -->";
@@ -179,7 +180,7 @@ function assertKnownOptionKeys(command, options, allowedKeys) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor agent <plan|apply> [agent-native options]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  agent                Produce or apply the immutable Agent-Native Setup contract.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -198,6 +199,14 @@ function printCommandOutput(result) {
 
 function passthroughGenerate(args) {
   const result = spawnSync(process.execPath, [generatorPath, ...args], {
+    cwd: process.cwd(),
+    stdio: "inherit",
+  });
+  process.exit(result.status ?? 1);
+}
+
+function passthroughAgentNative(args) {
+  const result = spawnSync(process.execPath, [agentNativePath, ...args], {
     cwd: process.cwd(),
     stdio: "inherit",
   });
@@ -1762,6 +1771,10 @@ async function main() {
   }
   if (options.help || command === "help" || command === "--help" || command === "-h") {
     printHelp();
+    return;
+  }
+  if (command === "agent") {
+    passthroughAgentNative(rawArgs);
     return;
   }
   if (command === "init") {

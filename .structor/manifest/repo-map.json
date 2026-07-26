@@ -161,6 +161,14 @@
       "purpose": "Public CLI router."
     },
     {
+      "path": "scripts/agent-native-cli.mjs",
+      "purpose": "Deterministic agent-native plan, hash, and apply command adapter."
+    },
+    {
+      "path": "scripts/agent-native-setup.mjs",
+      "purpose": "Shared agent-native setup planning, application, rollback, and evidence."
+    },
+    {
       "path": "scripts/setup-transaction.mjs",
       "purpose": "Setup transaction planning, application, completion gates, and rollback."
     },
@@ -193,6 +201,8 @@
     "configResolution": "scripts/lib.mjs",
     "initializer": "scripts/init-harness.mjs",
     "transaction": "scripts/setup-transaction.mjs",
+    "agentNativeCli": "scripts/agent-native-cli.mjs",
+    "agentNativeSetup": "scripts/agent-native-setup.mjs",
     "renderContext": "scripts/rendered-config.mjs",
     "contract": "scripts/generated-harness-contract.mjs",
     "templates": "template"
@@ -229,6 +239,10 @@
         "scripts/setup-transaction.mjs",
         "scripts/init-harness.mjs",
         "scripts/lib.mjs",
+        "scripts/agent-native-cli.mjs",
+        "scripts/agent-native-setup.mjs",
+        "test/agent-native-cli.test.mjs",
+        "test/agent-native-setup.test.mjs",
         "scripts/rendered-config.mjs",
         "test/cli.test.mjs",
         "test/setup-transaction.test.mjs",

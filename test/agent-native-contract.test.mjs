@@ -190,7 +190,7 @@ test("versioned setup evidence fixtures conform to the public artifact schemas",
   }
 });
 
-test("agent installation contract stays non-promotional while foundations are open", async () => {
+test("agent installation contract documents the supported flow and reconciled foundations", async () => {
   const contract = await readFile(path.join(repoRoot, "INSTALL_WITH_AGENT.md"), "utf8");
   const requiredSections = [
     "## Release Gate",
@@ -207,9 +207,11 @@ test("agent installation contract stays non-promotional while foundations are op
     "## Final Report",
   ];
 
-  assert.match(contract, /Status: contract-only/i);
+  assert.match(contract, /Status: supported and recommended/i);
   assert.match(contract, /#88[\s\S]*#100[\s\S]*#105[\s\S]*#107/);
-  assert.match(contract, /must not run or orchestrate agents/i);
+  assert.match(contract, /does not run or orchestrate agents/i);
+  assert.match(contract, /structor agent plan/);
+  assert.match(contract, /structor agent apply/);
   for (const section of requiredSections) assert.ok(contract.includes(section), `Missing ${section}`);
 });
 
