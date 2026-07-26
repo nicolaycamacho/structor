@@ -183,8 +183,9 @@ test("agent-native setup binds approval to a no-write plan and emits a verifiabl
       assert.equal(artifact.hash, sha256(content), artifact.path);
     }
     assert.equal(plan.commands.at(-1).phase, "consumer-validation");
-    assert.equal(execution.result.commands.at(-1).status, "passed");
-    assert.equal(execution.result.validationOutcomes.at(-1).status, "passed");
+    assert.equal(execution.result.commands.at(-1).status, "skipped");
+    assert.equal(execution.result.validationOutcomes.at(-1).status, "skipped");
+    assert.match(execution.result.unresolvedRisks.at(-1), /Consumer validation skipped/);
     assert.doesNotMatch(await readFile(path.join(harnessRoot, "ai/context.md"), "utf8"), /Evidence-backed demo/);
     assert.equal(manifest.planHash, receipt.planHash);
     assert.equal(manifest.sanitized, true);
