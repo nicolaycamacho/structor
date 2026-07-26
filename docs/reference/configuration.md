@@ -5,10 +5,28 @@
 - workspace root semantics for workspace-relative topology paths
 - project name, slug, and generated repo name
 - output path
+- generated surface profile
 - Codex and Claude support flags
 - consumer repo paths, purposes, and validation commands
 
 See the package-level [example config](../../harness.config.example.json).
+
+## Harness Profiles
+
+`profile` makes the generated surface choice explicit:
+
+- `focused` is the default for newly created configs. It generates the smallest
+  first-session surface for canonical routing, project/repository context,
+  workflow and validation guidance, preserved-guidance population, readiness,
+  workspace pointers, and explicitly enabled client hooks.
+- `expanded` adds contracts, contract manifests, quality tracking, decisions,
+  review skills, plans, model overlays, specialized task templates, worktree
+  helpers, and generated review views.
+
+Configs created before profiles existed remain compatible: omitting `profile`
+selects `expanded`, preserving the prior generated tree. To adopt the smaller
+surface, add `"profile": "focused"` and review the generation preview before
+regenerating. Structor infers these defaults and does not add a wizard question.
 
 ## Path Rules
 

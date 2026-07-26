@@ -7,6 +7,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const profile = {{HARNESS_PROFILE_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
@@ -75,7 +76,7 @@ async function runCheck(relativePath) {
 
 await assertTrustedCheck(generatedContractScript);
 const { validationPlanForSettings } = await import(pathToFileURL(path.join(repoRoot, generatedContractScript)).href);
-const validationPlan = validationPlanForSettings({ models, clientSupport });
+const validationPlan = validationPlanForSettings({ profile, models, clientSupport });
 
 for (const check of validationPlan.requiredChecks) {
   await runCheck(check);

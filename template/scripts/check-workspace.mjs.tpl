@@ -16,6 +16,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."
 const workspaceRoot = path.resolve(repoRoot, {{WORKSPACE_ROOT_FROM_HARNESS_JSON}});
 const harnessRepoName = "{{HARNESS_REPO_NAME}}";
 const consumers = {{CONSUMER_CONFIG_JSON}};
+const profile = {{HARNESS_PROFILE_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
@@ -24,7 +25,7 @@ const clientSupport = {
   codexHooks: {{CLIENT_CODEX_HOOKS_ENABLED}},
   claudeRules: {{CLIENT_CLAUDE_RULES_ENABLED}},
 };
-const settings = { models, clientSupport };
+const settings = { profile, models, clientSupport };
 const harnessRepoNameError = "repo folder name: expected";
 const missingEntryPrefix = "missing ";
 const repoRequiredFiles = requiredHarnessRepoFilesForWorkspaceCheck(settings);

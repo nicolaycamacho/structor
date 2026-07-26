@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const profile = {{HARNESS_PROFILE_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
@@ -50,7 +51,7 @@ function cells(row) {
 }
 
 const readiness = await read("ai/READINESS.md");
-const quality = await read("ai/QUALITY.md");
+const quality = profile === "expanded" ? await read("ai/QUALITY.md") : null;
 const errors = [];
 
 for (const verdict of requiredVerdicts) {
@@ -65,9 +66,9 @@ const requiredCommands = [
   readinessCommands.bootstrapWorkspace,
   readinessCommands.checkWorkspace,
 ];
-if (models.openai || models.anthropic) requiredCommands.push(readinessCommands.checkOverlayDrift);
+if (profile === "expanded" && (models.openai || models.anthropic)) requiredCommands.push(readinessCommands.checkOverlayDrift);
 if (clientSupport.codexHooks) requiredCommands.push(readinessCommands.checkCodexHooks);
-if (models.anthropic) requiredCommands.push(readinessCommands.checkClaudeCompatibility);
+if (profile === "expanded" && models.anthropic) requiredCommands.push(readinessCommands.checkClaudeCompatibility);
 
 for (const command of requiredCommands) {
   if (!readiness.includes(command)) {
@@ -80,10 +81,9 @@ const scorePatterns = [
   /\b\d+\s*\/\s*100\b/,
   /\breadiness score\s*[:=]\s*\d+/i,
 ];
-for (const [relativePath, content] of [
-  ["ai/READINESS.md", readiness],
-  ["ai/QUALITY.md", quality],
-]) {
+const readinessDocuments = [["ai/READINESS.md", readiness]];
+if (quality !== null) readinessDocuments.push(["ai/QUALITY.md", quality]);
+for (const [relativePath, content] of readinessDocuments) {
   for (const pattern of scorePatterns) {
     if (pattern.test(content)) {
       errors.push(`${relativePath} must not use a numeric readiness score.`);
@@ -92,8 +92,8 @@ for (const [relativePath, content] of [
   }
 }
 
-const qualityRows = tableRows(quality, qualityTableHeader);
-if (qualityRows.length === 0) {
+const qualityRows = quality === null ? [] : tableRows(quality, qualityTableHeader);
+if (profile === "expanded" && qualityRows.length === 0) {
   errors.push("ai/QUALITY.md must include the readiness scorecard table.");
 }
 
@@ -117,7 +117,7 @@ for (const row of qualityRows) {
   }
 }
 
-if (!quality.includes("ai/READINESS.md") || !quality.includes("scripts/check-readiness.mjs")) {
+if (quality !== null && (!quality.includes("ai/READINESS.md") || !quality.includes("scripts/check-readiness.mjs"))) {
   errors.push("ai/QUALITY.md must link readiness evidence to ai/READINESS.md and scripts/check-readiness.mjs.");
 }
 

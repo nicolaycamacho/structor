@@ -52,6 +52,7 @@ async function writeMinimalConfig(root, outputPath, overrides = {}) {
   await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
 
   const config = {
+    ...(overrides.profile ? { profile: overrides.profile } : {}),
     project: {
       name: overrides.projectName ?? "Test Project",
       slug: "test-project",
@@ -353,6 +354,21 @@ test("init harness writes a passive generation manifest", async () => {
     );
 
     assertSuccess(runValidateGovernance(outputRoot), "generated validators should tolerate .structor");
+  });
+});
+
+test("init harness records the selected focused profile in generated metadata", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const outputRoot = path.join(root, "test-structor");
+
+    assertSuccess(runInitHarness(configPath), "focused generator should succeed");
+
+    const manifest = JSON.parse(await readFile(path.join(outputRoot, ".structor", "manifest.json"), "utf8"));
+    assert.equal(manifest.config.profile, "focused");
+    assert.ok(manifest.files.some((file) => file.path === "ai/HUB.md"));
+    assert.ok(!manifest.files.some((file) => file.path === "ai/QUALITY.md"));
+    assertSuccess(runValidateGovernance(outputRoot), "focused generated validators should pass");
   });
 });
 

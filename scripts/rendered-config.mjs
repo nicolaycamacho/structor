@@ -69,9 +69,60 @@ function consumerConfig(resolvedConsumers) {
   });
 }
 
+function expandedProfileRouting(profile) {
+  if (profile !== "expanded") {
+    return "- Advanced contracts, review structures, quality tracking, model overlays, plans, and specialized templates are available by setting `profile` to `expanded` and regenerating after review.";
+  }
+  return [
+    "- Product context: `./ai/PRODUCT-SUMMARY.md`, `./ai/PRODUCT.md`",
+    "- Architecture or design: `./ai/ARCHITECTURE.md`, `./ai/DESIGN.md`",
+    "- Harness policy and quality: `./ai/HARNESS.md`, `./ai/HARNESS-ENGINEERING.md`, `./ai/READINESS.md`, `./ai/QUALITY.md`, `./ai/DECISIONS.md`, `./ai/knowledge-manifest.json`",
+    "- Client support: `./ai/CODEX-HOOKS.md`",
+    "- Workspace context: `./ai/workspace/REPOS.md`, `./ai/workspace/SYSTEM-MAP.md`, `./ai/workspace/SESSION-BOOTSTRAP.md`, `./ai/workspace/LOCAL-STACK.md`, `./ai/workspace/TEST-STRATEGY.md`",
+    "- Workflow and safety: `./ai/WORKFLOW.md`, `./ai/RUNNER-SAFETY.md`, `./ai/RUNNER-READINESS.md`, `./ai/VERSIONING.md`",
+    "- Contracts: `./ai/contracts/README.md` and the matching contract",
+    "- Task templates and specs: `./ai/templates/README.md`, `./ai/specs/README.md`",
+    "- Reviews, plans, and maintenance: `./ai/skills/README.md`, `./ai/plans/README.md`, `./ai/AGENT-GARBAGE-COLLECTION.md`",
+    "- Generated review views: `./ai/views/index.html`",
+  ].join("\n");
+}
+
+function expandedReadinessGates(profile) {
+  if (profile !== "expanded") return "";
+  return [
+    "| Overlay drift | `node scripts/check-overlay-drift.mjs` | Required when a model overlay is enabled |",
+    "| Claude compatibility | `node scripts/check-claude-compatibility.mjs` | Required when Anthropic support is enabled |",
+  ].join("\n");
+}
+
+function expandedReadinessDomains(profile) {
+  if (profile !== "expanded") return "";
+  return [
+    "- `ai/contracts/*` reflects real repo boundaries and protected surfaces.",
+    "- `ai/templates/task-brief-template.md` matches the team task intake shape.",
+    "- `ai/skills/*` names review inputs available in this workspace.",
+    "- `ai/QUALITY.md` records evidence and blocking gaps for advanced readiness domains.",
+  ].join("\n");
+}
+
 function guidanceMigrationConsumerSections(plan, preservedGuidanceByConsumer = {}) {
   return plan.consumers.map(({ config: consumer, workspacePath: consumerPath }) => {
     const preservedPath = preservedGuidanceByConsumer[consumer.name]?.directory ?? "none";
+    const migrationTargets = [
+      "  ai/context.md",
+      "  ai/HUB.md",
+      "  ai/PRODUCT-SUMMARY.md",
+      "  ai/WORKFLOW.md",
+      "  ai/READINESS.md",
+      ...(plan.profile === "expanded"
+        ? [
+            "  ai/ARCHITECTURE.md",
+            "  ai/QUALITY.md",
+            "  ai/contracts/README.md",
+            "  ai/workspace/TEST-STRATEGY.md",
+          ]
+        : []),
+    ];
     return [
       `## ${markdownText(consumer.name)}`,
       "",
@@ -82,13 +133,7 @@ function guidanceMigrationConsumerSections(plan, preservedGuidanceByConsumer = {
       "Preserved guidance:",
       `  ${markdownPathCodeSpan(preservedPath)}`,
       "Migration targets:",
-      "  ai/context.md",
-      "  ai/HUB.md",
-      "  ai/ARCHITECTURE.md",
-      "  ai/WORKFLOW.md",
-      "  ai/QUALITY.md",
-      "  ai/contracts/README.md",
-      "  ai/workspace/TEST-STRATEGY.md",
+      ...migrationTargets,
     ].join("\n");
   }).join("\n\n");
 }
@@ -107,6 +152,11 @@ export function harnessTemplateValuesForPlan(plan, options = {}) {
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
     PROJECT_SLUG: rawSlug(config.project.slug, "project.slug"),
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
+    HARNESS_PROFILE: markdownCodeSpan(plan.profile),
+    HARNESS_PROFILE_JSON: javascriptLiteral(plan.profile),
+    EXPANDED_PROFILE_ROUTING: expandedProfileRouting(plan.profile),
+    EXPANDED_READINESS_GATES: expandedReadinessGates(plan.profile),
+    EXPANDED_READINESS_DOMAINS: expandedReadinessDomains(plan.profile),
     WORKSPACE_HARNESS_PATH: plan.harness.workspacePath,
     WORKSPACE_ROOT_FROM_HARNESS_JSON: javascriptLiteral(plan.harness.workspaceRootFromHarness),
     CONSUMER_REPOS_LIST: consumerList(config.consumers),

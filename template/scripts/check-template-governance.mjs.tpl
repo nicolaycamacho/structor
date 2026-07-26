@@ -7,6 +7,7 @@ import { fileURLToPath } from "node:url";
 import { requiredGeneratedHarnessFilesForGovernance } from "./generated-harness-contract.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const profile = {{HARNESS_PROFILE_JSON}};
 const models = {
   openai: {{MODEL_OPENAI_ENABLED}},
   anthropic: {{MODEL_ANTHROPIC_ENABLED}},
@@ -17,7 +18,7 @@ const clientSupport = {
   claudeHooks: {{CLIENT_CLAUDE_HOOKS_ENABLED}},
   claudeSkills: {{CLIENT_CLAUDE_SKILLS_ENABLED}},
 };
-const requiredFiles = requiredGeneratedHarnessFilesForGovernance({ models, clientSupport });
+const requiredFiles = requiredGeneratedHarnessFilesForGovernance({ profile, models, clientSupport });
 
 async function exists(relativePath) {
   try {

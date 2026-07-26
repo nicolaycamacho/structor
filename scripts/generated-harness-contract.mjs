@@ -4,12 +4,17 @@ const gateClientCodexHooks = "client:codexHooks";
 const gateClientClaudeRules = "client:claudeRules";
 const gateAnyModel = "model:any";
 
+export const focusedHarnessProfile = "focused";
+export const expandedHarnessProfile = "expanded";
+export const harnessProfiles = [focusedHarnessProfile, expandedHarnessProfile];
+
 export const generatedHarnessContractScript = "scripts/generated-harness-contract.mjs";
 
 function artifact(template, options = {}) {
   return {
     generated: true,
     gates: [],
+    focused: false,
     ...options,
     template,
   };
@@ -23,23 +28,23 @@ function script(template, options = {}) {
 }
 
 export const generatedHarnessArtifacts = [
-  artifact("AGENTS.md.tpl", { gates: [gateModelOpenai], workspaceCheck: "repo" }),
-  artifact("CLAUDE.md.tpl", { gates: [gateModelAnthropic], workspaceCheck: "repo", claudeCompatibility: true }),
-  artifact(".codex/hooks.json.tpl", { gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
-  artifact("README.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/AGENTS.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/HUB.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/context.md.tpl", { workspaceCheck: "repo" }),
+  artifact("AGENTS.md.tpl", { focused: true, gates: [gateModelOpenai], workspaceCheck: "repo" }),
+  artifact("CLAUDE.md.tpl", { focused: true, gates: [gateModelAnthropic], workspaceCheck: "repo", claudeCompatibility: true }),
+  artifact(".codex/hooks.json.tpl", { focused: true, gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
+  artifact("README.md.tpl", { focused: true, workspaceCheck: "repo" }),
+  artifact("ai/AGENTS.md.tpl", { focused: true, workspaceCheck: "repo" }),
+  artifact("ai/HUB.md.tpl", { focused: true, workspaceCheck: "repo" }),
+  artifact("ai/context.md.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("ai/HARNESS.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/HARNESS-ENGINEERING.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/READINESS.md.tpl", { workspaceCheck: "repo" }),
+  artifact("ai/READINESS.md.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("ai/QUALITY.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/DECISIONS.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/PRODUCT-SUMMARY.md.tpl", { workspaceCheck: "repo" }),
+  artifact("ai/PRODUCT-SUMMARY.md.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("ai/PRODUCT.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/ARCHITECTURE.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/DESIGN.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/WORKFLOW.md.tpl", { workspaceCheck: "repo" }),
+  artifact("ai/WORKFLOW.md.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("ai/VERSIONING.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/CODEX-HOOKS.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/RUNNER-SAFETY.md.tpl", { workspaceCheck: "repo" }),
@@ -58,19 +63,23 @@ export const generatedHarnessArtifacts = [
   }),
   artifact("consumer/AGENTS.md.tpl", {
     generated: false,
+    focused: true,
     gates: [gateModelOpenai],
     consumerEntrypoint: { path: "AGENTS.md", routing: "harness", model: "openai" },
   }),
   artifact("consumer/CLAUDE.md.tpl", {
     generated: false,
+    focused: true,
     gates: [gateModelAnthropic],
     consumerEntrypoint: { path: "CLAUDE.md", routing: "harness", model: "anthropic" },
   }),
   artifact("workspace/AGENTS.md.tpl", {
+    focused: true,
     gates: [gateModelOpenai],
     workspaceEntrypoint: { path: "AGENTS.md", routing: "harness", model: "openai" },
   }),
   artifact("workspace/CLAUDE.md.tpl", {
+    focused: true,
     gates: [gateModelAnthropic],
     workspaceEntrypoint: { path: "CLAUDE.md", routing: "harness", model: "anthropic" },
   }),
@@ -92,12 +101,12 @@ export const generatedHarnessArtifacts = [
   artifact("ai/templates/README.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/templates/task-brief-template.md.tpl"),
   artifact("ai/templates/issue-template.md.tpl"),
-  artifact("ai/templates/populate-generated-harness-prompt.md.tpl"),
+  artifact("ai/templates/populate-generated-harness-prompt.md.tpl", { focused: true }),
   artifact("ai/templates/fixtures/issues/valid-ready.md.tpl"),
   artifact("ai/templates/fixtures/issues/invalid-placeholder.md.tpl"),
   artifact("ai/templates/fixtures/issues/invalid-protected-surface.md.tpl"),
   artifact("ai/specs/README.md.tpl", { workspaceCheck: "repo" }),
-  artifact("ai/tasks/populate-generated-harness.md.tpl", { workspaceCheck: "repo" }),
+  artifact("ai/tasks/populate-generated-harness.md.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("ai/skills/README.md.tpl", { workspaceCheck: "repo" }),
   artifact("ai/skills/review-architecture.md.tpl"),
   artifact("ai/skills/review-security.md.tpl"),
@@ -105,10 +114,10 @@ export const generatedHarnessArtifacts = [
   artifact("ai/skills/review-governance-drift.md.tpl"),
   artifact("ai/plans/README.md.tpl"),
   artifact("ai/plans/tech-debt.md.tpl"),
-  script("scripts/generated-harness-contract.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/validate-governance.mjs.tpl", { trustedScript: false, workspaceCheck: "repo" }),
-  script("scripts/check-template-governance.mjs.tpl"),
-  script("scripts/check-readiness.mjs.tpl", { workspaceCheck: "repo" }),
+  script("scripts/generated-harness-contract.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
+  script("scripts/validate-governance.mjs.tpl", { focused: true, trustedScript: false, workspaceCheck: "repo" }),
+  script("scripts/check-template-governance.mjs.tpl", { focused: true }),
+  script("scripts/check-readiness.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
   script("scripts/check-task-template.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/check-issue-template.mjs.tpl"),
   script("scripts/check-knowledge-manifest.mjs.tpl", { workspaceCheck: "repo" }),
@@ -118,7 +127,7 @@ export const generatedHarnessArtifacts = [
   script("scripts/check-contract-manifests.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/generate-html-views.mjs.tpl", { workspaceCheck: "repo", postRender: "executeOnFreshRender" }),
   script("scripts/check-html-views.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/check-codex-hooks.mjs.tpl", { gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
+  script("scripts/check-codex-hooks.mjs.tpl", { focused: true, gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
   script("scripts/check-claude-compatibility.mjs.tpl", {
     gates: [gateModelAnthropic],
     workspaceCheck: "repo",
@@ -127,19 +136,19 @@ export const generatedHarnessArtifacts = [
   script("scripts/bootstrap-codex-worktree.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/check-worktrees.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/check-worktree-bootstrap-fixtures.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/lib/path-safety.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/lib/worktree-bootstrap.mjs.tpl", { workspaceCheck: "repo" }),
+  script("scripts/lib/path-safety.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
+  script("scripts/lib/worktree-bootstrap.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
   artifact("scripts/fixtures/worktrees/README.md.tpl", { workspaceCheck: "repo" }),
-  script("scripts/bootstrap-workspace.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/check-workspace.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/hooks/codex-hook.mjs.tpl", { gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
-  script("scripts/hooks/lib/codex-hooks-core.mjs.tpl", { gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
+  script("scripts/bootstrap-workspace.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
+  script("scripts/check-workspace.mjs.tpl", { focused: true, workspaceCheck: "repo" }),
+  script("scripts/hooks/codex-hook.mjs.tpl", { focused: true, gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
+  script("scripts/hooks/lib/codex-hooks-core.mjs.tpl", { focused: true, gates: [gateClientCodexHooks], workspaceCheck: "repo" }),
 ];
 
 export const generatedHarnessValidationChecks = [
-  { path: "scripts/check-template-governance.mjs", phase: "required", dependencies: [generatedHarnessContractScript] },
+  { path: "scripts/check-template-governance.mjs", focused: true, phase: "required", dependencies: [generatedHarnessContractScript] },
   { path: "scripts/check-task-template.mjs", phase: "required" },
-  { path: "scripts/check-readiness.mjs", phase: "required" },
+  { path: "scripts/check-readiness.mjs", focused: true, phase: "required" },
   { path: "scripts/check-issue-template.mjs", phase: "required" },
   { path: "scripts/check-knowledge-manifest.mjs", phase: "required" },
   { path: "scripts/check-plans.mjs", phase: "required" },
@@ -162,6 +171,7 @@ export const generatedHarnessValidationChecks = [
   { path: "scripts/check-domain-contract-matrix.mjs", optional: true },
   {
     path: "scripts/check-codex-hooks.mjs",
+    focused: true,
     phase: "conditional",
     gates: [gateClientCodexHooks],
     dependencies: ["scripts/hooks/codex-hook.mjs", "scripts/hooks/lib/codex-hooks-core.mjs"],
@@ -185,6 +195,10 @@ export function clientSupportForConfig(config) {
 }
 
 export function normalizeHarnessSettings(input) {
+  const profile = input.profile ?? expandedHarnessProfile;
+  if (!harnessProfiles.includes(profile)) {
+    throw new Error(`Unknown harness profile: ${profile}`);
+  }
   const models = {
     openai: Boolean(input.models?.openai),
     anthropic: Boolean(input.models?.anthropic),
@@ -203,7 +217,7 @@ export function normalizeHarnessSettings(input) {
         }
       : clientSupportForConfig({ models, clientSupport: support });
 
-  return { models, clientSupport: normalizedSupport };
+  return { profile, models, clientSupport: normalizedSupport };
 }
 
 function gateEnabled(gate, settings) {
@@ -221,7 +235,8 @@ export function gatesEnabled(gates, input) {
 }
 
 export function artifactEnabled(artifactContract, input) {
-  return gatesEnabled(artifactContract.gates, input);
+  const settings = normalizeHarnessSettings(input);
+  return (settings.profile === expandedHarnessProfile || artifactContract.focused) && gatesEnabled(artifactContract.gates, settings);
 }
 
 export function artifactTargetPath(artifactContract) {
@@ -308,7 +323,10 @@ export function freshRenderScriptTemplatesForSettings(input) {
 }
 
 export function validationPlanForSettings(input) {
-  const enabledChecks = generatedHarnessValidationChecks.filter((check) => gatesEnabled(check.gates, input));
+  const settings = normalizeHarnessSettings(input);
+  const enabledChecks = generatedHarnessValidationChecks.filter(
+    (check) => (settings.profile === expandedHarnessProfile || check.focused) && gatesEnabled(check.gates, settings),
+  );
   const requiredChecks = enabledChecks
     .filter((check) => !check.optional && check.phase !== "conditional")
     .map((check) => check.path);

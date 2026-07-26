@@ -51,6 +51,7 @@ export function createTopologyPlan({
   support,
 }) {
   const settings = normalizeHarnessSettings({
+    profile: config.profile,
     models: config.models,
     clientSupport: support ?? clientSupportForConfig(config),
   });
@@ -63,6 +64,7 @@ export function createTopologyPlan({
 
   return {
     config,
+    profile: settings.profile,
     project: { ...config.project },
     models: settings.models,
     clientSupport: settings.clientSupport,
