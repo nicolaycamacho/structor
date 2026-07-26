@@ -22,9 +22,24 @@ consumer-root guidance is preserved at deterministic planned paths; regenerate
 an existing Structor harness through the guided `structor init` flow.
 
 
+## Pasteable Bootstrap Prompt
+
+```text
+Install Structor using the model-neutral protocol in INSTALL_WITH_AGENT.md from
+the exact Structor revision <40-character-sha>. Inspect only the workspace
+<absolute-workspace-path> and the consumer repositories I explicitly approve.
+Prepare the focused-profile config draft outside the workspace, run
+`structor agent plan`, show me the complete immutable plan and its canonical
+hash, and wait for my explicit approval of that exact hash before running
+`structor agent apply`. Preserve existing root guidance, make no application
+source changes, and report execution outcome and readiness separately.
+```
+
 ## Supported Invocation
 
-Run the adapter from an immutable release or 40-character commit. Prepare a
+Run the adapter from an immutable package that records `gitHead`, or from a
+clean Git checkout at the exact 40-character commit supplied to
+`--source-revision`. Prepare a
 config draft outside the selected workspace using the normal config shape from
 `harness.config.example.json`; the adapter derives `workspace.root` and the
 final harness config path from `--workspace` and `output.path`.
@@ -69,6 +84,7 @@ structor agent apply \
 Apply recomputes the plan from current state and rejects config, source,
 rendered-byte, or approval-hash drift before workspace mutation. Never execute
 a mutable `main`-branch copy without first pinning the exact revision read.
+The executing package or clean checkout must match the requested revision.
 
 ## Version Pinning
 

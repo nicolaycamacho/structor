@@ -274,6 +274,8 @@ export async function applySetupTransaction(plan, {
   },
   onConfigWritten = () => {},
   beforeCompletionGates = async () => {},
+  afterCompletionGates = async () => {},
+  onCommandStatus = () => {},
   createRegenerationBackup = true,
 } = {}) {
   if (plan.rootGuidanceConflicts.length > 0 && !preserveExistingGuidance) {
@@ -354,16 +356,24 @@ export async function applySetupTransaction(plan, {
     const completedScripts = [];
     for (const script of completionScriptsForPlan(topologyPlan)) {
       if (script.phase) onPhase(script.phase);
-      await executeGeneratedScript({
-        harnessRoot,
-        relativeScriptPath: script.relativeScriptPath,
-        args: script.relativeScriptPath === "scripts/bootstrap-workspace.mjs" && force ? ["--force"] : [],
-        failureLabel: script.failureLabel,
-        onCommandOutput,
-      });
+      onCommandStatus({ script, status: "running" });
+      try {
+        await executeGeneratedScript({
+          harnessRoot,
+          relativeScriptPath: script.relativeScriptPath,
+          args: script.relativeScriptPath === "scripts/bootstrap-workspace.mjs" && force ? ["--force"] : [],
+          failureLabel: script.failureLabel,
+          onCommandOutput,
+        });
+      } catch (error) {
+        onCommandStatus({ script, status: "failed" });
+        throw error;
+      }
+      onCommandStatus({ script, status: "passed" });
       completedScripts.push(script.relativeScriptPath);
     }
 
+    await afterCompletionGates({ completedScripts, generated, resolvedConfig });
     return {
       setupComplete: true,
       completedScripts,

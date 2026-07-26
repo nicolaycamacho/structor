@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
+import { execFileSync } from "node:child_process";
 import { access, mkdtemp, readFile, readdir, rm, writeFile, mkdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -13,6 +14,9 @@ import {
   exactApprovalAcknowledgement,
   installationPlanHash,
 } from "../scripts/agent-native-contract.mjs";
+const repoRoot = path.resolve(".");
+const sourceRevision = execFileSync("git", ["rev-parse", "HEAD"], { cwd: repoRoot, encoding: "utf8" }).trim();
+
 
 async function exists(targetPath) {
   try {
@@ -83,7 +87,7 @@ test("agent-native setup binds approval to a no-write plan and emits a verifiabl
       config,
       configPath,
       planId: "setup-test-001",
-      sourceRevision: "0123456789abcdef0123456789abcdef01234567",
+      sourceRevision,
       plannedAt: "2026-07-26T12:00:00.000Z",
     });
 
@@ -162,6 +166,10 @@ test("agent-native setup binds approval to a no-write plan and emits a verifiabl
       const content = await readFile(path.join(bundleRoot, artifact.path));
       assert.equal(artifact.hash, sha256(content), artifact.path);
     }
+    assert.equal(plan.commands.at(-1).phase, "consumer-validation");
+    assert.equal(execution.result.commands.at(-1).status, "passed");
+    assert.equal(execution.result.validationOutcomes.at(-1).status, "passed");
+    assert.doesNotMatch(await readFile(path.join(harnessRoot, "ai/context.md"), "utf8"), /Evidence-backed demo/);
     assert.equal(manifest.planHash, receipt.planHash);
     assert.equal(manifest.sanitized, true);
     assert.doesNotMatch(JSON.stringify(manifest), new RegExp(workspaceRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
@@ -174,7 +182,7 @@ test("agent-native setup reports structural rollback independently from readines
       config,
       configPath,
       planId: "setup-rollback-001",
-      sourceRevision: "0123456789abcdef0123456789abcdef01234567",
+      sourceRevision,
       plannedAt: "2026-07-26T13:00:00.000Z",
     });
     const receipt = {
@@ -203,6 +211,9 @@ test("agent-native setup reports structural rollback independently from readines
       completed: true,
       restoredPaths: plan.writes.map((write) => write.path),
     });
+    assert.equal(execution.result.commands[0].status, "failed");
+    assert.equal(execution.result.commands[1].status, "skipped");
+    assert.equal(execution.result.validationOutcomes[0].status, "skipped");
     assert.equal(await exists(harnessRoot), false);
     assert.equal(
       await exists(path.join(workspaceRoot, "evidence/setup/setup-rollback-001/result.json")),
@@ -219,7 +230,7 @@ test("agent-native setup plans and preserves existing root guidance byte-for-byt
       config,
       configPath,
       planId: "setup-preserve-001",
-      sourceRevision: "0123456789abcdef0123456789abcdef01234567",
+      sourceRevision,
       plannedAt: "2026-07-26T14:00:00.000Z",
     });
     const preservedPath = "app/.structor/preserved-guidance/setup-preserve-001/AGENTS.md";
@@ -231,6 +242,9 @@ test("agent-native setup plans and preserves existing root guidance byte-for-byt
     assert.ok(plan.writes.some((write) => write.path === preservedPath));
     assert.ok(plan.writes.some((write) =>
       write.path === "app/.structor/preserved-guidance/setup-preserve-001/README.md"));
+    assert.ok(plan.reads.some((read) =>
+      read.path === "app/AGENTS.md"
+      && read.reason.includes("preserve approved existing root guidance")));
     assert.deepEqual(
       plan.preservation.backups.find((backup) => backup.sourcePath === "app/AGENTS.md"),
       { sourcePath: "app/AGENTS.md", backupPath: preservedPath },
@@ -270,11 +284,81 @@ test("agent-native setup rejects unmanaged harness or workspace replacement duri
         config,
         configPath,
         planId: "setup-existing-workspace-001",
-        sourceRevision: "0123456789abcdef0123456789abcdef01234567",
+        sourceRevision,
         plannedAt: "2026-07-26T15:00:00.000Z",
       }),
       /has no deterministic preservation path/,
     );
     assert.equal(await readFile(workspaceGuidancePath, "utf8"), existingGuidance);
+  });
+});
+test("agent-native setup rejects unsafe plan IDs and source revision drift before mutation", async () => {
+  await withWorkspace(async ({ harnessRoot, configPath, config }) => {
+    await assert.rejects(
+      planAgentNativeSetup({
+        config,
+        configPath,
+        planId: "../escape",
+        sourceRevision,
+        plannedAt: "2026-07-26T16:00:00.000Z",
+      }),
+      /plan ID must contain only lowercase letters, digits, and hyphens/,
+    );
+    await assert.rejects(
+      planAgentNativeSetup({
+        config,
+        configPath,
+        planId: "setup-source-drift-001",
+        sourceRevision: "0000000000000000000000000000000000000000",
+        plannedAt: "2026-07-26T16:00:00.000Z",
+      }),
+      /does not match the executing Structor checkout/,
+    );
+    assert.equal(await exists(harnessRoot), false);
+  });
+});
+
+test("consumer validation failures are reported without rolling back structural setup", async () => {
+  await withWorkspace(async ({ workspaceRoot, harnessRoot, configPath, config }) => {
+    const failingConfig = structuredClone(config);
+    failingConfig.consumers[0].validation.test = `${process.execPath} -e "process.exit(1)"`;
+    const plan = await planAgentNativeSetup({
+      config: failingConfig,
+      configPath,
+      planId: "setup-consumer-failure-001",
+      sourceRevision,
+      plannedAt: "2026-07-26T17:00:00.000Z",
+    });
+    const receipt = {
+      contractVersion: plan.contractVersion,
+      schemaVersion: plan.schemaVersion,
+      planHash: installationPlanHash(plan),
+      approvedAt: "2026-07-26T17:01:00.000Z",
+      acknowledgement: exactApprovalAcknowledgement,
+    };
+
+    const execution = await applyAgentNativeSetup({
+      plan,
+      receipt,
+      config: failingConfig,
+      configPath,
+      executedAt: "2026-07-26T17:02:00.000Z",
+    });
+
+    assert.equal(execution.result.executionOutcome, "applied");
+    assert.equal(execution.result.readiness, "ready_with_warnings");
+    assert.deepEqual(execution.result.rollback, {
+      attempted: false,
+      completed: false,
+      restoredPaths: [],
+    });
+    assert.equal(execution.result.commands.at(-1).status, "failed");
+    assert.equal(execution.result.validationOutcomes.at(-1).status, "failed");
+    assert.match(execution.result.unresolvedRisks.at(-1), /Consumer validation failed/);
+    assert.equal(await exists(harnessRoot), true);
+    assert.equal(
+      await exists(path.join(workspaceRoot, "evidence/setup/setup-consumer-failure-001/result.json")),
+      true,
+    );
   });
 });

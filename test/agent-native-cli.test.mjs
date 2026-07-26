@@ -12,6 +12,7 @@ import {
 } from "../scripts/agent-native-contract.mjs";
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const sourceRevision = spawnSync("git", ["rev-parse", "HEAD"], { cwd: packageRoot, encoding: "utf8" }).stdout.trim();
 const cliPath = path.join(packageRoot, "bin/structor.mjs");
 
 async function exists(targetPath) {
@@ -57,7 +58,7 @@ test("manual agent CLI uses the same no-write plan/apply contract", async () => 
       "--workspace", workspaceRoot,
       "--config-draft", draftPath,
       "--plan-id", "setup-cli-001",
-      "--source-revision", "0123456789abcdef0123456789abcdef01234567",
+      "--source-revision", sourceRevision,
       "--planned-at", "2026-07-26T15:00:00.000Z",
     ], { encoding: "utf8" });
     assert.equal(planned.status, 0, planned.stderr);

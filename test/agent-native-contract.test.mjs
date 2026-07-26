@@ -325,3 +325,31 @@ test("setup evidence fixture binds the approved plan and every reported artifact
     assert.ok(report.includes(`Command: \`${command.command}\` (cwd: \`${command.cwd}\`, status: \`${command.status}\`)`));
   }
 });
+test("versioned protocol conformance fixtures cover coordinator boundaries and readiness", async () => {
+  const fixture = JSON.parse(
+    await readFile(path.join(repoRoot, "fixtures/agent-native/protocol-conformance.json"), "utf8"),
+  );
+  const scenarios = new Map(fixture.scenarios.map((scenario) => [scenario.id, scenario]));
+
+  assert.equal(fixture.version, "1.0.0");
+  assert.deepEqual(
+    scenarios.get("decision-classification").expected.levels,
+    {
+      consumerRepositories: "recommended-confirmed",
+      projectIdentity: "recommended-confirmed",
+      topology: "recommended-confirmed",
+      enabledClients: "explicit",
+      existingGuidance: "explicit",
+    },
+  );
+  assert.deepEqual(scenarios.get("delegation-conflict").expected.writes, []);
+  assert.equal(scenarios.get("delegation-conflict").expected.action, "escalate-conflict");
+  assert.equal(scenarios.get("active-skill-conflict").expected.action, "stop-before-planning");
+  assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.allowed, ["consumer/package.json"]);
+  assert.deepEqual(scenarios.get("forbidden-read-boundary").expected.writes, []);
+  assert.deepEqual(scenarios.get("consumer-readiness").expected, {
+    executionOutcome: "applied",
+    readiness: "ready_with_warnings",
+    rollback: false,
+  });
+});

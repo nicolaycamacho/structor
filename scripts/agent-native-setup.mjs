@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { access, mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -17,7 +18,7 @@ import {
   installConsumerEntrypoints,
   planConsumerRootGuidancePreservation,
 } from "./init-harness.mjs";
-import { markdownCodeSpan, markdownText } from "./rendered-config.mjs";
+import { markdownCodeSpan } from "./rendered-config.mjs";
 import { applySetupTransaction, planSetupTransaction } from "./setup-transaction.mjs";
 
 const populateSectionStart = "<!-- structor:populate:start -->";
@@ -67,7 +68,6 @@ async function consumerEvidence(resolvedConsumer, workspaceRoot) {
   return {
     config: resolvedConsumer.config,
     packageName: typeof packageJson.name === "string" ? packageJson.name : null,
-    packageDescription: typeof packageJson.description === "string" ? packageJson.description : null,
     sourcePath: repositoryRelative(workspaceRoot, packagePath),
     sourceHash: sha256(packageContent),
   };
@@ -77,7 +77,6 @@ function renderContextEvidence(consumers) {
   const lines = consumers.flatMap((consumer) => [
     `- ${markdownCodeSpan(consumer.config.name)} at ${markdownCodeSpan(consumer.config.path)}.`,
     ...(consumer.packageName ? [`  - Package: ${markdownCodeSpan(consumer.packageName)}.`] : []),
-    ...(consumer.packageDescription ? [`  - Description: ${markdownText(consumer.packageDescription)}.`] : []),
     `  - Evidence: ${markdownCodeSpan(consumer.sourcePath)}.`,
   ]);
   return `## Local Consumer Evidence\n\n${lines.join("\n")}\n\n## Review Required\n\n- Confirm product, architecture, contracts, and workflow claims before relying on them.\n- Keep model overlays and consumer entrypoints thin.\n`;
@@ -116,11 +115,55 @@ async function packageVersion() {
   return metadata.version;
 }
 
+async function assertExecutingSourceRevision(expectedRevision) {
+  const metadata = JSON.parse(await readFile(path.join(packageRoot, "package.json"), "utf8"));
+  if (/^[a-f0-9]{40}$/.test(metadata.gitHead ?? "")) {
+    if (metadata.gitHead !== expectedRevision) {
+      throw new Error("Requested source revision does not match the executing Structor package.");
+    }
+    return;
+  }
+  const revision = spawnSync("git", ["-C", packageRoot, "rev-parse", "HEAD"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (revision.status !== 0) {
+    throw new Error("Executing Structor source revision is unavailable; use an immutable package or Git checkout.");
+  }
+  const status = spawnSync("git", ["-C", packageRoot, "status", "--porcelain", "--untracked-files=all"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+  if (status.status !== 0 || status.stdout.trim()) {
+    throw new Error("Agent-native setup requires a clean immutable Structor checkout.");
+  }
+  if (revision.stdout.trim() !== expectedRevision) {
+    throw new Error("Requested source revision does not match the executing Structor checkout.");
+  }
+}
+
 function enabledClients(config) {
   return [
     ...(config.models.openai ? ["codex"] : []),
     ...(config.models.anthropic ? ["claude"] : []),
   ].join(",");
+}
+
+const consumerValidationKinds = ["lint", "test", "build", "health"];
+
+function plannedConsumerValidationCommands(resolvedConfig, workspaceRoot) {
+  return resolvedConfig.consumers.flatMap((consumer) =>
+    consumerValidationKinds.flatMap((kind) => {
+      const command = consumer.config.validation[kind];
+      if (!command) return [];
+      return [{
+        id: `${consumer.config.name}-${kind}`,
+        cwd: repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root),
+        command,
+        phase: "consumer-validation",
+      }];
+    }),
+  );
 }
 
 async function buildPlanCandidate({
@@ -133,6 +176,11 @@ async function buildPlanCandidate({
   if (!/^[a-f0-9]{40}$/.test(sourceRevision)) {
     throw new Error("Agent-native setup requires an immutable 40-character lowercase source revision.");
   }
+  if (!/^[a-z0-9][a-z0-9-]*$/.test(planId)) {
+    throw new Error("Agent-native setup plan ID must contain only lowercase letters, digits, and hyphens.");
+  }
+  await assertExecutingSourceRevision(sourceRevision);
+
   if (config.profile !== "focused") {
     throw new Error("Agent-native setup currently requires the focused harness profile.");
   }
@@ -228,6 +276,7 @@ async function buildPlanCandidate({
     repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root));
   const existingGuidance = transaction.rootGuidanceConflicts.map((conflict) =>
     repositoryRelative(workspaceRoot, conflict.targetPath));
+  const consumerCommands = plannedConsumerValidationCommands(resolvedConfig, workspaceRoot);
 
   return {
     plan: {
@@ -244,15 +293,22 @@ async function buildPlanCandidate({
         { id: "generation-timestamp", level: "explicit", selection: plannedAt, provenance: [] },
         { id: "existing-guidance", level: "explicit", selection: existingGuidance.length > 0 ? "preserve" : "none", provenance: existingGuidance },
       ],
-      reads: consumers.map((item) => ({
-        path: item.sourcePath,
-        reason: "Extract manifest-declared population evidence",
-      })),
+      reads: [
+        ...consumers.map((item) => ({
+          path: item.sourcePath,
+          reason: "Extract manifest-declared population evidence",
+        })),
+        ...existingGuidance.map((guidancePath) => ({
+          path: guidancePath,
+          reason: "Detect, hash, and preserve approved existing root guidance",
+        })),
+      ],
       writes,
       commands: [
         { cwd: repositoryRelative(workspaceRoot, transaction.harnessRoot), command: "node scripts/bootstrap-workspace.mjs", phase: "setup" },
         { cwd: repositoryRelative(workspaceRoot, transaction.harnessRoot), command: "node scripts/validate-governance.mjs", phase: "validation" },
         { cwd: repositoryRelative(workspaceRoot, transaction.harnessRoot), command: "node scripts/check-workspace.mjs", phase: "validation" },
+        ...consumerCommands.map(({ id, ...command }) => command),
       ],
       preservation: {
         backupRequired: backups.length > 0,
@@ -274,6 +330,11 @@ async function buildPlanCandidate({
       validationGates: [
         { id: "governance", required: true, command: "node scripts/validate-governance.mjs" },
         { id: "workspace", required: true, command: "node scripts/check-workspace.mjs" },
+        ...consumerCommands.map((command) => ({
+          id: command.id,
+          required: false,
+          command: command.command,
+        })),
       ],
       evidenceOutputs: canonicalInstallationEvidenceOutputPaths.map(
         (artifact) => `${evidenceRoot}/${artifact}`,
@@ -311,6 +372,7 @@ function reportMarkdown({ plan, result, consumers }) {
 async function writeEvidenceBundle({ plan, receipt, result, consumers, workspaceRoot }) {
   const bundleRelative = `evidence/setup/${plan.planId}`;
   const bundleRoot = path.join(workspaceRoot, bundleRelative);
+  repositoryRelative(workspaceRoot, bundleRoot);
   await mkdir(bundleRoot, { recursive: true });
   const artifacts = {
     "installation-plan.json": jsonFile(plan),
@@ -346,6 +408,86 @@ async function writeEvidenceBundle({ plan, receipt, result, consumers, workspace
   await writeFile(path.join(bundleRoot, "manifest.json"), jsonFile(manifest));
   return { bundleRoot, manifest };
 }
+function commandResults(plan, statuses) {
+  return plan.commands.map((command, index) => ({
+    cwd: command.cwd,
+    command: command.command,
+    status: statuses[index],
+  }));
+}
+
+function validationResults(plan, statuses, rollback = false) {
+  return plan.validationGates.map((gate, index) => {
+    const status = statuses[index + 1];
+    return {
+      id: gate.id,
+      required: gate.required,
+      status,
+      reason: status === "passed"
+        ? ""
+        : status === "failed"
+          ? (rollback
+            ? "This validation failed and the structural transaction rolled back."
+            : "Configured consumer validation failed without rolling back setup.")
+          : "The validation was skipped because setup did not reach this gate.",
+    };
+  });
+}
+
+function runConsumerValidations(plan, workspaceRoot, statuses) {
+  for (let index = 3; index < plan.commands.length; index += 1) {
+    const plannedCommand = plan.commands[index];
+    const result = spawnSync(plannedCommand.command, {
+      cwd: path.join(workspaceRoot, plannedCommand.cwd),
+      encoding: "utf8",
+      shell: true,
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    statuses[index] = result.status === 0 ? "passed" : "failed";
+  }
+}
+
+async function finalizeSuccessfulExecution({
+  plan,
+  receipt,
+  consumers,
+  workspaceRoot,
+  actualWrites,
+  statuses,
+  executedAt,
+}) {
+  runConsumerValidations(plan, workspaceRoot, statuses);
+  const consumerFailures = plan.commands
+    .map((command, index) => ({ command, status: statuses[index] }))
+    .filter(({ command, status }) =>
+      command.phase === "consumer-validation" && status === "failed");
+  const result = {
+    contractVersion: plan.contractVersion,
+    schemaVersion: plan.schemaVersion,
+    planHash: installationPlanHash(plan),
+    executedAt,
+    executionOutcome: "applied",
+    readiness: "ready_with_warnings",
+    actualWrites,
+    commands: commandResults(plan, statuses),
+    validationOutcomes: validationResults(plan, statuses),
+    rollback: { attempted: false, completed: false, restoredPaths: [] },
+    evidenceBundle: `evidence/setup/${plan.planId}`,
+    unresolvedRisks: [
+      "Populated natural-language guidance requires human review",
+      ...consumerFailures.map(({ command }) =>
+        `Consumer validation failed without rolling back setup: ${command.command}`),
+    ],
+  };
+  const evidence = await writeEvidenceBundle({
+    plan,
+    receipt,
+    result,
+    consumers,
+    workspaceRoot,
+  });
+  return { result, manifest: evidence.manifest, evidenceBundle: evidence.bundleRoot };
+}
 
 export async function applyAgentNativeSetup({
   plan,
@@ -370,6 +512,8 @@ export async function applyAgentNativeSetup({
     plan.decisions.find((decision) => decision.id === "existing-guidance")?.selection === "preserve";
 
   const actualWrites = [];
+  const statuses = plan.commands.map(() => "skipped");
+  let successfulExecution = null;
   const contextWrite = plan.writes.find((write) => write.path.endsWith("/ai/context.md"));
   const contextContent = candidate.transaction.dryRunGenerated.generatedFiles.find(
     (file) => file.targetRelative === "ai/context.md",
@@ -379,8 +523,34 @@ export async function applyAgentNativeSetup({
       preserveExistingGuidance,
       createRegenerationBackup: false,
       ...(executeGeneratedScript ? { executeGeneratedScript } : {}),
+      onCommandStatus: ({ script, status }) => {
+        if (status === "running") return;
+        const index = plan.commands.findIndex((command) =>
+          command.phase !== "consumer-validation"
+          && command.command === `node ${script.relativeScriptPath}`);
+        if (index !== -1) statuses[index] = status;
+      },
       beforeCompletionGates: async () => {
         await writeFile(path.join(candidate.workspaceRoot, contextWrite.path), contextContent);
+        for (const write of plan.writes) {
+          const content = await readFile(path.join(candidate.workspaceRoot, write.path));
+          const contentHash = sha256(content);
+          if (contentHash !== write.contentHash) {
+            throw new Error(`Applied content does not match installation plan for ${write.path}.`);
+          }
+          actualWrites.push({ path: write.path, contentHash });
+        }
+      },
+      afterCompletionGates: async () => {
+        successfulExecution = await finalizeSuccessfulExecution({
+          plan,
+          receipt,
+          consumers: candidate.consumers,
+          workspaceRoot: candidate.workspaceRoot,
+          actualWrites,
+          statuses,
+          executedAt,
+        });
       },
     });
   } catch (error) {
@@ -393,17 +563,8 @@ export async function applyAgentNativeSetup({
       executionOutcome: rollbackCompleted ? "rolled_back" : "failed",
       readiness: "blocked",
       actualWrites: [],
-      commands: plan.commands.map((command, index) => ({
-        cwd: command.cwd,
-        command: command.command,
-        status: index === 0 ? "failed" : "skipped",
-      })),
-      validationOutcomes: plan.validationGates.map((gate) => ({
-        id: gate.id,
-        required: gate.required,
-        status: "skipped",
-        reason: "Setup transaction rolled back before validation completed.",
-      })),
+      commands: commandResults(plan, statuses),
+      validationOutcomes: validationResults(plan, statuses, true),
       rollback: {
         attempted: true,
         completed: rollbackCompleted,
@@ -421,43 +582,5 @@ export async function applyAgentNativeSetup({
     });
     return { result, manifest: evidence.manifest, evidenceBundle: evidence.bundleRoot };
   }
-  for (const write of plan.writes) {
-    const content = await readFile(path.join(candidate.workspaceRoot, write.path));
-    const contentHash = sha256(content);
-    if (contentHash !== write.contentHash) {
-      throw new Error(`Applied content does not match installation plan for ${write.path}.`);
-    }
-    actualWrites.push({ path: write.path, contentHash });
-  }
-  const result = {
-    contractVersion: plan.contractVersion,
-    schemaVersion: plan.schemaVersion,
-    planHash: installationPlanHash(plan),
-    executedAt,
-    executionOutcome: "applied",
-    readiness: "ready_with_warnings",
-    actualWrites,
-    commands: plan.commands.map((command) => ({
-      cwd: command.cwd,
-      command: command.command,
-      status: "passed",
-    })),
-    validationOutcomes: plan.validationGates.map((gate) => ({
-      id: gate.id,
-      required: gate.required,
-      status: "passed",
-      reason: "",
-    })),
-    rollback: { attempted: false, completed: false, restoredPaths: [] },
-    evidenceBundle: `evidence/setup/${plan.planId}`,
-    unresolvedRisks: ["Populated natural-language guidance requires human review"],
-  };
-  const evidence = await writeEvidenceBundle({
-    plan,
-    receipt,
-    result,
-    consumers: candidate.consumers,
-    workspaceRoot: candidate.workspaceRoot,
-  });
-  return { result, manifest: evidence.manifest, evidenceBundle: evidence.bundleRoot };
+  return successfulExecution;
 }

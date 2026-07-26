@@ -19,6 +19,7 @@ Useful options include:
 - `--preserve-existing-guidance`
 
 `--yes` is not permission to replace existing non-matching root guidance. Use
+`--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
 ## `structor agent`
 
 Produce, hash, and apply the immutable Agent-Native Setup contract:
@@ -36,8 +37,6 @@ requires an approval receipt bound to the exact canonical plan hash. See
 [Install Structor With An Agent](../../INSTALL_WITH_AGENT.md) for the complete
 model-neutral protocol.
 
-`--preserve-existing-guidance` only when preserve-then-replace is explicitly
-intended.
 
 ## `structor generate`
 
