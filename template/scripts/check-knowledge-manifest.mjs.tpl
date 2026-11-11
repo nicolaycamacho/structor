@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 
-import { access, readFile, readdir } from "node:fs/promises";
-import { constants as fsConstants } from "node:fs";
+import { readFile, readdir } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { resolveGuidanceTarget, validateGuidanceGraph } from "./lib/harness-routing.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const manifestPath = "ai/knowledge-manifest.json";
@@ -14,21 +14,13 @@ function fromRoot(relativePath) {
   return path.join(repoRoot, relativePath);
 }
 
-async function canAccess(relativePath) {
-  try {
-    await access(fromRoot(relativePath), fsConstants.F_OK);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 function toRepoRelative(absolutePath) {
   return path.relative(repoRoot, absolutePath).replaceAll(path.sep, "/");
 }
 
 async function readText(relativePath) {
-  return readFile(fromRoot(relativePath), "utf8");
+  const safePath = await resolveGuidanceTarget({ harnessRoot: repoRoot, reference: relativePath });
+  return readFile(fromRoot(safePath), "utf8");
 }
 
 async function collectMarkdownFiles(relativeRoot) {
@@ -52,27 +44,27 @@ async function collectMarkdownFiles(relativeRoot) {
   return discovered.sort();
 }
 
+const models = { openai: {{MODEL_OPENAI_ENABLED}}, anthropic: {{MODEL_ANTHROPIC_ENABLED}} };
 const errors = [];
 const manifest = JSON.parse(await readText(manifestPath));
+const { issues, edges } = await validateGuidanceGraph({ harnessRoot: repoRoot, models, profile: {{HARNESS_PROFILE_JSON}}, manifest });
+errors.push(...issues);
 const docs = manifest.canonicalDocs ?? [];
 const listed = new Set(docs.map((doc) => doc.path));
 
 for (const doc of docs) {
-  if (!(await canAccess(doc.path))) {
-    errors.push(`${doc.path} is listed in ${manifestPath} but does not exist.`);
+  try {
+    await resolveGuidanceTarget({ harnessRoot: repoRoot, reference: doc.path });
+  } catch (error) {
+    errors.push(`${doc.path}: ${error.message}`);
     continue;
   }
   if (doc.status === "active" && !doc.purpose?.trim()) {
     errors.push(`${doc.path} is active but has no purpose.`);
   }
   for (const linkedFrom of doc.linkedFrom ?? []) {
-    if (!(await canAccess(linkedFrom))) {
-      errors.push(`${doc.path} expects a routing link from ${linkedFrom}, but it does not exist.`);
-      continue;
-    }
-    const source = await readText(linkedFrom);
-    if (!source.includes(doc.path) && !source.includes(path.basename(doc.path))) {
-      errors.push(`${doc.path} is not linked from ${linkedFrom}.`);
+    if (!edges.get(linkedFrom)?.has(doc.path)) {
+      errors.push(`${doc.path} is not linked by an exact declared reference from ${linkedFrom}.`);
     }
   }
 }
@@ -90,4 +82,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("Knowledge manifest check passed.");
+console.log("Knowledge manifest check passed (static guidance reachability only; not proof of model behavior).");

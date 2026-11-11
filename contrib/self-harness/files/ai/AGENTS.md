@@ -8,7 +8,7 @@ This folder holds canonical guidance for contributing to Structor itself.
 - Context routing for generator, template, schema, CLI, and docs changes.
 - Validation expectations for issue work in the Structor source repo.
 
-## Rules
+## Contribution Boundaries
 
 - Structor is the Harness Engineering Framework.
 - Structor is a generator, not a runner, orchestrator, agent runtime, PR
@@ -23,6 +23,10 @@ This folder holds canonical guidance for contributing to Structor itself.
 - Use `npm run validate` in `../structor` as the default full local gate.
 - Use `node scripts/validate-governance.mjs` here after changing self-harness
   guidance.
+
+## Rules
+
+- Use `./ai/HUB.md` to route tasks before loading topical docs.
 
 ## Read Order
 

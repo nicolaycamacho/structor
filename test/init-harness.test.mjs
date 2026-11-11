@@ -105,6 +105,189 @@ function assertSyntaxChecks(filePath) {
   assertSuccess(result, `syntax check failed for ${filePath}`);
 }
 
+test("focused governance rejects required guidance unreachable from an enabled entrypoint", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate focused guidance");
+    assertSuccess(runValidateGovernance(harnessRoot), "initial guidance graph");
+    const hubPath = path.join(harnessRoot, "ai/HUB.md");
+    const hub = await readFile(hubPath, "utf8");
+    await writeFile(hubPath, hub.replaceAll("./ai/WORKFLOW.md", "./ai/context.md"));
+    const invalid = runValidateGovernance(harnessRoot);
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /ai\/WORKFLOW\.md.*unreachable.*AGENTS\.md/i);
+  });
+});
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`task guidance routes remain valid for ${profile} ${JSON.stringify(models)}`, async () => {
+      await withTempDir(async (root) => {
+        const configPath = await writeMinimalConfig(root, "./test-structor", { profile, models });
+        const harnessRoot = path.join(root, "test-structor");
+        assertSuccess(runInitHarness(configPath), "generate task routes");
+        assertSuccess(runValidateGovernance(harnessRoot), "task route governance");
+        const hub = await readFile(path.join(harnessRoot, "ai/HUB.md"), "utf8");
+        for (const task of ["Implement", "Diagnose", "Review", "Security", "Missing Guidance"]) assert.ok(hub.includes(task), task);
+        const manifest = JSON.parse(await readFile(path.join(harnessRoot, "ai/knowledge-manifest.json"), "utf8"));
+        for (const surface of manifest.routingSurfaces) assert.ok(await exists(path.join(harnessRoot, surface.path)), surface.path);
+        if (profile === "focused") {
+          assert.ok(!hub.includes("./ai/skills/"));
+          assert.ok(!manifest.canonicalDocs.some((doc) => doc.path === "ai/QUALITY.md"));
+        }
+      });
+    });
+  }
+}
+
+test("guidance dynamic exceptions are exact, reasoned, bounded, and never establish reachability", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate dynamic routing fixture");
+    const hubPath = path.join(harnessRoot, "ai/HUB.md");
+    const manifestPath = path.join(harnessRoot, "ai/knowledge-manifest.json");
+    const hub = await readFile(hubPath, "utf8");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    const reference = "./ai/tasks/*.md";
+    const withDynamic = hub.replace("## Routing", `## Routing\n\n- Optional task selection: \`${reference}\``);
+    await writeFile(hubPath, withDynamic);
+    let invalid = runValidateGovernance(harnessRoot);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /dynamic guidance reference.*exact exemption/);
+    manifest.dynamicReferences = [{ source: "ai/HUB.md", reference, reason: "Task selected manually after inspecting the task index." }];
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    assertSuccess(runValidateGovernance(harnessRoot), "one exact dynamic exemption");
+    const fileParent = "./ai/context.md/*.md";
+    await writeFile(hubPath, withDynamic.replace(reference, fileParent));
+    manifest.dynamicReferences[0].reference = fileParent;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    invalid = runValidateGovernance(harnessRoot);
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /dynamic guidance reference.*directory/);
+    manifest.dynamicReferences[0].reference = reference;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    await writeFile(hubPath, withDynamic.replaceAll("./ai/tasks/populate-generated-harness.md", "./ai/context.md"));
+    invalid = runValidateGovernance(harnessRoot);
+    assert.equal(invalid.status, 1);
+    assert.match(invalid.stderr, /populate-generated-harness.md.*unreachable/);
+    await mkdir(path.join(root, "outside"));
+    const escape = "../outside/*.md";
+    await writeFile(hubPath, withDynamic.replace(reference, escape));
+    manifest.dynamicReferences[0].reference = escape;
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    invalid = runValidateGovernance(harnessRoot);
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /unsafe|escape|narrow/);
+  });
+});
+
+test("declared guidance preserves Markdown link and navigation boundaries", async (t) => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate Markdown boundary fixture");
+    const hubPath = path.join(harnessRoot, "ai/HUB.md");
+    const manifestPath = path.join(harnessRoot, "ai/knowledge-manifest.json");
+    const hub = await readFile(hubPath, "utf8");
+    const manifest = await readFile(manifestPath, "utf8");
+    await writeFile(path.join(harnessRoot, "ai/policy.txt"), "Synthetic local policy\n");
+    for (const [name, fragment, expectedStatus] of [
+      ["double-quoted link title", '[Missing](./ai/missing.md "Required guidance")', 1],
+      ["single-quoted link title", "[Unsafe](../outside.md 'Required guidance')", 1],
+      ["parenthesized link title", "[Missing](./ai/missing.md (Required guidance))", 1],
+      ["angle-delimited destination", '[Unsafe](<../outside.md> "Required guidance")', 1],
+      ["valid titled link", '[Workflow](./ai/WORKFLOW.md "Required guidance")', 0],
+      ["non-Markdown escape", "[Policy](../outside.txt)", 1],
+      ["missing non-Markdown target", "[Policy](./ai/missing.txt)", 1],
+      ["missing extensionless target", "[Policy](./ai/missing)", 1],
+      ["existing non-Markdown target", "[Policy](./ai/policy.txt)", 0],
+      ["inline path escape", "`../outside.txt`", 1],
+      ["inline missing path", "`./ai/missing`", 1],
+      ["inline missing filename", "`missing.txt`", 1],
+      ["inline existing path", "`./ai/policy.txt`", 0],
+      ["long backtick fence", "````md\n```md\n[Example](../outside.md)\n```\n````", 0],
+      ["different fence delimiter", "~~~md\n```\n[Example](../outside.md)\n```\n~~~", 0],
+    ]) {
+      await t.test(name, async () => {
+        await writeFile(hubPath, hub.replace("## Routing", `## Routing\n\n${fragment}`));
+        const result = spawnSync(process.execPath, ["scripts/check-knowledge-manifest.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+        assert.equal(result.status, expectedStatus, result.stdout + result.stderr);
+      });
+    }
+    await t.test("sections never enable a whole-document wildcard", async () => {
+      const changed = JSON.parse(manifest);
+      changed.routingSurfaces.find((surface) => surface.path === "ai/HUB.md").sections = ["*"];
+      await writeFile(manifestPath, JSON.stringify(changed));
+      await writeFile(hubPath, hub + "\n## Historical Example\n\n`./ai/tasks/populate-generated-harness.md`\n");
+      const result = spawnSync(process.execPath, ["scripts/check-knowledge-manifest.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.match(result.stderr, /unreachable/);
+    });
+  });
+});
+
+test("each enabled expanded overlay must reach required knowledge", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "expanded" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate overlay fixture");
+    const overlayPath = path.join(harnessRoot, "ai/model-overlays/openai/AGENTS.md");
+    const overlay = await readFile(overlayPath, "utf8");
+    await writeFile(overlayPath, overlay.replaceAll("../../../AGENTS.md", "../../context.md").replaceAll("../../AGENTS.md", "../../context.md").replaceAll("../../HUB.md", "../../context.md"));
+    const invalid = spawnSync(process.execPath, ["scripts/check-knowledge-manifest.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+    assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+    assert.match(invalid.stderr, /unreachable.*model-overlays\/openai\/AGENTS.md/);
+  });
+});
+
+test("generated graph rejects unsafe and inexact routes and ignores undeclared prose", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate exact routing fixture");
+    const hubPath = path.join(harnessRoot, "ai/HUB.md");
+    const manifestPath = path.join(harnessRoot, "ai/knowledge-manifest.json");
+    const hub = await readFile(hubPath, "utf8");
+    const manifest = await readFile(manifestPath, "utf8");
+    const run = () => spawnSync(process.execPath, ["scripts/check-knowledge-manifest.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+    await mkdir(path.join(harnessRoot, "ai/specs"));
+    await writeFile(path.join(harnessRoot, "ai/specs/WORKFLOW.md"), "# Unrelated workflow\n");
+    await writeFile(path.join(root, "outside.md"), "# External guidance\n");
+    await writeFile(path.join(harnessRoot, "CLAUDE.md"), "# Disabled client\n");
+    await symlink(path.join(root, "outside.md"), path.join(harnessRoot, "ai/escaped.md"));
+    for (const [reference, diagnostic] of [
+      ["WORKFLOW.md", /missing guidance target WORKFLOW.md/],
+      ["./ai/specs/WORKFLOW.md", /WORKFLOW.md.*unreachable/],
+      ["../other-structor/ai/WORKFLOW.md", /escapes the harness/],
+      ["./ai/missing.md", /missing guidance target/],
+      ["../outside.md", /escapes the harness/],
+      ["./ai/escaped.md", /escapes the harness through a symlink/],
+      ["./CLAUDE.md", /disabled-client/],
+    ]) {
+      await writeFile(hubPath, hub.replaceAll("./ai/WORKFLOW.md", reference));
+      const invalid = run();
+      assert.equal(invalid.status, 1, `${reference}\n${invalid.stdout}${invalid.stderr}`);
+      assert.match(invalid.stderr, diagnostic);
+      assert.equal(await readFile(hubPath, "utf8"), hub.replaceAll("./ai/WORKFLOW.md", reference));
+    }
+    await writeFile(hubPath, hub + "\n## Historical Example\n\nDo not follow `../outside.md`.\n");
+    assertSuccess(run(), "undeclared sections are not navigation");
+    await writeFile(hubPath, hub.replace("## Routing", "## Routing\n\n```md\n[Example](../outside.md)\n```\n\n[Task](./ai/tasks/)"));
+    await writeFile(path.join(harnessRoot, "ai/tasks/README.md"), "# Generated task index\n");
+    assertSuccess(run(), "fenced examples are ignored and directory indexes resolve exactly");
+    await writeFile(hubPath, hub);
+    const changed = JSON.parse(manifest);
+    changed.canonicalDocs.push({ path: "../outside.md", status: "active", purpose: "Invalid external policy" });
+    await writeFile(manifestPath, JSON.stringify(changed));
+    const invalidManifest = run();
+    assert.equal(invalidManifest.status, 1);
+    assert.match(invalidManifest.stderr, /escapes the harness/);
+    assert.equal(await readFile(path.join(root, "outside.md"), "utf8"), "# External guidance\n");
+  });
+});
+
 const tinyOwnershipBrief = `---
 task_size: tiny
 execution_intent: implementation

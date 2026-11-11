@@ -85,6 +85,8 @@ function expandedProfileRouting(profile) {
     "- Workflow and safety: `./ai/WORKFLOW.md`, `./ai/RUNNER-SAFETY.md`, `./ai/RUNNER-READINESS.md`, `./ai/VERSIONING.md`",
     "- Contracts: `./ai/contracts/README.md` and the matching contract",
     "- Task templates and specs: `./ai/templates/README.md`, `./ai/specs/README.md`",
+    "- Review architecture or shared boundaries when touched: `./ai/skills/review-architecture.md`",
+    "- Review security when credentials, permissions, or protected surfaces change: `./ai/skills/review-security.md`, `./ai/contracts/security-boundary.md`",
     "- Reviews, plans, and maintenance: `./ai/skills/README.md`, `./ai/plans/README.md`, `./ai/AGENT-GARBAGE-COLLECTION.md`",
     "- Generated review views: `./ai/views/index.html`",
   ].join("\n");
@@ -150,6 +152,7 @@ export function harnessTemplateValuesForPlan(plan, options = {}) {
   const support = plan.clientSupport;
   const resolvedConsumers = plan.consumers;
   return {
+    GENERATED_GUIDANCE_PATHS_JSON: jsonLiteral([...plan.harness.artifactPaths, ...(plan.profile === expandedHarnessProfile ? ["ai/views/index.html"] : [])]),
     PROJECT_NAME: markdownText(config.project.name),
     PROJECT_NAME_CODE: markdownCodeSpan(config.project.name),
     PROJECT_NAME_JSON: javascriptLiteral(config.project.name),
@@ -157,6 +160,7 @@ export function harnessTemplateValuesForPlan(plan, options = {}) {
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
     HARNESS_PROFILE: markdownCodeSpan(plan.profile),
     HARNESS_PROFILE_JSON: javascriptLiteral(plan.profile),
+    ENABLED_BASELINE_ENTRYPOINTS: [config.models.openai && "- `./AGENTS.md`", config.models.anthropic && "- `./CLAUDE.md`"].filter(Boolean).join("\n"),
     SINGLE_OWNER_IMPLEMENTATION: javascriptBoolean(config.taskPolicy?.singleOwnerImplementation ?? false),
     EXPANDED_PROFILE_ROUTING: expandedProfileRouting(plan.profile),
     EXPANDED_READINESS_GATES: expandedReadinessGates(plan.profile),

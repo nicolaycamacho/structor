@@ -5,11 +5,15 @@ AI Harness Engineering Framework.
 
 Canonical policy lives in `ai/*`. Read:
 
+## Read Order
+
 1. `./ai/AGENTS.md`
 2. `./ai/HUB.md`
 3. `./ai/context.md`
 
 @ai/context.md
+
+## Client Notes
 
 Claude-specific notes must stay thin and route back into canonical policy.
 Optional `.claude/*` support is deferred; keep Claude-specific project memory

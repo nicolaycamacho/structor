@@ -207,6 +207,13 @@ async function validateCase(smokeCase) {
     repoRoot,
   );
   run(nodeCommand, ["scripts/validate-governance.mjs"], harnessRoot);
+  const hubPath = path.join(harnessRoot, "ai/HUB.md");
+  const originalHub = await readFile(hubPath, "utf8");
+  await writeFile(hubPath, originalHub.replaceAll("./ai/WORKFLOW.md", "./ai/missing-workflow.md"));
+  assertFails(nodeCommand, ["scripts/validate-governance.mjs"], harnessRoot,
+    `${smokeCase.name} exact guidance target`, "missing guidance target ./ai/missing-workflow.md");
+  await writeFile(hubPath, originalHub);
+  run(nodeCommand, ["scripts/check-knowledge-manifest.mjs"], harnessRoot);
   const readinessPath = path.join(harnessRoot, "ai/READINESS.md");
   const starterReadiness = await readFile(readinessPath, "utf8");
   for (const dimension of ["Structural validity", "Verified knowledge", "Installation/adoption", "Observed effectiveness"]) {
