@@ -61,6 +61,33 @@ This fixture proves that a concrete issue brief can pass validation.
 
 - Read `ai/HUB.md`.
 
+## Repository Fit
+
+### Guidance
+
+Inspected `ai/HUB.md` and `ai/WORKFLOW.md`; canonical policy stays in `ai/`.
+
+### Analogues
+
+Compared `ai/AGENTS.md` and `ai/WORKFLOW.md`; both use scoped Markdown rules.
+
+### Callers and Ownership
+
+`ai/HUB.md` routes to `ai/HARNESS.md`; only harness-owned guidance changes.
+
+### Conventions
+
+Preserve model-neutral policy, existing commands and consumer boundaries.
+
+### Departures
+
+No convention departure is needed for this wording update.
+
+### Validation and Browser Evidence
+
+Run governance validation for policy structure. Browser evidence is inapplicable
+because this changes only Markdown guidance, with no UI behavior.
+
 ## Proposed Approach
 
 - Make a narrow documentation update.

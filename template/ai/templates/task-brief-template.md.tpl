@@ -92,6 +92,40 @@ Expected evidence:
 - Bootstrap or path-contract check output, if available.
 - Any mismatch or ambiguity found.
 
+## Repository Fit
+
+### Guidance
+
+- Inspected repo entrypoint, routed/path-matched guidance, glossary and relevant
+  architecture decisions; record exact files and applicable rules.
+
+### Analogues
+
+- Inspected comparable implementations and the patterns they establish. Use two
+  when available; otherwise explain the search and the absence or uncertainty.
+
+### Callers and Ownership
+
+- Affected callers, owning modules and boundaries; identify shared-file blast
+  radius before editing.
+
+### Conventions
+
+- Conventions and contracts to preserve: existing types/helpers, data/query and
+  mutation boundaries, and error/status/feedback patterns as applicable.
+
+### Departures
+
+- Necessary departures and their rationale, or an explicit statement that none
+  are needed. Route architecture-sensitive departures to existing architecture
+  review before coding; unresolved protected changes block implementation.
+
+### Validation and Browser Evidence
+
+- Relevant checks and why they cover the change. For UI changes, name affected
+  flows/states and required browser evidence, or explain why it cannot be
+  collected. Record actual results separately in Validation Evidence Required.
+
 ## Proposed Approach
 
 - Preferred solution
