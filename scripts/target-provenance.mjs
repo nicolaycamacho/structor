@@ -45,7 +45,7 @@ async function fingerprint(filePath, allowedRoot) {
 }
 
 function unavailableGit() {
-  return { root: null, revision: null, branch: null, detached: null, upstream: null, upstreamRevision: null, relationship: "unavailable", ahead: null, behind: null, dirty: null, shallow: null, unavailableReason: "Git checkout evidence is unavailable." };
+  return { root: null, revision: null, branch: null, detached: null, upstream: null, upstreamRevision: null, relationship: "unavailable", ahead: null, behind: null, dirty: null, dirtyUnavailableReason: null, shallow: null, unavailableReason: "Git checkout evidence is unavailable." };
 }
 
 async function gitEvidence(root) {
@@ -57,7 +57,19 @@ async function gitEvidence(root) {
     if (evidence.root !== root) return unavailableGit();
     evidence.branch = await readGit(root, ["symbolic-ref", "--quiet", "--short", "HEAD"]).catch(() => null);
     evidence.detached = evidence.branch === null;
-    evidence.dirty = (await readGit(root, ["status", "--porcelain=v1", "--untracked-files=all"])) !== "";
+    // Status can run clean/process filters, including those in submodules.
+    // Keep partial Git evidence rather than executing checkout-defined code.
+    evidence.dirtyUnavailableReason = "Dirty-state safety evidence is unavailable.";
+    const configNames = (await readGit(root, ["config", "--null", "--list", "--name-only"])).split("\0");
+    const indexEntries = await readGit(root, ["ls-files", "--stage"]);
+    if (configNames.some((name) => /^filter\.[\s\S]*\.(clean|process)$/i.test(name))) {
+      evidence.dirtyUnavailableReason = "Configured Git filters may mutate files; dirty state was not inspected.";
+    } else if (/^160000 /m.test(indexEntries)) {
+      evidence.dirtyUnavailableReason = "Submodule status may execute nested filters; dirty state was not inspected.";
+    } else {
+      evidence.dirty = (await readGit(root, ["status", "--porcelain=v1", "--untracked-files=all"])) !== "";
+      evidence.dirtyUnavailableReason = null;
+    }
     evidence.unavailableReason = "HEAD commit is unavailable.";
     evidence.revision = await readGit(root, ["rev-parse", "--verify", "HEAD^{commit}"]);
     evidence.shallow = (await readGit(root, ["rev-parse", "--is-shallow-repository"])) === "true";
@@ -157,6 +169,7 @@ export function formatTargetProvenance(report) {
     const git = source.git;
     lines.push(`${label} Git: root=${git.root ?? "unavailable"} revision=${git.revision ?? "unavailable"} branch=${git.branch ?? (git.detached ? "detached" : "unavailable")} upstream=${git.upstream ?? "unavailable"} upstream-revision=${git.upstreamRevision ?? "unavailable"} relationship=${git.relationship} ahead=${git.ahead ?? "unavailable"} behind=${git.behind ?? "unavailable"} dirty=${git.dirty ?? "unavailable"}`);
     if (git.unavailableReason) lines.push(`${label} Git uncertainty: ${git.unavailableReason}`);
+    if (git.dirtyUnavailableReason) lines.push(`${label} Git dirty-state uncertainty: ${git.dirtyUnavailableReason}`);
   }
   for (const file of [...report.entrypoints, ...report.guidance]) lines.push(`${file.path}: sha256=${file.sha256 ?? file.status} physical=${file.physicalPath ?? "unavailable"}`);
   for (const issue of report.issues) lines.push(`- ${issue}`);

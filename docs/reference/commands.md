@@ -88,14 +88,18 @@ Upstream comparisons use **cached local refs**. Live freshness is always marked
 unavailable: diagnostics never fetch, synchronize, repair, switch branches,
 delete worktrees, or write checkouts. Git optional locks, filesystem monitors,
 and lazy object fetching are disabled for evidence collection.
+Checkouts with configured clean/process filters or indexed submodules retain
+revision and ancestry evidence, but dirty state is unavailable: collecting it
+could execute external filters and write files. No filter is executed.
 
 Ordinary inspection exits 0 when selected routing and fingerprints are valid,
 even if Git is unavailable, dirty, behind, or diverged. The explicit Git gate
 additionally requires both target and referenced harness to have complete,
 clean Git evidence with a configured upstream and an `equal` or `ahead`
 relationship. Missing commits/upstream refs, detached HEAD, shallow history,
-dirty state, or stale/diverged sources fail that gate. All diagnostic failures
-exit 1. Passing this gate proves readiness against cached refs only.
+dirty or unavailable dirty state, or stale/diverged sources fail that gate.
+All diagnostic failures exit 1. Passing this gate proves readiness against
+cached refs only.
 
 Expanded generated harnesses expose the same result and exit rules:
 

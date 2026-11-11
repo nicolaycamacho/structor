@@ -44,8 +44,11 @@ refs are cached: no live freshness is claimed and no fetch, pointer repair,
 branch change, or checkout write occurs. Ordinary inspection supports non-Git
 workspaces with evidence marked unavailable. The explicit Git gate fails on
 missing or shallow history, missing upstream evidence, detached HEAD, dirty
-state, or behind/diverged sources. Unrelated worktrees are not inspected in
-target mode. This evidence does not establish guidance quality or agent behavior.
+state, unavailable dirty evidence, or behind/diverged sources. Configured Git
+filters and indexed submodules leave dirty evidence unavailable to avoid
+executing external filters during status collection. Unrelated worktrees are
+not inspected in target mode. This evidence does not establish guidance quality
+or agent behavior.
 
 ## Update Rule
 

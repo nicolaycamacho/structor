@@ -904,6 +904,63 @@ for (const source of ["target", "harness"]) {
   });
 }
 
+for (const source of ["target", "harness"]) {
+  test(`target diagnostics never execute configured ${source} clean filters`, async () => {
+    const fixture = await createDoctorWorkspace();
+    try {
+      await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+      await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+      const root = source === "target" ? fixture.consumerRoot : fixture.harnessRoot;
+      await writeFile(path.join(root, ".gitattributes"), "data.txt filter=sideeffect\n");
+      await writeFile(path.join(root, "data.txt"), "initial\n");
+      fixtureGit(root, "add", ".");
+      fixtureGit(root, "commit", "-m", "Filtered fixture file");
+      fixtureGit(root, "config", "filter.sideeffect.clean", "cat; echo changed > diagnostic-side-effect.txt");
+      await writeFile(path.join(root, "data.txt"), "changed\n");
+      const before = await snapshotWorkspace(fixture.workspaceRoot);
+      for (const flags of [[], ["--require-git-freshness"]]) {
+        for (const result of runTargetPair(fixture, flags)) {
+          assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+          assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before, "diagnostics must never execute checkout filters");
+          const git = JSON.parse(result.stdout)[source].git;
+          assert.equal(git.dirty, null);
+          assert.match(git.dirtyUnavailableReason, /filter/);
+          assert.equal(git.relationship, "ahead");
+        }
+      }
+    } finally {
+      await rm(fixture.workspaceRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+test("target diagnostics avoid recursive submodule status and report dirty evidence unavailable", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+    await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+    fixtureGit(fixture.consumerRoot, "-c", "protocol.file.allow=always", "submodule", "add", "-b", "main", path.join(fixture.workspaceRoot, "harness.git"), "nested");
+    fixtureGit(fixture.consumerRoot, "commit", "-m", "Submodule fixture");
+    const nested = path.join(fixture.consumerRoot, "nested");
+    fixtureGit(nested, "config", "filter.sideeffect.clean", "cat; echo changed > diagnostic-side-effect.txt");
+    await writeFile(path.join(nested, ".gitattributes"), "README.md filter=sideeffect\n");
+    await writeFile(path.join(nested, "README.md"), "changed\n");
+    const before = await snapshotWorkspace(fixture.workspaceRoot);
+    for (const flags of [[], ["--require-git-freshness"]]) {
+      for (const result of runTargetPair(fixture, flags)) {
+        assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+        assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
+        const git = JSON.parse(result.stdout).target.git;
+        assert.equal(git.dirty, null);
+        assert.match(git.dirtyUnavailableReason, /submodule/i);
+        assert.equal(git.relationship, "ahead");
+      }
+    }
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
 test("target inspection reports an absent harness as unavailable rather than inventing a physical source root", async () => {
   const fixture = await createDoctorWorkspace();
   try {
