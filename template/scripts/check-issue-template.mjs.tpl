@@ -31,7 +31,7 @@ try {
   const file = inputFile(process.argv.slice(2));
   if (file) {
     errors.push(...validateIssueFile(file, await readFile(path.resolve(file), "utf8"), { allowPlaceholders: false }));
-  } else if ("{{HARNESS_PROFILE}}" === "focused") {
+  } else if ({{HARNESS_PROFILE_JSON}} === "focused") {
     console.log("Issue starter templates are not included in the focused profile; use --file <path>.");
   } else {
     errors.push(...validateIssueFile(issueTemplatePath, await read(issueTemplatePath), { allowPlaceholders: true }));

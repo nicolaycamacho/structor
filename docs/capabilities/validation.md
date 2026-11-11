@@ -102,6 +102,8 @@ for the existing `standard` shape, or set it to `standard` explicitly. Standard
 retains the substantive sections of the existing task/issue starters, including
 Path Contract, Bootstrap Requirements, Success Criteria, Validation Evidence
 Required and Review Routing.
+Standard briefs now also require Repository Fit as described below; metadata
+names and the omitted-size default remain unchanged.
 
 For a tiny brief, set `task_size: tiny` and provide four substantive sections:
 Goal, Scope, Acceptance and Validation. Other metadata is optional for tiny
@@ -128,6 +130,45 @@ The example matches the existing package script.
 Run `npm test`.
 ```
 
+### Repository Fit
+
+Before a standard task is treated as ready, record `## Repository Fit` with six
+level-three headings. Each must contain evidence or an explicit explanation:
+
+| Heading | Preparation evidence |
+| --- | --- |
+| `### Guidance` | Inspected repo entrypoint, routed/path-matched guidance, glossary and relevant ADRs; exact files and applicable rules |
+| `### Analogues` | Comparable implementations and established patterns; two when available, otherwise the search and why fewer exist or conflict |
+| `### Callers and Ownership` | Owning modules, affected callers, boundaries and shared-file blast radius |
+| `### Conventions` | Contracts, reusable types/helpers, data/query and mutation boundaries, error/status/feedback patterns to preserve |
+| `### Departures` | Necessary departures with reasons, or an explicit account that none are needed; architecture-review route and outcome when applicable |
+| `### Validation and Browser Evidence` | Relevant checks and coverage; browser evidence for changed UI flows/states or why it was not collected |
+
+The generated Hub routes implementation planning to `ai/WORKFLOW.md`, which
+defines this preparation in both profiles. Expanded starters include the shape;
+focused users can write a concrete file using these headings without installing
+expanded surfaces. Tiny tasks keep focused local inspection and their four
+sections, without mandatory Repository Fit or long-form planning.
+
+Architecture-sensitive departures follow the repository's existing architecture
+review before coding; expanded harnesses also provide their architecture review
+skill. Resolve blocking findings and unresolved protected changes before
+implementation. Tiny size does not waive these gates.
+
+Choose the consumer repo's documented focused checks and required integration
+gates. Record actual commands, working repo, exit status and relevant output;
+explain skipped checks and residual uncertainty. For UI changes, collect browser
+evidence for affected flows, states, viewports and interactions, or state why it
+was not collected. Keep plans distinct from observed results in Validation
+Evidence Required. A Markdown-only task can explain that browser evidence is
+inapplicable.
+
+Validators reject absent, duplicate or empty Repository Fit categories in
+standard submissions. They accept varied prose, including explanations that
+analogues are absent or browser evidence is unavailable. They do not verify
+inspection, assess architectural correctness, approve departures or establish
+that the task is ready to execute. Human/reviewer judgment remains necessary.
+
 ### Metadata Compatibility
 
 Existing names remain unchanged: `id`, `status`, `risk`, `autonomy`,
@@ -146,8 +187,8 @@ authorize a merge. Standard briefs retain the explicit protected-surfaces and
 future-facing-metadata statements. Task list fields retain `[]` compatibility
 when the single-owner policy is disabled; standard implementation issues retain
 nonempty allowed/forbidden path lists. Repository names must match the generated
-harness or its configured consumers. Repository-fit evidence enforcement remains
-outside these checks.
+harness or its configured consumers. Repository Fit validation checks only the
+recorded evidence structure.
 
 ### Ownership and Execution Intent
 

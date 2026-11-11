@@ -71,6 +71,40 @@ absolute paths, parent traversal, braces, extglobs or backslash separators.
 
 - State what the agent must read or check before editing.
 
+## Repository Fit
+
+### Guidance
+
+- Record inspected repo entrypoint, routed/path-matched guidance, glossary and
+  relevant architecture decisions, with exact files and applicable rules.
+
+### Analogues
+
+- Cite comparable implementations and patterns; inspect two when available.
+  Explain the search if fewer exist, including uncertainty or conflicting
+  precedent.
+
+### Callers and Ownership
+
+- Map affected callers, owning modules, boundaries and shared-file blast radius.
+
+### Conventions
+
+- State contracts and local conventions to preserve, including reusable helpers,
+  data/query and mutation boundaries, and error/status/feedback patterns.
+
+### Departures
+
+- Justify necessary departures or explicitly record none. Route sensitive
+  boundary or architecture changes to existing architecture review before coding;
+  stop on unresolved protected changes.
+
+### Validation and Browser Evidence
+
+- Identify relevant checks and coverage. For UI changes, specify browser evidence
+  for affected flows/states or the reason it cannot be collected. Report actual
+  results separately in Validation Evidence Required.
+
 ## Proposed Approach
 
 - Describe the implementation sequence.
