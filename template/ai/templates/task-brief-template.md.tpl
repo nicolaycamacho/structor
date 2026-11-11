@@ -1,12 +1,14 @@
 ---
 id: TASK-ID
 task_size: standard
+execution_intent: implementation
 status: backlog
 risk: medium
 autonomy: pr_ready
 model_policy: standard
 model: runtime-selected
 repos: []
+read_only_repos: []
 allowed_paths: []
 forbidden_paths: []
 requires_human_approval: false
@@ -40,15 +42,20 @@ Relevant harness docs, contracts, and repo state.
 
 - Out of scope item
 
-### Repos Affected
+### Editable Owners and Read-Only Dependencies
 
-- Repo name
+- Keep editable repository names in `repos` and inspected dependencies in
+  `read_only_repos`; keep this section consistent with that metadata.
 
 ## Path Contract
 
 ### Allowed Paths
 
 - Path the agent may edit
+
+Use repository-relative paths or globs, optionally qualified as `repo:path`.
+Unqualified patterns apply only within the declared editable owners. Never use
+absolute paths, parent traversal, braces, extglobs or backslash separators.
 
 ### Forbidden Paths
 

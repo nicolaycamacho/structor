@@ -157,6 +157,7 @@ export function harnessTemplateValuesForPlan(plan, options = {}) {
     HARNESS_REPO_NAME: rawSlug(config.project.harnessRepoName, "project.harnessRepoName"),
     HARNESS_PROFILE: markdownCodeSpan(plan.profile),
     HARNESS_PROFILE_JSON: javascriptLiteral(plan.profile),
+    SINGLE_OWNER_IMPLEMENTATION: javascriptBoolean(config.taskPolicy?.singleOwnerImplementation ?? false),
     EXPANDED_PROFILE_ROUTING: expandedProfileRouting(plan.profile),
     EXPANDED_READINESS_GATES: expandedReadinessGates(plan.profile),
     EXPANDED_READINESS_DOMAINS: expandedReadinessDomains(plan.profile),
