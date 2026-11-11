@@ -35,7 +35,9 @@ The focused inventory follows the normal first-session journey:
 5. Run generated validation and review `ai/READINESS.md` for the next action.
 
 The supporting scripts retain only generation-contract validation, readiness,
-workspace bootstrap/checks, and explicitly enabled Codex hook checks. Thin root,
+workspace bootstrap/checks, concrete issue/task submission validators, and
+explicitly enabled Codex hook checks. Submission validators accept `--file`
+without adding the expanded starter-template inventory. Thin root,
 workspace, and consumer entrypoints still route into the same canonical `ai/*`
 policy layer.
 

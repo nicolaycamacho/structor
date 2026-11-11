@@ -1,5 +1,6 @@
 ---
 id: TASK-ID
+task_size: standard
 status: backlog
 risk: medium
 autonomy: pr_ready

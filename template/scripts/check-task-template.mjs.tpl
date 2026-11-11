@@ -3,61 +3,24 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { inputFile, validateBrief, report } from "./lib/brief-validation.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const taskTemplatePath = "ai/templates/task-brief-template.md";
-const content = await readFile(path.join(repoRoot, taskTemplatePath), "utf8");
-const providerModelPattern = /\b(?:gpt-|claude|opus|sonnet|haiku)/i;
-
-const requiredSections = [
-  "## Summary",
-  "## Context",
-  "## Goals",
-  "## Non-Goals",
-  "## Scope",
-  "## Path Contract",
-  "## Requirements",
-  "## Bootstrap Requirements",
-  "## Proposed Approach",
-  "## Agent Execution Protocol",
-  "## Success Criteria",
-  "## Validation",
-  "## Validation Evidence Required",
-  "## Risk and Autonomy",
-  "## Review Routing",
-  "## Dependencies",
-  "## Rollback / Recovery",
-  "## Open Questions",
-  "## Notes for the Agent",
-];
-
-const requiredFrontmatter = [
-  "id:",
-  "status:",
-  "risk:",
-  "autonomy:",
-  "model_policy:",
-  "model:",
-  "repos:",
-  "allowed_paths:",
-  "forbidden_paths:",
-  "requires_human_approval:",
-];
-
+const canonicalRepos = new Set(["{{HARNESS_REPO_NAME}}", ...{{CONSUMER_REPO_NAMES_JSON}}]);
 const errors = [];
-for (const token of [...requiredSections, ...requiredFrontmatter]) {
-  if (!content.includes(token)) errors.push(`${taskTemplatePath} is missing ${token}`);
+try {
+  const file = inputFile(process.argv.slice(2));
+  if (file) {
+    errors.push(...validateBrief(file, await readFile(path.resolve(file), "utf8"), { kind: "task", canonicalRepos }));
+  } else if ("{{HARNESS_PROFILE}}" === "focused") {
+    console.log("Task starter templates are not included in the focused profile; use --file <path>.");
+  } else {
+    errors.push(...validateBrief(taskTemplatePath, await readFile(path.join(repoRoot, taskTemplatePath), "utf8"), {
+      kind: "task", canonicalRepos, allowPlaceholders: true,
+    }));
+  }
+} catch (error) {
+  errors.push(error.message);
 }
-
-const modelLine = content.split("\n").find((line) => line.startsWith("model:"));
-if (modelLine && providerModelPattern.test(modelLine)) {
-  errors.push(`${taskTemplatePath} must use a runtime-neutral model selector, not a concrete provider model.`);
-}
-
-if (errors.length > 0) {
-  console.error("Task template check failed.");
-  for (const error of errors) console.error(`- ${error}`);
-  process.exit(1);
-}
-
-console.log("Task template check passed.");
+report("Task template check", errors);

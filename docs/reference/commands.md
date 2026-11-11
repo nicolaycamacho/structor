@@ -71,3 +71,15 @@ npx @structor-dev/cli contribute structor
 ```
 
 See [contributor setup](contributor-setup.md) for the manual fallback.
+
+## Generated Submission Validators
+
+Inside a generated harness (either profile):
+
+```sh
+node scripts/check-issue-template.mjs --file ../issue.md
+node scripts/check-task-template.mjs --file ../task.md
+```
+
+See [validation](../capabilities/validation.md#validate-a-concrete-issue-or-task)
+for task sizes, supported metadata, no-argument behavior and exit codes.
