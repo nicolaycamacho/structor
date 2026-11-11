@@ -29,6 +29,48 @@ Claude compatibility checks when those surfaces are enabled.
 Validation detects structural drift. It does not certify that all
 project-specific guidance is complete or correct.
 
+## Readiness Evidence
+
+In both profiles, `ai/READINESS.md` records four independent dimensions:
+structural validity, verified knowledge, installation/adoption and observed
+effectiveness. Each starts `unassessed`, with all evidence fields set to
+`Not observed`. Passing generation, governance or hook checks does not update
+these records or establish adoption or effectiveness.
+
+Run `node scripts/check-readiness.mjs` inside the generated harness. It validates
+the record contract, not the truth or freshness of an observation. A `recorded`
+row requires scope, revision or bounded source evidence, a real `YYYY-MM-DD`
+observation date, method, result and limitations. Negative and inconclusive
+results are valid; `recorded` does not mean successful. Use one single-line row
+per dimension and no pipe characters inside fields.
+
+These examples are synthetic, not observations of a real project. A complete
+record could replace the structural-validity starter row with:
+
+```markdown
+| Structural validity | recorded | Synthetic product-app docs at fixture revision alpha | saved-check.log lines 1-4 | 2026-01-12 | node scripts/check-workspace.mjs | Failed: pointer missing | No agent use or source-knowledge review observed |
+```
+
+This incomplete record fails because its observation date is missing:
+
+```markdown
+| Structural validity | recorded | Synthetic product-app docs at fixture revision alpha | saved-check.log lines 1-4 | | node scripts/check-workspace.mjs | Failed: pointer missing | No agent use or source-knowledge review observed |
+```
+
+Expanded `ai/QUALITY.md` supplies review guidance for the same canonical records;
+the readiness and quality cockpit pages display them as unverified observations.
+The optional bounded manual comparison protocol in `ai/READINESS.md` records
+task sample, baseline, settings, rubric, both outcomes and confounders. It invokes
+no model, installs no client and collects no telemetry. Static tests do not prove
+agent behavior. Launch/adoption proof remains downstream in
+[issue #123](https://github.com/nicolaycamacho/structor/issues/123); it is not
+performed or completed here.
+
+Keep stable policy separate from change-sensitive source knowledge. Revalidate
+affected knowledge when its source changes or drift appears, rather than expiring
+all guidance by calendar age. Existing generated projects retain their files
+until an explicit, reviewed regeneration.
+
 ## Validate A Concrete Issue Or Task
 
 Both profiles include read-only submission validators. From the generated

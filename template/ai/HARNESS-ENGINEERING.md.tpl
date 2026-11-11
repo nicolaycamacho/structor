@@ -61,7 +61,7 @@ Good harness checks:
 - Task briefs carry machine-readable risk, autonomy, model, repo, and path
   metadata.
 - Plans capture multi-step work without becoming runtime state.
-- Quality grades expose weak areas honestly.
+- Independent scoped evidence records expose uncertainty and limitations.
 - Review skills define repeatable evaluator behavior.
 - Garbage collection converts repeated mistakes into durable rules or checks.
 
@@ -93,7 +93,8 @@ Before a task is delegated to a runner, the harness should define:
 
 ## Definition Of Done
 
-This harness is production-grade when:
+Review these design expectations separately from the observed evidence in
+`ai/READINESS.md`; this checklist does not establish adoption or effectiveness:
 
 1. Agents can discover the right context without loading the entire repo.
 2. Product, architecture, contracts, decisions, and workflow policy are
@@ -103,7 +104,8 @@ This harness is production-grade when:
    practical.
 5. Validation evidence is required and structured.
 6. Repeated agent mistakes are captured and converted into durable fixes.
-7. Quality is graded and updated over time.
+7. Structural validity, verified knowledge, adoption and effectiveness are
+   recorded independently with scope and limitations.
 8. Consumer repos expose agent-legible validation and observability hooks.
 9. Future runner integration can consume the harness without owning policy.
 10. Protected surfaces remain human-gated.
