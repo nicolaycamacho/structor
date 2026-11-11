@@ -438,7 +438,15 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
   const sourcePath = path.join(templateRoot, sourceRelative);
   const targetRelative = sourceRelative.replace(/\.tpl$/, "");
   const targetPath = path.join(targetRoot, targetRelative);
-  const content = render(await readFile(sourcePath, "utf8"), values);
+  let content = render(await readFile(sourcePath, "utf8"), values);
+  if (sourceRelative === "ai/knowledge-manifest.json.tpl") {
+    const manifest = JSON.parse(content);
+    const generatedPaths = new Set(JSON.parse(values.GENERATED_GUIDANCE_PATHS_JSON));
+    manifest.canonicalDocs = manifest.canonicalDocs.filter((doc) => generatedPaths.has(doc.path));
+    manifest.routingSurfaces = manifest.routingSurfaces.filter((surface) => generatedPaths.has(surface.path));
+    manifest.dynamicReferences = manifest.dynamicReferences.filter((item) => generatedPaths.has(item.source));
+    content = JSON.stringify(manifest, null, 2) + "\n";
+  }
 
   if (options.dryRun) {
     const existed = await exists(targetPath);

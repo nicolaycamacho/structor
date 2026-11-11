@@ -5,8 +5,10 @@ agents.
 
 Canonical policy lives in:
 
+## Read Order
+
 1. `../../../CLAUDE.md`
-2. `../../CLAUDE.md`
+2. `../../AGENTS.md`
 3. `../../HUB.md`
 4. `../../context.md`
 

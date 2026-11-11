@@ -21,11 +21,13 @@ workspace/
     ai/READINESS.md
     ai/WORKFLOW.md
     ai/context.md
+    ai/knowledge-manifest.json
     ai/tasks/populate-generated-harness.md
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
     scripts/check-codex-hooks.mjs
     scripts/check-issue-template.mjs
+    scripts/check-knowledge-manifest.mjs
     scripts/check-readiness.mjs
     scripts/check-task-template.mjs
     scripts/check-template-governance.mjs
@@ -60,10 +62,12 @@ workspace/
     ai/READINESS.md
     ai/WORKFLOW.md
     ai/context.md
+    ai/knowledge-manifest.json
     ai/tasks/populate-generated-harness.md
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
     scripts/check-issue-template.mjs
+    scripts/check-knowledge-manifest.mjs
     scripts/check-readiness.mjs
     scripts/check-task-template.mjs
     scripts/check-template-governance.mjs
@@ -207,11 +211,13 @@ workspace/
     ai/READINESS.md
     ai/WORKFLOW.md
     ai/context.md
+    ai/knowledge-manifest.json
     ai/tasks/populate-generated-harness.md
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
     scripts/check-codex-hooks.mjs
     scripts/check-issue-template.mjs
+    scripts/check-knowledge-manifest.mjs
     scripts/check-readiness.mjs
     scripts/check-task-template.mjs
     scripts/check-template-governance.mjs

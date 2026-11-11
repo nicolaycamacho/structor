@@ -144,6 +144,66 @@
       "status": "generated",
       "purpose": "Generated human review index.",
       "linkedFrom": ["ai/HUB.md"]
+    },
+    {
+      "path": "ai/tasks/populate-generated-harness.md",
+      "status": "active",
+      "purpose": "Reviewed guidance population task.",
+      "linkedFrom": ["ai/HUB.md"]
+    }
+  ],
+  "routingSurfaces": [
+    {
+      "path": "AGENTS.md",
+      "base": "root",
+      "sections": ["Read Order"]
+    },
+    {
+      "path": "CLAUDE.md",
+      "base": "root",
+      "sections": ["Read Order"]
+    },
+    {
+      "path": "ai/AGENTS.md",
+      "base": "root",
+      "sections": ["Rules"]
+    },
+    {
+      "path": "ai/HUB.md",
+      "base": "root",
+      "sections": ["First Session", "Baseline", "Routing"]
+    },
+    {
+      "path": "ai/model-overlays/openai/AGENTS.md",
+      "base": "source",
+      "sections": ["Read Order"]
+    },
+    {
+      "path": "ai/model-overlays/anthropic/CLAUDE.md",
+      "base": "source",
+      "sections": ["Read Order"]
+    },
+    {
+      "path": "ai/skills/README.md",
+      "base": "source",
+      "sections": ["Index"]
+    },
+    {
+      "path": "ai/contracts/README.md",
+      "base": "source",
+      "sections": ["Index"]
+    },
+    {
+      "path": "ai/workspace/SESSION-BOOTSTRAP.md",
+      "base": "root",
+      "sections": ["Session Bootstrap", "Checks"]
+    }
+  ],
+  "dynamicReferences": [
+    {
+      "source": "ai/contracts/README.md",
+      "reference": "*.contract.json",
+      "reason": "Describes the contract-manifest suffix; concrete guidance routes are listed individually in this index."
     }
   ]
 }

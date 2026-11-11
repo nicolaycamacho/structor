@@ -4,6 +4,8 @@ This file is a thin compatibility pointer for OpenAI/Codex-compatible agents.
 
 Canonical policy lives in:
 
+## Read Order
+
 1. `../../../AGENTS.md`
 2. `../../AGENTS.md`
 3. `../../HUB.md`
