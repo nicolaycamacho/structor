@@ -192,12 +192,21 @@ test("declared guidance preserves Markdown link and navigation boundaries", asyn
     const manifestPath = path.join(harnessRoot, "ai/knowledge-manifest.json");
     const hub = await readFile(hubPath, "utf8");
     const manifest = await readFile(manifestPath, "utf8");
+    await writeFile(path.join(harnessRoot, "ai/policy.txt"), "Synthetic local policy\n");
     for (const [name, fragment, expectedStatus] of [
       ["double-quoted link title", '[Missing](./ai/missing.md "Required guidance")', 1],
       ["single-quoted link title", "[Unsafe](../outside.md 'Required guidance')", 1],
       ["parenthesized link title", "[Missing](./ai/missing.md (Required guidance))", 1],
       ["angle-delimited destination", '[Unsafe](<../outside.md> "Required guidance")', 1],
       ["valid titled link", '[Workflow](./ai/WORKFLOW.md "Required guidance")', 0],
+      ["non-Markdown escape", "[Policy](../outside.txt)", 1],
+      ["missing non-Markdown target", "[Policy](./ai/missing.txt)", 1],
+      ["missing extensionless target", "[Policy](./ai/missing)", 1],
+      ["existing non-Markdown target", "[Policy](./ai/policy.txt)", 0],
+      ["inline path escape", "`../outside.txt`", 1],
+      ["inline missing path", "`./ai/missing`", 1],
+      ["inline missing filename", "`missing.txt`", 1],
+      ["inline existing path", "`./ai/policy.txt`", 0],
       ["long backtick fence", "````md\n```md\n[Example](../outside.md)\n```\n````", 0],
       ["different fence delimiter", "~~~md\n```\n[Example](../outside.md)\n```\n~~~", 0],
     ]) {

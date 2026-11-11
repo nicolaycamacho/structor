@@ -137,7 +137,7 @@ function declaredGuidanceReferences(content, sections) {
     for (const match of line.matchAll(/`([^`\n]+)`|\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g)) {
       const reference = match[1] ?? match[2] ?? match[3];
       if (/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(reference) || (match[1] && /\s/.test(reference))) continue;
-      if (/\.(?:md|json|html)(?:#.*)?$|\/$|[*{}<>]/.test(reference)) references.push(reference);
+      if (!match[1] || /[/\\]|\.[\w-]+(?:#.*)?$|[*{}<>]/.test(reference)) references.push(reference);
     }
   }
   return [...new Set(references)];
