@@ -118,8 +118,9 @@ export const generatedHarnessArtifacts = [
   script("scripts/validate-governance.mjs.tpl", { includedInFocusedProfile: true, trustedScript: false, workspaceCheck: "repo" }),
   script("scripts/check-template-governance.mjs.tpl", { includedInFocusedProfile: true }),
   script("scripts/check-readiness.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
-  script("scripts/check-task-template.mjs.tpl", { workspaceCheck: "repo" }),
-  script("scripts/check-issue-template.mjs.tpl"),
+  script("scripts/check-task-template.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
+  script("scripts/check-issue-template.mjs.tpl", { includedInFocusedProfile: true }),
+  script("scripts/lib/brief-validation.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
   script("scripts/check-knowledge-manifest.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/check-plans.mjs.tpl"),
   script("scripts/check-review-skills.mjs.tpl"),
@@ -148,9 +149,9 @@ export const generatedHarnessArtifacts = [
 
 export const generatedHarnessValidationChecks = [
   { path: "scripts/check-template-governance.mjs", includedInFocusedProfile: true, phase: "required", dependencies: [generatedHarnessContractScript] },
-  { path: "scripts/check-task-template.mjs", phase: "required" },
+  { path: "scripts/check-task-template.mjs", phase: "required", dependencies: ["scripts/lib/brief-validation.mjs"] },
   { path: "scripts/check-readiness.mjs", includedInFocusedProfile: true, phase: "required" },
-  { path: "scripts/check-issue-template.mjs", phase: "required" },
+  { path: "scripts/check-issue-template.mjs", phase: "required", dependencies: ["scripts/lib/brief-validation.mjs"] },
   { path: "scripts/check-knowledge-manifest.mjs", phase: "required" },
   { path: "scripts/check-plans.mjs", phase: "required" },
   { path: "scripts/check-review-skills.mjs", phase: "required" },

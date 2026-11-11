@@ -25,12 +25,15 @@ workspace/
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
     scripts/check-codex-hooks.mjs
+    scripts/check-issue-template.mjs
     scripts/check-readiness.mjs
+    scripts/check-task-template.mjs
     scripts/check-template-governance.mjs
     scripts/check-workspace.mjs
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/brief-validation.mjs
     scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
@@ -60,10 +63,13 @@ workspace/
     ai/tasks/populate-generated-harness.md
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
+    scripts/check-issue-template.mjs
     scripts/check-readiness.mjs
+    scripts/check-task-template.mjs
     scripts/check-template-governance.mjs
     scripts/check-workspace.mjs
     scripts/generated-harness-contract.mjs
+    scripts/lib/brief-validation.mjs
     scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
@@ -166,6 +172,7 @@ workspace/
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/brief-validation.mjs
     scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
@@ -204,12 +211,15 @@ workspace/
     ai/templates/populate-generated-harness-prompt.md
     scripts/bootstrap-workspace.mjs
     scripts/check-codex-hooks.mjs
+    scripts/check-issue-template.mjs
     scripts/check-readiness.mjs
+    scripts/check-task-template.mjs
     scripts/check-template-governance.mjs
     scripts/check-workspace.mjs
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/brief-validation.mjs
     scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs

@@ -105,6 +105,135 @@ function assertSyntaxChecks(filePath) {
   assertSuccess(result, `syntax check failed for ${filePath}`);
 }
 
+test("generated issue validator checks an explicit concrete file without changing its starter", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate submission validator");
+    const starterPath = path.join(harnessRoot, "ai/templates/issue-template.md");
+    const starter = await readFile(starterPath, "utf8");
+    const fixture = await readFile(path.join(harnessRoot, "ai/templates/fixtures/issues/valid-ready.md"), "utf8");
+    const inputPath = path.join(root, "concrete-issue.md");
+    await writeFile(inputPath, fixture.replace("risk: medium", "risk: medium\nrisk: low"));
+    const result = spawnSync(process.execPath, ["scripts/check-issue-template.mjs", "--file", inputPath], {
+      cwd: harnessRoot, encoding: "utf8",
+    });
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /concrete-issue\.md.*duplicate.*risk/i);
+    assert.equal(await readFile(starterPath, "utf8"), starter);
+  });
+});
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`generated validators accept tiny tasks and reject missing acceptance: ${profile} ${JSON.stringify(models)}`, async () => {
+      await withTempDir(async (root) => {
+        const configPath = await writeMinimalConfig(root, "./test-structor", { profile, models });
+        const harnessRoot = path.join(root, "test-structor");
+        assertSuccess(runInitHarness(configPath), "generate task validators");
+        const file = path.join(root, "tiny.md");
+        const brief = "---\ntask_size: tiny\n---\n# Correct a guide\n\n## Goal\nCorrect the command spelling.\n\n## Scope\nOnly the guide.\n\n## Acceptance\nThe documented command matches the script.\n\n## Validation\nRun `npm test`.\n";
+        for (const script of ["check-task-template.mjs", "check-issue-template.mjs"]) {
+          await writeFile(file, brief);
+          const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", script), "--file", file], { cwd: root, encoding: "utf8" });
+          assertSuccess(run(), "tiny submission");
+          await writeFile(file, brief.replace("task_size: tiny", "task_size: tiny\nrisk: high\nautonomy: report_only"));
+          assertSuccess(run(), "tiny size is independent of risk and autonomy");
+          await writeFile(file, brief.replace("## Acceptance", "## Result"));
+          const invalid = run();
+          assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+          assert.match(invalid.stderr, /Acceptance/);
+        }
+        if (profile === "focused") {
+          await assert.rejects(readFile(path.join(harnessRoot, "ai/templates/task-brief-template.md")), /ENOENT/);
+        }
+        assertSuccess(runValidateGovernance(harnessRoot), "profile governance remains valid");
+      });
+    });
+  }
+}
+
+test("generated validators diagnose malformed submissions and preserve legacy standard metadata", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate standard fixtures");
+    const issue = await readFile(path.join(harnessRoot, "ai/templates/fixtures/issues/valid-ready.md"), "utf8");
+    const file = path.join(root, "submission.md");
+    const cases = [
+      ["duplicate risk", (text) => text.replace("risk: medium", "risk: medium\nrisk: low"), /duplicate.*risk/i],
+      ["scalar list", (text) => text.replace("repos:\n  - test-structor", "repos: test-structor"), /repos.*string list/i],
+      ["scalar with items", (text) => text.replace("risk: medium", "risk: medium\n  - low"), /front matter.*line/i],
+      ["broken inline list", (text) => text.replace("repos:\n  - test-structor", 'repos: ["test-structor"'), /malformed.*repos/i],
+      ["nested list", (text) => text.replace("  - test-structor", "  - [test-structor]"), /malformed.*repos/i],
+      ["nested sequence", (text) => text.replace("  - ai/HARNESS.md", "  - - ai/HARNESS.md"), /malformed.*allowed_paths/i],
+      ["sequence scalar", (text) => text.replace("HARNESS-FIXTURE-001", "- invalid nested value"), /malformed.*id/i],
+      ["mapping scalar", (text) => text.replace("HARNESS-FIXTURE-001", "? invalid mapping value"), /malformed.*id/i],
+      ["inline comment scalar", (text) => text.replace("HARNESS-FIXTURE-001", "# missing value"), /malformed.*id/i],
+      ["quoted scalar", (text) => text.replace("risk: medium", 'risk: "medium'), /malformed.*risk/i],
+      ["missing delimiter", (text) => text.replace("\n---\n", "\n"), /front matter.*closing/i],
+      ["ambiguous mapping", (text) => text.replace("risk: medium", "risk: medium\n  nested: low"), /ambiguous front matter/i],
+      ["boolean string", (text) => text.replace("requires_human_approval: false", 'requires_human_approval: "false"'), /requires_human_approval.*boolean/i],
+      ["unknown size", (text) => text.replace("risk: medium", "task_size: large\nrisk: medium"), /invalid task_size/i],
+      ["unsafe autonomy", (text) => text.replace("risk: medium", "risk: high").replace("autonomy: pr_ready", "autonomy: auto_merge"), /high.*auto_merge/i],
+      ["protected path metadata", (text) => text.replace("  - ai/HARNESS.md", "  - src/auth/config.mjs"), /protected surfaces.*requires_human_approval/i],
+      ["noncanonical repo", (text) => text.replace("  - test-structor", "  - other-repo"), /non-canonical repo/i],
+      ["empty section", (text) => text.replace("- Governance validation passes.", "<!-- fill after implementation -->"), /Success Criteria.*substantive/i],
+      ["duplicate section", (text) => text + "\n## Scope\nOnly a guide.\n", /duplicate section.*Scope/i],
+      ["placeholder", (text) => text.replace("- Preserve harness-only scope.", "- Update <path>."), /placeholder.*Requirements/i],
+      ["template token", (text) => text.replace("HARNESS-FIXTURE-001", JSON.stringify(placeholder("ISSUE_ID"))), /id.*placeholder/i],
+      ["no validation command", (text) => text.replace("- `node scripts/validate-governance.mjs`", "- Check the guide."), /Validation.*concrete command/i],
+      ["fenced section", (text) => text.replace("## Validation\n\n- `node scripts/validate-governance.mjs`", "```md\n## Validation\nRun a check.\n```"), /missing required section 'Validation'/i],
+    ];
+    for (const kind of ["issue", "task"]) {
+      const script = path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`);
+      const run = (...args) => spawnSync(process.execPath, [script, ...args], { cwd: root, encoding: "utf8" });
+      const standard = kind === "task" ? issue.replace("status: Ready for Agent", "status: backlog\nmodel: runtime-selected") : issue;
+      const validSubmissions = [
+        standard,
+        standard.replace("autonomy: pr_ready", "autonomy: auto_merge"),
+        standard.replace("risk: medium", 'task_size: standard\nrisk: "medium"').replaceAll("\n", "\r\n"),
+        standard.replace("repos:\n  - test-structor", 'repos: ["test-structor"]'),
+        standard.replace("risk: medium", "# Reviewed metadata\nrisk: 'medium'"),
+      ];
+      if (kind === "task") {
+        validSubmissions.push(standard.replace(/(repos|allowed_paths|forbidden_paths):\n  - [^\n]+/g, "$1: []"));
+        validSubmissions.push(standard.replace("model: runtime-selected", "model: gpt-example"));
+      }
+      validSubmissions.push(standard.replace("  - ai/HARNESS.md", "  - src/auth/config.mjs").replace("requires_human_approval: false", "requires_human_approval: true"));
+      for (const valid of validSubmissions) {
+        await writeFile(file, valid);
+        assertSuccess(run("--file", file), `${kind} legacy/additive metadata`);
+      }
+      for (const [name, mutate, diagnostic] of cases) {
+        await writeFile(file, mutate(standard));
+        const result = run("--file", file);
+        assert.equal(result.status, 1, `${kind}: ${name}\n${result.stdout}${result.stderr}`);
+        assert.match(result.stderr, diagnostic, `${kind}: ${name}`);
+        assert.ok(result.stderr.includes(file), `${kind}: diagnostic identifies input`);
+      }
+      assertSuccess(run(), `${kind} no-argument starter/fixture checks`);
+      if (kind === "task") {
+        const starterPath = path.join(harnessRoot, "ai/templates/task-brief-template.md");
+        const starter = await readFile(starterPath, "utf8");
+        await writeFile(starterPath, starter.replace("model: runtime-selected", "model: gpt-example"));
+        const invalidStarter = run();
+        assert.equal(invalidStarter.status, 1);
+        assert.match(invalidStarter.stderr, /runtime-neutral/);
+        await writeFile(starterPath, starter);
+      }
+      for (const args of [["--file"], ["--unknown", file], ["--file", file, "extra"]]) {
+        const result = run(...args);
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /Usage:/);
+      }
+      const missing = run("--file", path.join(root, "absent.md"));
+      assert.equal(missing.status, 1);
+      assert.match(missing.stderr, /absent\.md/);
+    }
+  });
+});
+
 test("parseArgs uses safe defaults", () => {
   const options = parseArgs([]);
   assert.equal(options.config, "harness.config.json");
