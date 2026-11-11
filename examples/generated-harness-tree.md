@@ -175,6 +175,7 @@ workspace/
     scripts/lib/brief-validation.mjs
     scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
+    scripts/lib/target-provenance.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
     workspace/AGENTS.md

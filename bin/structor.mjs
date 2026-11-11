@@ -26,6 +26,7 @@ import {
   planSetupTransaction,
 } from "../scripts/setup-transaction.mjs";
 import { validateHarnessReferences } from "../scripts/harness-routing.mjs";
+import { formatTargetProvenance, inspectTargetProvenance } from "../scripts/target-provenance.mjs";
 import { createTopologyPlan } from "../scripts/topology-plan.mjs";
 import {
   consumerEntrypointValues,
@@ -157,6 +158,13 @@ export function parseArgs(argv) {
     else if (arg === "--workspace") options.workspace = rest[++index];
     else if (arg === "--repo-url" && command === "contribute") options.repoUrl = rest[++index];
     else if (arg === "--config") options.config = rest[++index];
+    else if (arg === "--target" && command === "doctor") {
+      const target = rest[++index];
+      if (!target || target.startsWith("--")) throw new Error("--target requires a checkout path.");
+      options.target = target;
+    }
+    else if (arg === "--json" && command === "doctor") options.json = true;
+    else if (arg === "--require-git-freshness" && command === "doctor") options.requireGitFreshness = true;
     else options._.push(arg);
   }
   return { command, options, rawArgs: rest };
@@ -181,7 +189,7 @@ function assertKnownOptionKeys(command, options, allowedKeys) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor agent <plan|apply> [agent-native options]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  agent                Produce or apply the immutable Agent-Native Setup contract.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
+  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor agent <plan|apply> [agent-native options]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>] [--target <path>] [--json] [--require-git-freshness]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  agent                Produce or apply the immutable Agent-Native Setup contract.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function runGenerator(args, cwd = process.cwd()) {
@@ -866,6 +874,24 @@ async function doctor(options) {
   const results = [];
   const workspaceRoot = path.resolve(options.workspace ?? process.cwd());
   const configPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
+  if (options.target) {
+    const config = await readJson(configPath);
+    const errors = await validateConfigShape(config, configPath);
+    if (errors.length > 0) throw new Error(errors.join("\n"));
+    const resolved = await resolveHarnessConfig(config, { configPath, label: configPath, outputPath: config.output.path });
+    const report = await inspectTargetProvenance({
+      targetPath: options.target,
+      harnessRoot: resolved.outputRoot,
+      harnessRepoName: config.project.harnessRepoName,
+      models: config.models,
+      entrypoints: consumerEntrypointsForSettings({ profile: config.profile, models: config.models, clientSupport: resolved.support }),
+      requireGitFreshness: options.requireGitFreshness,
+    });
+    console.log(options.json ? JSON.stringify(report, null, 2) : formatTargetProvenance(report));
+    process.exitCode = report.valid ? 0 : 1;
+    return;
+  }
+  if (options.json || options.requireGitFreshness) throw new Error("--json and --require-git-freshness require --target <path>.");
   section("Structor doctor");
   note("Diagnosis only. No files will be repaired or written.");
 
@@ -1000,6 +1026,14 @@ async function doctor(options) {
           printDoctorCheck(results, "FAIL", `consumer pointer file routes to generated harness: ${consumer.config.name}`, issue);
         }
       }
+      const provenance = await inspectTargetProvenance({
+        targetPath: consumerRoot,
+        harnessRoot: outputRoot,
+        harnessRepoName,
+        models: config.models,
+        entrypoints: consumerRoutingEntrypoints,
+      });
+      printDoctorCheck(results, provenance.valid ? "OK" : "FAIL", `source provenance: ${consumer.config.name}`, formatTargetProvenance(provenance));
     }
 
     const manifestPath = path.join(outputRoot, ".structor/manifest.json");

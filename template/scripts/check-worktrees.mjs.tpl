@@ -2,12 +2,15 @@
 
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { consumerEntrypointsForSettings } from "./generated-harness-contract.mjs";
+import { formatTargetProvenance, inspectTargetProvenance } from "./lib/target-provenance.mjs";
 import {
   canonicalRepos,
   exists,
   formatInspection,
   inspectCheckout,
   listGitWorktrees,
+  models,
 } from "./lib/worktree-bootstrap.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
@@ -23,6 +26,22 @@ const args = new Set(process.argv.slice(2));
 const includeCanonical = args.has(includeCanonicalArg);
 const includeWorktreeList = !args.has(includeNoWorktreeListArg);
 const strict = args.has(strictArg);
+
+if (args.has("--target")) {
+  const targetPath = process.argv[process.argv.indexOf("--target") + 1];
+  if (!targetPath || targetPath.startsWith("--")) throw new Error("--target requires a checkout path.");
+  const report = await inspectTargetProvenance({
+    targetPath,
+    harnessRoot: repoRoot,
+    harnessRepoName: "{{HARNESS_REPO_NAME}}",
+    models,
+    entrypoints: consumerEntrypointsForSettings({ models }),
+    requireGitFreshness: args.has("--require-git-freshness"),
+  });
+  console.log(args.has("--json") ? JSON.stringify(report, null, 2) : formatTargetProvenance(report));
+  process.exit(report.valid ? 0 : 1);
+}
+if (args.has("--json") || args.has("--require-git-freshness")) throw new Error("--json and --require-git-freshness require --target <path>.");
 
 const inspections = [];
 if (includeCanonical) {

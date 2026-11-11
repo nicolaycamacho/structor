@@ -828,6 +828,10 @@ export async function generateHarness(config, {
     path.join(repoRoot, "scripts/harness-routing.mjs"),
     "utf8",
   );
+  values.TARGET_PROVENANCE_MODULE = await readFile(
+    path.join(repoRoot, "scripts/target-provenance.mjs"),
+    "utf8",
+  );
 
   const templateFiles = await collectTemplateFiles();
   values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, resolvedConfig.plan, values);

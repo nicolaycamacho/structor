@@ -749,6 +749,300 @@ test("doctor reports a healthy generated workspace", async () => {
   assert.match(outputText(result), /OK config file exists/);
   assert.match(outputText(result), /OK generated harness required files exist/);
   assert.match(outputText(result), /OK consumer pointer files route to generated harness: app/);
+  assert.match(outputText(result), /Target Git:.*relationship=unavailable.*dirty=unavailable/);
+});
+
+test("target diagnostics share physical roots and fingerprints without requiring Git or inspecting unrelated paths", async () => {
+  const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace();
+  try {
+    await writeFile(path.join(harnessRoot, "ai/context.md"), "guidance\n");
+    await rm(path.join(workspaceRoot, "AGENTS.md"));
+    const alias = path.join(workspaceRoot, "selected-checkout");
+    await symlink(consumerRoot, alias);
+    const before = await snapshotWorkspace(workspaceRoot);
+    const doctor = runCli(["doctor", "--workspace", workspaceRoot, "--target", alias, "--json"]);
+    assertSuccess(doctor, "scoped Doctor supports non-Git checkouts");
+    const report = JSON.parse(doctor.stdout);
+    assert.equal(report.target.root, consumerRoot);
+    assert.equal(report.harness.root, harnessRoot);
+    assert.equal(report.target.git.relationship, "unavailable");
+    assert.equal(report.harness.git.relationship, "unavailable");
+    assert.equal(report.freshness.live, "unavailable");
+    assert.equal(report.freshness.refs, "cached");
+    assert.equal(report.guidance.find((file) => file.path === path.join(harnessRoot, "ai/context.md")).sha256,
+      "42cfb93dc13506063f18074be5c8f1be6a2006a37adc49b048f8354ef4b86f1f");
+    const checker = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", alias, "--json"], { cwd: harnessRoot, encoding: "utf8" });
+    assertSuccess(checker, "scoped generated checker");
+    assert.deepEqual(JSON.parse(checker.stdout), report);
+    for (const result of runTargetPair({ workspaceRoot, consumerRoot, harnessRoot }, ["--require-git-freshness"])) {
+      assert.equal(result.status, 1, outputText(result));
+      assert.match(JSON.parse(result.stdout).issues.join("\n"), /Git freshness gate/);
+    }
+    assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "diagnosis preserves all workspace files");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+function fixtureGit(root, ...args) {
+  const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-C", root, ...args], {
+    encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
+  });
+  assertSuccess(result, `fixture git ${args[0]}`);
+  return result.stdout.trim();
+}
+
+async function trackFixtureRepo(root, remote) {
+  fixtureGit(root, "init", "-b", "main");
+  fixtureGit(root, "config", "user.name", "Fixture");
+  fixtureGit(root, "config", "user.email", "fixture@example.test");
+  fixtureGit(root, "add", ".");
+  fixtureGit(root, "commit", "-m", "Initial fixture");
+  fixtureGit(path.dirname(root), "init", "--bare", remote);
+  fixtureGit(root, "remote", "add", "origin", remote);
+  fixtureGit(root, "push", "-u", "origin", "main");
+  return fixtureGit(root, "rev-parse", "HEAD");
+}
+
+function runTargetPair({ workspaceRoot, consumerRoot, harnessRoot }, flags = []) {
+  return [
+    runCli(["doctor", "--workspace", workspaceRoot, "--target", consumerRoot, "--json", ...flags]),
+    spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json", ...flags], { cwd: harnessRoot, encoding: "utf8" }),
+  ];
+}
+
+test("target Git evidence reports revisions, cached upstream equality and clean state without changing Git files", async () => {
+  const fixture = await createDoctorWorkspace();
+  const { workspaceRoot, consumerRoot, harnessRoot } = fixture;
+  try {
+    const targetRevision = await trackFixtureRepo(consumerRoot, path.join(workspaceRoot, "app.git"));
+    const harnessRevision = await trackFixtureRepo(harnessRoot, path.join(workspaceRoot, "harness.git"));
+    const before = await snapshotWorkspace(workspaceRoot);
+    for (const result of runTargetPair(fixture, ["--require-git-freshness"])) {
+      assertSuccess(result, "clean equal checkouts pass the explicit cached freshness gate");
+      const report = JSON.parse(result.stdout);
+      for (const [source, revision, root] of [[report.target, targetRevision, consumerRoot], [report.harness, harnessRevision, harnessRoot]]) {
+        assert.equal(source.git.root, root);
+        assert.equal(source.git.revision, revision);
+        assert.equal(source.git.upstreamRevision, revision);
+        assert.equal(source.git.branch, "main");
+        assert.equal(source.git.upstream, "origin/main");
+        assert.equal(source.git.relationship, "equal");
+        assert.equal(source.git.ahead, 0);
+        assert.equal(source.git.behind, 0);
+        assert.equal(source.git.dirty, false);
+      }
+      assert.equal(report.freshness.ready, true);
+      assert.equal(report.freshness.live, "unavailable");
+    }
+    assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "diagnosis must preserve Git indexes, refs, logs, config and checkout files");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+for (const source of ["target", "harness"]) {
+  test(`target freshness gate classifies cached ${source} history and ignores unrelated auxiliary worktrees`, async () => {
+    const fixture = await createDoctorWorkspace();
+    const { workspaceRoot, consumerRoot, harnessRoot } = fixture;
+    try {
+      await trackFixtureRepo(consumerRoot, path.join(workspaceRoot, "app.git"));
+      await trackFixtureRepo(harnessRoot, path.join(workspaceRoot, "harness.git"));
+      const root = source === "target" ? consumerRoot : harnessRoot;
+      const initial = fixtureGit(root, "rev-parse", "HEAD");
+      const auxiliary = path.join(workspaceRoot, "unrelated-worktree");
+      fixtureGit(consumerRoot, "worktree", "add", "--detach", auxiliary);
+      await rm(auxiliary, { recursive: true, force: true });
+
+      async function assertState(relationship, gateStatus, { dirty = false, ahead = null, behind = null } = {}) {
+        const before = await snapshotWorkspace(workspaceRoot);
+        for (const flags of [[], ["--require-git-freshness"]]) {
+          const results = runTargetPair(fixture, flags);
+          for (const result of results) {
+            assert.equal(result.status, flags.length ? gateStatus : 0, outputText(result));
+            const report = JSON.parse(result.stdout);
+            assert.equal(report[source].git.relationship, relationship);
+            assert.equal(report[source].git.dirty, dirty);
+            assert.equal(report[source].git.ahead, ahead);
+            assert.equal(report[source].git.behind, behind);
+            assert.equal(report.freshness.ready, gateStatus === 0);
+            if (gateStatus) assert.match(report.issues.join("\n"), flags.length ? /Git freshness gate/ : /^$/);
+          }
+          assert.deepEqual(JSON.parse(results[0].stdout), JSON.parse(results[1].stdout));
+        }
+        assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "diagnosis cannot fetch, update an index, repair pointers or prune an unrelated worktree");
+      }
+
+      await assertState("equal", 0, { ahead: 0, behind: 0 });
+      await writeFile(path.join(root, "local-change.txt"), "local\n");
+      await assertState("equal", 1, { dirty: true, ahead: 0, behind: 0 });
+      fixtureGit(root, "add", ".");
+      fixtureGit(root, "commit", "-m", "Local ahead");
+      const aheadRevision = fixtureGit(root, "rev-parse", "HEAD");
+      await assertState("ahead", 0, { ahead: 1, behind: 0 });
+
+      // The fixture advances the remote without refreshing the inspected checkout.
+      const peer = path.join(workspaceRoot, "peer");
+      fixtureGit(workspaceRoot, "clone", "--branch", "main", fixtureGit(root, "remote", "get-url", "origin"), peer);
+      fixtureGit(peer, "config", "user.name", "Fixture");
+      fixtureGit(peer, "config", "user.email", "fixture@example.test");
+      await writeFile(path.join(peer, "remote-change.txt"), "remote\n");
+      fixtureGit(peer, "add", ".");
+      fixtureGit(peer, "commit", "-m", "Remote ahead");
+      fixtureGit(peer, "push", "origin", "main");
+      await assertState("ahead", 0, { ahead: 1, behind: 0 });
+      fixtureGit(root, "fetch", "origin");
+      await assertState("diverged", 1, { ahead: 1, behind: 1 });
+      fixtureGit(root, "switch", "-c", "behind", initial);
+      fixtureGit(root, "branch", "--set-upstream-to=origin/main");
+      await assertState("behind", 1, { ahead: 0, behind: 1 });
+      fixtureGit(root, "switch", "--detach", aheadRevision);
+      await assertState("unavailable", 1);
+    } finally {
+      await rm(workspaceRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+for (const source of ["target", "harness"]) {
+  test(`target diagnostics never execute configured ${source} clean filters`, async () => {
+    const fixture = await createDoctorWorkspace();
+    try {
+      await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+      await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+      const root = source === "target" ? fixture.consumerRoot : fixture.harnessRoot;
+      await writeFile(path.join(root, ".gitattributes"), "data.txt filter=sideeffect\n");
+      await writeFile(path.join(root, "data.txt"), "initial\n");
+      fixtureGit(root, "add", ".");
+      fixtureGit(root, "commit", "-m", "Filtered fixture file");
+      fixtureGit(root, "config", "filter.sideeffect.clean", "cat; echo changed > diagnostic-side-effect.txt");
+      await writeFile(path.join(root, "data.txt"), "changed\n");
+      const before = await snapshotWorkspace(fixture.workspaceRoot);
+      for (const flags of [[], ["--require-git-freshness"]]) {
+        for (const result of runTargetPair(fixture, flags)) {
+          assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+          assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before, "diagnostics must never execute checkout filters");
+          const git = JSON.parse(result.stdout)[source].git;
+          assert.equal(git.dirty, null);
+          assert.match(git.dirtyUnavailableReason, /filter/);
+          assert.equal(git.relationship, "ahead");
+        }
+      }
+    } finally {
+      await rm(fixture.workspaceRoot, { recursive: true, force: true });
+    }
+  });
+}
+
+test("target diagnostics avoid recursive submodule status and report dirty evidence unavailable", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+    await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+    fixtureGit(fixture.consumerRoot, "-c", "protocol.file.allow=always", "submodule", "add", "-b", "main", path.join(fixture.workspaceRoot, "harness.git"), "nested");
+    fixtureGit(fixture.consumerRoot, "commit", "-m", "Submodule fixture");
+    const nested = path.join(fixture.consumerRoot, "nested");
+    fixtureGit(nested, "config", "filter.sideeffect.clean", "cat; echo changed > diagnostic-side-effect.txt");
+    await writeFile(path.join(nested, ".gitattributes"), "README.md filter=sideeffect\n");
+    await writeFile(path.join(nested, "README.md"), "changed\n");
+    const before = await snapshotWorkspace(fixture.workspaceRoot);
+    for (const flags of [[], ["--require-git-freshness"]]) {
+      for (const result of runTargetPair(fixture, flags)) {
+        assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+        assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
+        const git = JSON.parse(result.stdout).target.git;
+        assert.equal(git.dirty, null);
+        assert.match(git.dirtyUnavailableReason, /submodule/i);
+        assert.equal(git.relationship, "ahead");
+      }
+    }
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("target inspection reports an absent harness as unavailable rather than inventing a physical source root", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    await rm(fixture.harnessRoot, { recursive: true, force: true });
+    const result = runCli(["doctor", "--workspace", fixture.workspaceRoot, "--target", fixture.consumerRoot, "--json"]);
+    assert.equal(result.status, 1, outputText(result));
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.harness.root, null);
+    assert.deepEqual(report.harness.roots, []);
+    assert.match(report.issues.join("\n"), /missing generated-harness file/);
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("target freshness fails closed when history is shallow while ordinary inspection still reports available facts", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+    await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+    const shallowRoot = path.join(fixture.workspaceRoot, "shallow-app");
+    fixtureGit(fixture.workspaceRoot, "clone", "--depth", "1", "--branch", "main", `file://${path.join(fixture.workspaceRoot, "app.git")}`, shallowRoot);
+    const before = await snapshotWorkspace(fixture.workspaceRoot);
+    for (const flags of [[], ["--require-git-freshness"]]) {
+      for (const result of runTargetPair({ ...fixture, consumerRoot: shallowRoot }, flags)) {
+        assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+        const git = JSON.parse(result.stdout).target.git;
+        assert.equal(git.shallow, true);
+        assert.equal(git.relationship, "unavailable");
+        assert.match(git.unavailableReason, /shallow/);
+        assert.match(git.revision, /^[a-f0-9]{40}$/);
+        assert.equal(git.dirty, false);
+      }
+    }
+    assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("target diagnostics require a path and keep JSON and freshness options scoped", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    const before = await snapshotWorkspace(fixture.workspaceRoot);
+    for (const flags of [["--target"], ["--target", "--json"], ["--require-git-freshness"], ["--json"]]) {
+      for (const result of [
+        runCli(["doctor", "--workspace", fixture.workspaceRoot, ...flags]),
+        spawnSync(process.execPath, ["scripts/check-worktrees.mjs", ...flags], { cwd: fixture.harnessRoot, encoding: "utf8" }),
+      ]) {
+        assert.equal(result.status, 1, outputText(result));
+        assert.match(outputText(result), /--target requires|require --target/);
+      }
+    }
+    assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+test("target inspection reports the selected linked checkout and unavailable upstream without inheriting the canonical branch", async () => {
+  const fixture = await createDoctorWorkspace();
+  try {
+    const revision = await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+    const selected = path.join(fixture.workspaceRoot, "feature-app");
+    fixtureGit(fixture.consumerRoot, "worktree", "add", "-b", "feature/selected", selected);
+    const before = await snapshotWorkspace(fixture.workspaceRoot);
+    for (const result of runTargetPair({ ...fixture, consumerRoot: selected })) {
+      assertSuccess(result, "linked checkout provenance");
+      const report = JSON.parse(result.stdout);
+      assert.equal(report.target.root, selected);
+      assert.equal(report.target.git.root, selected);
+      assert.equal(report.target.git.revision, revision);
+      assert.equal(report.target.git.branch, "feature/selected");
+      assert.equal(report.target.git.upstream, null);
+      assert.equal(report.target.git.relationship, "unavailable");
+      assert.equal(report.target.git.dirty, false);
+      assert.equal(report.harness.root, fixture.harnessRoot);
+    }
+    assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
+  } finally {
+    await rm(fixture.workspaceRoot, { recursive: true, force: true });
+  }
 });
 
 test("doctor names a missing generated file and exits non-zero", async () => {
@@ -791,6 +1085,17 @@ test("Doctor and generated checks reject a pointer target escaping the canonical
     const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
     assert.notEqual(doctor.status, 0);
     assert.match(outputText(doctor), /outside the generated harness/);
+    const before = await snapshotWorkspace(workspaceRoot);
+    for (const result of runTargetPair({ workspaceRoot, consumerRoot, harnessRoot })) {
+      assert.equal(result.status, 1, outputText(result));
+      const report = JSON.parse(result.stdout);
+      assert.match(report.issues.join("\n"), /outside the generated harness/);
+      const unsafe = report.guidance.find((file) => file.path.endsWith("/ai/escaped.md"));
+      assert.equal(unsafe.status, "unsafe");
+      assert.equal(unsafe.sha256, null);
+      assert.equal(unsafe.physicalPath, outsidePath);
+    }
+    assert.deepEqual(await snapshotWorkspace(workspaceRoot), before);
     for (const args of [
       ["scripts/check-workspace.mjs"],
       ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"],
@@ -813,7 +1118,7 @@ async function snapshotWorkspace(root) {
     const target = path.join(root, relativePath);
     const info = await lstat(target);
     const content = info.isSymbolicLink() ? await readlink(target)
-      : info.isFile() ? await readFile(target, "utf8") : null;
+      : info.isFile() ? (await readFile(target)).toString("base64") : null;
     entries.push({ relativePath, content, mode: info.mode, mtimeMs: info.mtimeMs });
   }
   return entries;
@@ -856,16 +1161,24 @@ for (const profile of ["focused", "expanded"]) {
             await writeFile(pointerPath, testCase.content);
             const before = await snapshotWorkspace(workspaceRoot);
             const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
+            const scopedDoctor = runCli(["doctor", "--workspace", workspaceRoot, "--target", consumerRoot, "--json"]);
             assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "Doctor must not write any workspace file");
             const workspace = spawnSync(process.execPath, ["scripts/check-workspace.mjs"], { cwd: harnessRoot, encoding: "utf8" });
             assert.equal(doctor.status === 0, Boolean(testCase.valid), outputText(doctor));
+            assert.equal(scopedDoctor.status === 0, Boolean(testCase.valid), outputText(scopedDoctor));
+            const targetReport = JSON.parse(scopedDoctor.stdout);
+            assert.equal(targetReport.entrypoints.length, Number(models.openai) + Number(models.anthropic));
             assert.equal(workspace.status === 0, Boolean(testCase.valid), outputText(workspace));
             if (!testCase.valid) {
               assert.match(outputText(doctor), testCase.diagnostic);
+              assert.match(targetReport.issues.join("\n"), testCase.diagnostic);
               assert.match(outputText(workspace), testCase.diagnostic);
             }
             // Worktree commands are expanded-only surfaces; focused keeps the resolver for workspace checks.
             if (profile === "expanded") {
+              const scopedCheck = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json"], { cwd: harnessRoot, encoding: "utf8" });
+              assert.equal(scopedCheck.status, scopedDoctor.status, outputText(scopedCheck));
+              assert.deepEqual(JSON.parse(scopedCheck.stdout), targetReport);
               const check = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"], { cwd: harnessRoot, encoding: "utf8" });
               assert.equal(check.status === 0, Boolean(testCase.valid), outputText(check));
               const bootstrap = spawnSync(process.execPath, ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"], { cwd: harnessRoot, encoding: "utf8" });
