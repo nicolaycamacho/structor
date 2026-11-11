@@ -31,6 +31,15 @@ command in backticks. Tiny briefs may omit other metadata; supplied fields are
 still checked and omitted fields grant no authority. Size is document shape,
 not risk, permission, autonomy or effort.
 
+Standard briefs also require `## Repository Fit`, with nonempty level-three
+headings `Guidance`, `Analogues`, `Callers and Ownership`, `Conventions`,
+`Departures`, and `Validation and Browser Evidence`. Follow `ai/WORKFLOW.md` for
+the evidence to record and architecture-review routing before coding. Explain
+absent analogues or unavailable/inapplicable browser evidence explicitly. The
+validators check structure, not the correctness of architectural judgment or
+whether inspection actually happened; no particular evidence prose is required.
+Tiny briefs keep focused local inspection without this section.
+
 Metadata names remain unchanged. Task `status: backlog`, task empty lists `[]`,
 and `model: runtime-selected` remain supported. Concrete tasks may specify a
 provider model when the task owner explicitly requires one; starter checks

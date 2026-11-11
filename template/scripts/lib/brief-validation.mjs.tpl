@@ -89,6 +89,7 @@ export const standardSections = [
   "Path Contract",
   "Requirements",
   "Bootstrap Requirements",
+  "Repository Fit",
   "Proposed Approach",
   "Agent Execution Protocol",
   "Success Criteria",
@@ -101,6 +102,7 @@ export const standardSections = [
   "Open Questions",
   "Notes for the Agent",
 ];
+const repositoryFitCategories = ["Guidance", "Analogues", "Callers and Ownership", "Conventions", "Departures", "Validation and Browser Evidence"];
 const metadataKeys = ["id", "status", "risk", "autonomy", "model_policy", "repos", "allowed_paths", "forbidden_paths", "requires_human_approval"];
 const enums = {
   risk: ["low", "medium", "high"],
@@ -112,14 +114,15 @@ const statuses = ["Backlog", "Ready for Agent", "Running", "Needs Fix", "Report 
 const placeholderPattern = /<[^>\n]+>|\{\{[^}\n]+\}\}|\b(?:TASK-ID|ISSUE-ID|TODO|TBD)\b|^# Title[ \t]*$/im;
 const protectedSurfacePattern = /\b(auth|authentication|authorization|billing|subscription|payment|secret|environment variable|infrastructure|deployment|database migration|production data|tenant|quota|rate limit|shared contract)\b/i;
 
-function sectionsIn(body) {
+function sectionsIn(body, level = 2) {
   const sections = new Map();
   const duplicates = [];
   let section = null;
   let fence = null;
-  for (const line of body.split("\n")) {
+  for (const line of body.replace(/<!--[\s\S]*?-->/g, "").split("\n")) {
     const delimiter = line.match(/^\s{0,3}(`{3,}|~{3,})/);
     if (delimiter) {
+      if (section) sections.set(section, sections.get(section) + line + "\n");
       if (!fence) fence = delimiter[1];
       else if (delimiter[1][0] === fence[0] && delimiter[1].length >= fence.length) fence = null;
       continue;
@@ -128,7 +131,7 @@ function sectionsIn(body) {
       if (section) sections.set(section, sections.get(section) + line + "\n");
       continue;
     }
-    const heading = line.match(/^## (.+?)\s*$/);
+    const heading = line.match(new RegExp(`^#{${level}} (.+?)\\s*$`));
     if (heading) {
       section = heading[1];
       if (sections.has(section)) duplicates.push(section);
@@ -138,6 +141,10 @@ function sectionsIn(body) {
     }
   }
   return { sections, duplicates };
+}
+
+function hasText(content) {
+  return Boolean(content.replace(/<!--[\s\S]*?-->/g, "").replace(/^#{3,}.*$/gm, "").replace(/^\s{0,3}(?:`{3,}|~{3,}).*$/gm, "").replace(/[-*\s]/g, ""));
 }
 
 export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceholders = false }) {
@@ -179,7 +186,15 @@ export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceh
   for (const section of duplicates) errors.push(`${file} has duplicate section '${section}'.`);
   for (const section of size === "tiny" ? ["Goal", "Scope", "Acceptance", "Validation"] : standardSections) {
     if (!sections.has(section)) errors.push(`${file} is missing required section '${section}'.`);
-    else if (!allowPlaceholders && !sections.get(section).replace(/<!--[\s\S]*?-->/g, "").replace(/^#{3,}.*$/gm, "").replace(/[-*\s]/g, "")) errors.push(`${file} section '${section}' must contain substantive text.`);
+    else if (!allowPlaceholders && !hasText(sections.get(section))) errors.push(`${file} section '${section}' must contain substantive text.`);
+  }
+  if (size !== "tiny" && sections.has("Repository Fit")) {
+    const fit = sectionsIn(sections.get("Repository Fit"), 3);
+    for (const category of fit.duplicates) errors.push(`${file} Repository Fit has duplicate category '${category}'.`);
+    for (const category of repositoryFitCategories) {
+      if (!fit.sections.has(category)) errors.push(`${file} Repository Fit is missing evidence category '${category}' (use a level-three heading).`);
+      else if (!allowPlaceholders && !hasText(fit.sections.get(category))) errors.push(`${file} Repository Fit category '${category}' must contain evidence or an explicit explanation.`);
+    }
   }
   if (!allowPlaceholders) {
     for (const [key, value] of Object.entries(metadata)) {

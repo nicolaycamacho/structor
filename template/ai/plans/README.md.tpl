@@ -8,3 +8,5 @@ Plans hold multi-step governance work. Do not store runtime state here.
 - Active plans must include status, goal, next step, and validation plan.
 - Completed plans should move out of active work surfaces with evidence.
 - Runtime logs, worktree state, and runner artifacts do not belong here.
+- Implementation plans follow `ai/WORKFLOW.md` for repository-fit preparation
+  before coding; tiny tasks need only focused local inspection.

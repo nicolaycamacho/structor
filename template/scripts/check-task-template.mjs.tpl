@@ -13,7 +13,7 @@ try {
   const file = inputFile(process.argv.slice(2));
   if (file) {
     errors.push(...validateBrief(file, await readFile(path.resolve(file), "utf8"), { kind: "task", canonicalRepos }));
-  } else if ("{{HARNESS_PROFILE}}" === "focused") {
+  } else if ({{HARNESS_PROFILE_JSON}} === "focused") {
     console.log("Task starter templates are not included in the focused profile; use --file <path>.");
   } else {
     errors.push(...validateBrief(taskTemplatePath, await readFile(path.join(repoRoot, taskTemplatePath), "utf8"), {

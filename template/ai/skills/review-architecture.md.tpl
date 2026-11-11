@@ -9,11 +9,17 @@ Find boundary, ownership, and change-amplification risks.
 - task brief
 - relevant contract docs
 - changed files
+- Repository Fit evidence, including local analogues, callers, preserved
+  conventions and proposed departures (or focused local inspection for tiny tasks)
 
 ## When to Use
 
 Use when changes affect ownership, routing, repo boundaries, data flow, or
 shared abstractions.
+Review architecture-sensitive convention departures before implementation;
+require reasons and preserved contracts, and resolve blocking findings before
+coding. Missing or conflicting local precedent is uncertainty to review, not
+permission to invent a convention.
 
 ## Blocking Findings
 
