@@ -25,6 +25,7 @@ import {
   applySetupTransaction,
   planSetupTransaction,
 } from "../scripts/setup-transaction.mjs";
+import { validateHarnessReferences } from "../scripts/harness-routing.mjs";
 import { createTopologyPlan } from "../scripts/topology-plan.mjs";
 import {
   consumerEntrypointValues,
@@ -802,104 +803,6 @@ export function nextValidationCommands(config) {
   return commands;
 }
 
-function cleanHarnessReference(rawReference) {
-  return rawReference.trim().replace(/^[`'"]+/, "").replace(/[`'",;:.)\]}]+$/, "");
-}
-
-function extractHarnessReferences(content, harnessRepoName) {
-  const escapedName = harnessRepoName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp("(?:\\.\\.?/|/)[^`'\"\\s)<\\]}]*(?:" + escapedName + ")[^`'\"\\s)<\\]}]*", "g");
-  return [...new Set((content.match(pattern) ?? []).map(cleanHarnessReference).filter(Boolean))];
-}
-
-function resolveHarnessReferenceTarget({ reference: rawReference, basePath, harnessRepoName }) {
-  const reference = cleanHarnessReference(rawReference);
-  const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(basePath, reference);
-  const parts = absoluteReference.split(path.sep);
-  if (parts.lastIndexOf(harnessRepoName) === -1) return null;
-  return absoluteReference;
-}
-
-function resolveHarnessReferenceRoot({ reference: rawReference, basePath, harnessRepoName }) {
-  const target = resolveHarnessReferenceTarget({ reference: rawReference, basePath, harnessRepoName });
-  if (!target) return null;
-  const parts = target.split(path.sep);
-  const index = parts.lastIndexOf(harnessRepoName);
-  return parts.slice(0, index + 1).join(path.sep) || path.sep;
-}
-
-async function isFileTarget(targetPath) {
-  try {
-    return (await stat(targetPath)).isFile();
-  } catch {
-    return false;
-  }
-}
-
-async function canonicalExistingPath(targetPath) {
-  try {
-    return await realpath(targetPath);
-  } catch {
-    return path.resolve(targetPath);
-  }
-}
-
-function isWithinRoot(root, candidate) {
-  if (candidate === root) return true;
-  return candidate.startsWith(root.endsWith(path.sep) ? root : root + path.sep);
-}
-
-async function validateHarnessReferences({
-  pointerPath,
-  pointerContent,
-  basePath,
-  expectedHarnessRoot,
-  harnessRepoName,
-  models,
-  requireHarnessReference = true,
-}) {
-  const references = extractHarnessReferences(pointerContent, harnessRepoName);
-  if (references.length === 0) {
-    return requireHarnessReference
-      ? [`${pointerPath} does not contain a resolvable ${harnessRepoName} path.`]
-      : [];
-  }
-
-  const issues = [];
-  for (const reference of references) {
-    const target = resolveHarnessReferenceTarget({ reference, basePath, harnessRepoName });
-    const referenceRoot = resolveHarnessReferenceRoot({ reference, basePath, harnessRepoName });
-    if (!target || !referenceRoot) {
-      issues.push(`${pointerPath} does not contain a resolvable ${harnessRepoName} path.`);
-      continue;
-    }
-    const canonicalReferenceRoot = await canonicalExistingPath(referenceRoot);
-    const canonicalExpectedHarnessRoot = await canonicalExistingPath(expectedHarnessRoot);
-    if (canonicalReferenceRoot !== canonicalExpectedHarnessRoot) {
-      issues.push(`${pointerPath} points at ${referenceRoot} instead of ${expectedHarnessRoot}.`);
-      continue;
-    }
-
-    const relativeTarget = path.relative(referenceRoot, target).replaceAll(path.sep, "/");
-    if (!models.openai && relativeTarget === "AGENTS.md") {
-      issues.push(`${pointerPath} must not reference ${relativeTarget} when OpenAI support is disabled.`);
-    } else if (!models.anthropic && relativeTarget === "CLAUDE.md") {
-      issues.push(`${pointerPath} must not reference ${relativeTarget} when Anthropic support is disabled.`);
-    } else if (relativeTarget === "" || !(await isFileTarget(target))) {
-      issues.push(`${pointerPath} references missing generated-harness file ${relativeTarget || "."}.`);
-    } else {
-      // The lexical reference root can match while the target file resolves,
-      // via a symlink, to policy outside the harness. Require the canonical
-      // (realpath-resolved) target to stay under the canonical harness root.
-      const canonicalTarget = await canonicalExistingPath(target);
-      if (!isWithinRoot(canonicalExpectedHarnessRoot, canonicalTarget)) {
-        issues.push(`${pointerPath} resolves to ${canonicalTarget} outside the generated harness ${canonicalExpectedHarnessRoot}.`);
-      }
-    }
-  }
-  return issues;
-}
-
 async function readIfExists(filePath) {
   if (!(await exists(filePath))) return null;
   return readFile(filePath, "utf8");
@@ -934,7 +837,7 @@ async function collectEntrypointRoutingIssues({
         models,
         requireHarnessReference: false,
       });
-      issues.push(...referenceIssues);
+      issues.push(...referenceIssues.map((issue) => issue.message));
       continue;
     }
     const referenceIssues = await validateHarnessReferences({
@@ -945,7 +848,7 @@ async function collectEntrypointRoutingIssues({
       harnessRepoName,
       models,
     });
-    issues.push(...referenceIssues);
+    issues.push(...referenceIssues.map((issue) => issue.message));
   }
   return issues;
 }

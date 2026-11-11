@@ -205,6 +205,7 @@
     "agentNativeSetup": "scripts/agent-native-setup.mjs",
     "renderContext": "scripts/rendered-config.mjs",
     "contract": "scripts/generated-harness-contract.mjs",
+    "routing": "scripts/harness-routing.mjs",
     "templates": "template"
   },
   "validation": {
@@ -257,6 +258,7 @@
       "paths": [
         "template/",
         "scripts/generated-harness-contract.mjs",
+        "scripts/harness-routing.mjs",
         "scripts/init-harness.mjs",
         "scripts/rendered-config.mjs",
         "scripts/smoke-template.mjs",

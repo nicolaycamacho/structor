@@ -219,6 +219,20 @@ async function validateCase(smokeCase) {
   }
 
   const firstConsumerRoot = path.join(workspaceRoot, smokeCase.consumers[0].name);
+  const routingEntrypoint = consumerEntrypoints.find((entrypoint) => entrypoint.routing === "harness");
+  const pointerPath = path.join(firstConsumerRoot, routingEntrypoint.path);
+  const originalPointer = await readFile(pointerPath, "utf8");
+  const outsidePolicyPath = path.join(workspaceRoot, "outside-policy.md");
+  await writeFile(outsidePolicyPath, "# Synthetic outside policy\n");
+  await symlink(outsidePolicyPath, path.join(harnessRoot, "ai/outside-policy.md"));
+  await writeFile(pointerPath, `${originalPointer}\nRead ../${path.basename(harnessRoot)}/ai/outside-policy.md.\n`);
+  assertFails(nodeCommand, [cliPath, "doctor", "--workspace", workspaceRoot], repoRoot, `${smokeCase.name} Doctor canonical target safety`, "outside the generated harness");
+  assertFails(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot, `${smokeCase.name} workspace canonical target safety`, "outside the generated harness");
+  assertFails(nodeCommand, ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"], harnessRoot, `${smokeCase.name} worktree canonical target safety`, "outside the generated harness");
+  if (await readFile(pointerPath, "utf8") !== `${originalPointer}\nRead ../${path.basename(harnessRoot)}/ai/outside-policy.md.\n`) {
+    throw new Error(`${smokeCase.name} routing checks must not repair consumer pointers.`);
+  }
+  await writeFile(pointerPath, originalPointer);
   if (smokeCase.models.openai) {
     const agentsPath = path.join(
       firstConsumerRoot,

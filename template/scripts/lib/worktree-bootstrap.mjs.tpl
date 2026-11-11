@@ -1,8 +1,16 @@
-import { mkdir, readFile, stat, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { execFile } from "node:child_process";
 import path from "node:path";
 import { promisify } from "node:util";
 import { assertSafeWriteTarget, exists } from "./path-safety.mjs";
+
+import {
+  extractHarnessReferences as extractReferences,
+  isFileTarget,
+  resolveHarnessReferenceRoot as resolveReferenceRoot,
+  resolveHarnessReferenceTarget as resolveReferenceTarget,
+  validateHarnessReferences as validateReferences,
+} from "./harness-routing.mjs";
 
 export { exists };
 
@@ -50,109 +58,26 @@ export async function gitMetadataForPath(targetPath) {
   }
 }
 
-function cleanReference(rawReference) {
-  return rawReference.trim().replace(/^[`'"]+/, "").replace(/[`'",;:.)\]}]+$/, "");
-}
-
+// Keep the generated helper API bound to this harness's configured name and models.
 export function extractHarnessReferences(content) {
-  const escapedName = "{{HARNESS_REPO_NAME}}".replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const pattern = new RegExp("(?:\\.\\.?/|/)[^`'\"\\s)<\\]}]*(?:" + escapedName + ")[^`'\"\\s)<\\]}]*", "g");
-  return [...new Set((content.match(pattern) ?? []).map(cleanReference).filter(Boolean))];
+  return extractReferences(content, "{{HARNESS_REPO_NAME}}");
 }
 
-export function resolveHarnessReferenceTarget({ reference: rawReference, consumerRoot }) {
-  const reference = cleanReference(rawReference);
-  const absoluteReference = path.isAbsolute(reference) ? path.resolve(reference) : path.resolve(consumerRoot, reference);
-  const parts = absoluteReference.split(path.sep);
-  if (parts.lastIndexOf("{{HARNESS_REPO_NAME}}") === -1) return null;
-  return absoluteReference;
+export function resolveHarnessReferenceTarget({ reference, consumerRoot }) {
+  return resolveReferenceTarget({ reference, basePath: consumerRoot, harnessRepoName: "{{HARNESS_REPO_NAME}}" });
 }
 
-export function resolveHarnessReferenceRoot({ reference: rawReference, consumerRoot }) {
-  const target = resolveHarnessReferenceTarget({ reference: rawReference, consumerRoot });
-  if (!target) return null;
-  const parts = target.split(path.sep);
-  const index = parts.lastIndexOf("{{HARNESS_REPO_NAME}}");
-  return parts.slice(0, index + 1).join(path.sep) || path.sep;
+export function resolveHarnessReferenceRoot({ reference, consumerRoot }) {
+  return resolveReferenceRoot({ reference, basePath: consumerRoot, harnessRepoName: "{{HARNESS_REPO_NAME}}" });
 }
 
-async function isFileTarget(target) {
-  try {
-    return (await stat(target)).isFile();
-  } catch {
-    return false;
-  }
-}
-
-export async function validateHarnessReferences({
-  pointerPath,
-  pointerContent,
-  consumerRoot,
-  expectedHarnessRoot,
-  fileIsFile = isFileTarget,
-  models: enabledModels = models,
-  requireHarnessReference = true,
-}) {
-  const references = extractHarnessReferences(pointerContent);
-  if (references.length === 0) {
-    if (!requireHarnessReference) return null;
-    return [{ kind: "missing", message: `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.` }];
-  }
-
-  const issues = [];
-  let matchedExpectedRoot = false;
-  for (const reference of references) {
-    const target = resolveHarnessReferenceTarget({ reference, consumerRoot });
-    if (!target) {
-      issues.push({ kind: "missing", reference, message: `${pointerPath} does not contain a resolvable {{HARNESS_REPO_NAME}} path.` });
-      continue;
-    }
-
-    const referenceRoot = resolveHarnessReferenceRoot({ reference, consumerRoot });
-    if (referenceRoot === null || path.resolve(referenceRoot) !== path.resolve(expectedHarnessRoot)) {
-      issues.push({
-        kind: "wrong_harness_root",
-        reference,
-        message: `${pointerPath} points at ${referenceRoot ?? reference} instead of ${expectedHarnessRoot}.`,
-      });
-      continue;
-    }
-
-    matchedExpectedRoot = true;
-    const relativeTarget = path.relative(expectedHarnessRoot, target).replaceAll(path.sep, "/");
-    if (!enabledModels.openai && relativeTarget === "AGENTS.md") {
-      issues.push({
-        kind: "disabled_entrypoint",
-        reference,
-        message: `${pointerPath} must not reference ${relativeTarget} when OpenAI support is disabled.`,
-      });
-      continue;
-    }
-    if (!enabledModels.anthropic && relativeTarget === "CLAUDE.md") {
-      issues.push({
-        kind: "disabled_entrypoint",
-        reference,
-        message: `${pointerPath} must not reference ${relativeTarget} when Anthropic support is disabled.`,
-      });
-      continue;
-    }
-    if (relativeTarget === "" || !(await fileIsFile(target))) {
-      const targetLabel = relativeTarget === "" ? "." : relativeTarget;
-      issues.push({
-        kind: "missing_target",
-        reference,
-        message: `${pointerPath} references missing generated-harness file ${targetLabel}.`,
-      });
-    }
-  }
-
-  if (!matchedExpectedRoot && issues.length === 0) {
-    issues.push({
-      kind: "wrong_harness_root",
-      message: `${pointerPath} points at ${references.join(", ")} instead of ${expectedHarnessRoot}.`,
-    });
-  }
-
+export async function validateHarnessReferences({ consumerRoot, models: enabledModels = models, ...options }) {
+  const issues = await validateReferences({
+    ...options,
+    basePath: consumerRoot,
+    harnessRepoName: "{{HARNESS_REPO_NAME}}",
+    models: enabledModels,
+  });
   return issues.length > 0 ? issues : null;
 }
 
