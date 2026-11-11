@@ -59,7 +59,7 @@ function parseValue(raw) {
     if (!/^'(?:[^']|'')+'$/.test(value)) throw new Error();
     return value.slice(1, -1).replaceAll("''", "'");
   }
-  if (!value || /^[{}&*!|>@`]/.test(value) || /[\[\]{}"']/.test(value) || /:\s|\s#/.test(value)) throw new Error();
+  if (!value || /^[#{}&*!|>@`]/.test(value) || /^[-?:](?:\s|$)/.test(value) || /[\[\]{}"']/.test(value) || /:\s|\s#/.test(value)) throw new Error();
   return value;
 }
 
@@ -172,7 +172,7 @@ export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceh
     }
   }
   if (metadata.risk === "high" && metadata.autonomy === "auto_merge") errors.push(`${file} has risk: high with autonomy: auto_merge.`);
-  if (kind === "task" && /\b(?:gpt-|claude|opus|sonnet|haiku)/i.test(String(metadata.model ?? ""))) {
+  if (allowPlaceholders && kind === "task" && /\b(?:gpt-|claude|opus|sonnet|haiku)/i.test(String(metadata.model ?? ""))) {
     errors.push(`${file} field 'model' must use a runtime-neutral model selector, not a concrete provider model.`);
   }
   const { sections, duplicates } = sectionsIn(body);
@@ -190,7 +190,7 @@ export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceh
       errors.push(`${file} contains unresolved placeholder text in section '${affected.join(", ") || "Title"}'.`);
     }
     if (!/`[^`\n]+`/.test(sections.get("Validation") ?? "")) errors.push(`${file} Validation section must include a concrete command in backticks.`);
-    if (protectedSurfacePattern.test(body) && metadata.requires_human_approval !== true) errors.push(`${file} touches protected surfaces but requires_human_approval is not true.`);
+    if (protectedSurfacePattern.test(content) && metadata.requires_human_approval !== true) errors.push(`${file} touches protected surfaces but requires_human_approval is not true.`);
   }
   if (size !== "tiny") {
     if (!/protected surfaces?/i.test(body)) errors.push(`${file} must mention protected surfaces.`);

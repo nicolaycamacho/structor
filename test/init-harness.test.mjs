@@ -166,12 +166,17 @@ test("generated validators diagnose malformed submissions and preserve legacy st
       ["scalar with items", (text) => text.replace("risk: medium", "risk: medium\n  - low"), /front matter.*line/i],
       ["broken inline list", (text) => text.replace("repos:\n  - test-structor", 'repos: ["test-structor"'), /malformed.*repos/i],
       ["nested list", (text) => text.replace("  - test-structor", "  - [test-structor]"), /malformed.*repos/i],
+      ["nested sequence", (text) => text.replace("  - ai/HARNESS.md", "  - - ai/HARNESS.md"), /malformed.*allowed_paths/i],
+      ["sequence scalar", (text) => text.replace("HARNESS-FIXTURE-001", "- invalid nested value"), /malformed.*id/i],
+      ["mapping scalar", (text) => text.replace("HARNESS-FIXTURE-001", "? invalid mapping value"), /malformed.*id/i],
+      ["inline comment scalar", (text) => text.replace("HARNESS-FIXTURE-001", "# missing value"), /malformed.*id/i],
       ["quoted scalar", (text) => text.replace("risk: medium", 'risk: "medium'), /malformed.*risk/i],
       ["missing delimiter", (text) => text.replace("\n---\n", "\n"), /front matter.*closing/i],
       ["ambiguous mapping", (text) => text.replace("risk: medium", "risk: medium\n  nested: low"), /ambiguous front matter/i],
       ["boolean string", (text) => text.replace("requires_human_approval: false", 'requires_human_approval: "false"'), /requires_human_approval.*boolean/i],
       ["unknown size", (text) => text.replace("risk: medium", "task_size: large\nrisk: medium"), /invalid task_size/i],
       ["unsafe autonomy", (text) => text.replace("risk: medium", "risk: high").replace("autonomy: pr_ready", "autonomy: auto_merge"), /high.*auto_merge/i],
+      ["protected path metadata", (text) => text.replace("  - ai/HARNESS.md", "  - src/auth/config.mjs"), /protected surfaces.*requires_human_approval/i],
       ["noncanonical repo", (text) => text.replace("  - test-structor", "  - other-repo"), /non-canonical repo/i],
       ["empty section", (text) => text.replace("- Governance validation passes.", "<!-- fill after implementation -->"), /Success Criteria.*substantive/i],
       ["duplicate section", (text) => text + "\n## Scope\nOnly a guide.\n", /duplicate section.*Scope/i],
@@ -193,7 +198,9 @@ test("generated validators diagnose malformed submissions and preserve legacy st
       ];
       if (kind === "task") {
         validSubmissions.push(standard.replace(/(repos|allowed_paths|forbidden_paths):\n  - [^\n]+/g, "$1: []"));
+        validSubmissions.push(standard.replace("model: runtime-selected", "model: gpt-example"));
       }
+      validSubmissions.push(standard.replace("  - ai/HARNESS.md", "  - src/auth/config.mjs").replace("requires_human_approval: false", "requires_human_approval: true"));
       for (const valid of validSubmissions) {
         await writeFile(file, valid);
         assertSuccess(run("--file", file), `${kind} legacy/additive metadata`);
@@ -206,6 +213,15 @@ test("generated validators diagnose malformed submissions and preserve legacy st
         assert.ok(result.stderr.includes(file), `${kind}: diagnostic identifies input`);
       }
       assertSuccess(run(), `${kind} no-argument starter/fixture checks`);
+      if (kind === "task") {
+        const starterPath = path.join(harnessRoot, "ai/templates/task-brief-template.md");
+        const starter = await readFile(starterPath, "utf8");
+        await writeFile(starterPath, starter.replace("model: runtime-selected", "model: gpt-example"));
+        const invalidStarter = run();
+        assert.equal(invalidStarter.status, 1);
+        assert.match(invalidStarter.stderr, /runtime-neutral/);
+        await writeFile(starterPath, starter);
+      }
       for (const args of [["--file"], ["--unknown", file], ["--file", file, "extra"]]) {
         const result = run(...args);
         assert.equal(result.status, 1);

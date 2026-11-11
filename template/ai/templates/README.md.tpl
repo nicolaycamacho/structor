@@ -32,7 +32,9 @@ still checked and omitted fields grant no authority. Size is document shape,
 not risk, permission, autonomy or effort.
 
 Metadata names remain unchanged. Task `status: backlog`, task empty lists `[]`,
-and `model: runtime-selected` remain supported. Standard issues keep title-case
+and `model: runtime-selected` remain supported. Concrete tasks may specify a
+provider model when the task owner explicitly requires one; starter checks
+still require a runtime-neutral selector. Standard issues keep title-case
 statuses and nonempty allowed/forbidden path lists. `auto_merge` remains
 future-facing metadata only, never execution authority; high risk with
 `auto_merge` is still rejected. Standard briefs retain substantive sections and

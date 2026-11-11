@@ -90,8 +90,11 @@ Run `npm test`.
 
 Existing names remain unchanged: `id`, `status`, `risk`, `autonomy`,
 `model_policy`, `repos`, `allowed_paths`, `forbidden_paths`, and
-`requires_human_approval`. Standard tasks also retain `model` with a
-runtime-neutral selector such as `runtime-selected`. Issue statuses keep their
+`requires_human_approval`. Standard tasks also retain `model`, defaulting in
+the starter to `runtime-selected`. Concrete tasks may use a provider-specific
+selector when explicitly required by the task owner, as the existing starter
+documents. No-argument starter checks still require a runtime-neutral selector.
+Issue statuses keep their
 existing title-case spellings (for example `Ready for Agent`); tasks also accept
 lowercase underscore spellings, including the starter's `backlog`.
 
