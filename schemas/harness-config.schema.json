@@ -19,6 +19,16 @@
         "root": { "type": "string", "minLength": 1 }
       }
     },
+    "taskPolicy": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "singleOwnerImplementation": {
+          "type": "boolean",
+          "description": "Require exactly one editable repository in concrete implementation submissions. Omitted defaults to false; metadata does not authorize execution or confine runtime tools."
+        }
+      }
+    },
     "project": {
       "type": "object",
       "additionalProperties": false,

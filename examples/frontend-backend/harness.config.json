@@ -1,6 +1,9 @@
 {
   "$schema": "../../schemas/harness-config.schema.json",
   "profile": "expanded",
+  "taskPolicy": {
+    "singleOwnerImplementation": true
+  },
   "project": {
     "name": "Example Platform",
     "slug": "example-platform",

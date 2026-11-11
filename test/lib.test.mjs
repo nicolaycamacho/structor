@@ -324,6 +324,15 @@ test("validateConfigShape accepts a valid config", async () => {
   assert.deepEqual(await validateConfigShape(validConfig(), "config"), []);
 });
 
+test("validateConfigShape accepts an optional single-owner task policy and rejects malformed policy", async () => {
+  for (const taskPolicy of [{}, { singleOwnerImplementation: false }, { singleOwnerImplementation: true }]) {
+    assert.deepEqual(await validateConfigShape({ ...validConfig(), taskPolicy }, "config"), []);
+  }
+  for (const taskPolicy of [true, { singleOwnerImplementation: "true" }, { unknown: true }]) {
+    assert.ok((await validateConfigShape({ ...validConfig(), taskPolicy }, "config")).some((error) => /taskPolicy/.test(error)));
+  }
+});
+
 test("validateConfigShape rejects no enabled models", async () => {
   const config = validConfig();
   config.models = { openai: false, anthropic: false };
