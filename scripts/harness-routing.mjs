@@ -121,17 +121,22 @@ export async function resolveGuidanceTarget({ harnessRoot, source, reference, ba
 
 function declaredGuidanceReferences(content, sections) {
   let section = "";
-  let fenced = false;
+  let fence = null;
   const references = [];
   for (const line of content.split(/\r?\n/)) {
-    if (/^\s*(```|~~~)/.test(line)) { fenced = !fenced; continue; }
-    if (fenced) continue;
+    if (fence) {
+      const closing = line.match(/^\s*(`{3,}|~{3,})\s*$/);
+      if (closing && closing[1][0] === fence[0] && closing[1].length >= fence.length) fence = null;
+      continue;
+    }
+    const opening = line.match(/^\s*(`{3,}|~{3,})/);
+    if (opening) { fence = opening[1]; continue; }
     const heading = line.match(/^#{1,6}\s+(.+?)\s*#*$/);
     if (heading) { section = heading[1]; continue; }
-    if (!sections.includes(section) && !sections.includes("*")) continue;
-    for (const match of line.matchAll(/`([^`\n]+)`|\[[^\]]*\]\(([^)\s]+)\)/g)) {
-      const reference = match[1] ?? match[2];
-      if (/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(reference) || /\s/.test(reference)) continue;
+    if (!sections.includes(section)) continue;
+    for (const match of line.matchAll(/`([^`\n]+)`|\[[^\]]*\]\(\s*(?:<([^>\n]+)>|([^\s)]+))(?:\s+(?:"[^"]*"|'[^']*'|\([^)]*\)))?\s*\)/g)) {
+      const reference = match[1] ?? match[2] ?? match[3];
+      if (/^(?:[a-z][a-z0-9+.-]*:|#)/i.test(reference) || (match[1] && /\s/.test(reference))) continue;
       if (/\.(?:md|json|html)(?:#.*)?$|\/$|[*{}<>]/.test(reference)) references.push(reference);
     }
   }
@@ -149,6 +154,9 @@ async function assertNarrowDynamicReference({ harnessRoot, source, reference, ba
   const directory = path.resolve(base === "source" ? path.dirname(path.join(root, source)) : root, parts.join("/") || ".");
   if (!isWithinRoot(root, directory) || !isWithinRoot(await realpath(root), await realpath(directory))) {
     throw new Error(`dynamic guidance reference ${reference} escapes the harness`);
+  }
+  if (!(await stat(directory)).isDirectory()) {
+    throw new Error(`dynamic guidance reference ${reference} requires an existing directory`);
   }
 }
 

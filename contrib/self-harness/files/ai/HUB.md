@@ -12,6 +12,8 @@ Always read:
 
 ## Routing
 
+- Preserved-guidance population:
+  `./ai/tasks/populate-generated-harness.md`
 - Product language, naming, or contribution boundaries:
   `./ai/PRODUCT-SUMMARY.md`, `./ai/PRODUCT.md`
 - Generator flow, template boundaries, config resolution, or write safety:
