@@ -90,10 +90,11 @@ function markdownTableRows(content, headerText, expectedCellCount) {
   for (const line of lines.slice(start + 2)) {
     if (!line.startsWith("|")) break;
     const cells = line
+      .trimEnd()
       .split("|")
-      .slice(1, -1)
+      .slice(1, line.trimEnd().endsWith("|") ? -1 : undefined)
       .map((cell) => cell.trim());
-    if (cells.length >= expectedCellCount) rows.push(cells.slice(0, expectedCellCount));
+    if (cells.length === expectedCellCount) rows.push(cells);
   }
   return rows;
 }
@@ -420,7 +421,8 @@ async function evidenceTable() {
   return `<h2>Independent Evidence Dimensions</h2>
     <p>Source: ${code("ai/READINESS.md")}. Recorded observations are not verified by this view.
     Unassessed means no observation. Static checks do not prove adoption or effectiveness.</p>
-    ${rows.length ? table(headers, rows.map((row) => row.map(escapeHtml))) : "<p>Evidence records missing or incomplete; inspect the canonical source.</p>"}`;
+    ${rows.length !== 4 ? "<p>Evidence records missing or incomplete; inspect the canonical source.</p>" : ""}
+    ${table(headers, rows.map((row) => row.map(escapeHtml)))}`;
 }
 
 async function qualityView() {

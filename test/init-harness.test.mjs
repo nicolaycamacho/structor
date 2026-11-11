@@ -143,6 +143,13 @@ test("expanded review views show scoped observations without promoting unobserve
     const quality = await readFile(path.join(harnessRoot, "ai/QUALITY.md"), "utf8");
     assert.doesNotMatch(quality, /\| Domain \| Grade \|/);
     assert.equal(await readFile(file, "utf8"), starter.replace(/^\| Structural validity .*$/m, observation));
+    await writeFile(file, starter.replace(/^\| Structural validity .*$/m, `${observation.slice(0, -1)}| Extra cell without terminal pipe`));
+    assertSuccess(spawnSync(process.execPath, ["scripts/generate-html-views.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "show incomplete evidence diagnostics");
+    for (const name of ["readiness", "quality"]) {
+      const html = await readFile(path.join(harnessRoot, `ai/views/${name}.html`), "utf8");
+      assert.match(html, /Evidence records missing or incomplete/);
+      assert.doesNotMatch(html, /saved-check.log lines 1-4/);
+    }
   });
 });
 
@@ -164,11 +171,14 @@ for (const profile of ["focused", "expanded"]) {
         const recorded = starter.replace(/^\| Observed effectiveness .*$/m, valid);
         await writeFile(file, recorded);
         assertSuccess(run(), "complete bounded observation with an old real date and uncertain result");
+        await writeFile(file, recorded.replace(valid, valid.slice(0, -1)));
+        assertSuccess(run(), "Markdown terminal pipes are optional without discarding cells");
         const mutations = [
           [recorded.replace("2020-02-29", "2025-02-29"), /Observed on.*real YYYY-MM-DD/],
           [recorded.replace("comparison.log lines 1-20; fixture revision alpha", ""), /all eight cells/],
           [recorded.replace("Manual paired comparison; fixed rubric", ["T", "BD"].join("")), /Method.*placeholder/],
           [recorded.replace("Small sample; no broader adoption claim", ""), /all eight cells/],
+          [recorded.replace("Small sample; no broader adoption claim |", "Small sample | Extra discarded cell"), /all eight cells/],
           [recorded.replace("Synthetic two-task sample, client alpha", ""), /all eight cells/],
           [recorded.replace("50% met rubric; causal effect unknown", ""), /all eight cells/],
           [recorded.replace("| recorded |", "| successful |"), /State must be unassessed or recorded/],

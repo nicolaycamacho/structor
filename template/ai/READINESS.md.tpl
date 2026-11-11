@@ -97,6 +97,4 @@ This protocol is guidance only; Structor runs no agents or model evaluations.
    relevant row. Report confounders and sample limits; inconclusive is valid.
 
 No comparison or live-agent evaluation is required for generation or static
-validation. Structor launch/adoption proof remains downstream work in
-[Structor #123](https://github.com/nicolaycamacho/structor/issues/123); this
-protocol does not perform, complete or change that work.
+validation. This protocol does not supply adoption or effectiveness evidence.

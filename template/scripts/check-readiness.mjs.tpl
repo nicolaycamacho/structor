@@ -44,8 +44,9 @@ function tableRows(markdown, headerPrefix) {
 
 function cells(row) {
   return row
+    .trimEnd()
     .split("|")
-    .slice(1, -1)
+    .slice(1, row.trimEnd().endsWith("|") ? -1 : undefined)
     .map((cell) => cell.trim());
 }
 
