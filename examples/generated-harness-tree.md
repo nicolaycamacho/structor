@@ -31,6 +31,7 @@ workspace/
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
@@ -63,6 +64,7 @@ workspace/
     scripts/check-template-governance.mjs
     scripts/check-workspace.mjs
     scripts/generated-harness-contract.mjs
+    scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
@@ -164,6 +166,7 @@ workspace/
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs
@@ -207,6 +210,7 @@ workspace/
     scripts/generated-harness-contract.mjs
     scripts/hooks/codex-hook.mjs
     scripts/hooks/lib/codex-hooks-core.mjs
+    scripts/lib/harness-routing.mjs
     scripts/lib/path-safety.mjs
     scripts/lib/worktree-bootstrap.mjs
     scripts/validate-governance.mjs

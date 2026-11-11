@@ -82,6 +82,8 @@ Generation starts from harness configuration and templates:
 
 Escaping, path normalization, and template placeholder behavior should stay centralized in the renderer and contract modules rather than leaking into individual templates.
 
+`scripts/harness-routing.mjs` owns read-only pointer reference parsing, expected-root resolution, model-entrypoint gating, and canonical target checks. Doctor imports it directly; the initializer copies it into generated `scripts/lib/harness-routing.mjs` for workspace and worktree checks. Worktree repair remains in its existing generated bootstrap helper.
+
 ## Template And Generated Harness Contract
 
 `template/ai/*` is the canonical generated policy surface. Root `template/AGENTS.md.tpl`, `template/CLAUDE.md.tpl`, workspace entrypoints, and consumer entrypoints should stay thin and route agents back to the harness.
@@ -177,6 +179,7 @@ Do not put Structor-specific product content into active generic templates under
 
 - `template/`
 - `scripts/generated-harness-contract.mjs`
+- `scripts/harness-routing.mjs`
 - `scripts/init-harness.mjs`
 - `scripts/rendered-config.mjs`
 - `scripts/smoke-template.mjs`

@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from "node:fs/promises";
+import { lstat, mkdtemp, mkdir, readFile, readdir, readlink, rm, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -85,7 +85,7 @@ console.log("fixture setup complete");
   return fixtureRoot;
 }
 
-async function createDoctorWorkspace({ validation = { test: "npm test" }, profile } = {}) {
+async function createDoctorWorkspace({ validation = { test: "npm test" }, profile, models = { openai: true, anthropic: false } } = {}) {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), "structor-doctor-"));
   const consumerRoot = path.join(workspaceRoot, "app");
   const harnessRoot = path.join(workspaceRoot, "demo-structor");
@@ -102,10 +102,7 @@ async function createDoctorWorkspace({ validation = { test: "npm test" }, profil
     output: {
       path: "./demo-structor",
     },
-    models: {
-      openai: true,
-      anthropic: false,
-    },
+    models,
     clientSupport: {
       codex: {
         hooks: false,
@@ -779,6 +776,112 @@ test("doctor names a stale consumer pointer and exits non-zero", async () => {
   assert.notEqual(result.status, 0);
   assert.match(outputText(result), /consumer:app:AGENTS\.md points at .*old\/demo-structor instead of .*demo-structor/);
 });
+
+test("Doctor and generated checks reject a pointer target escaping the canonical harness", async () => {
+  const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace();
+  try {
+    assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8" }), "initialize synthetic consumer");
+    const outsidePath = path.join(workspaceRoot, "outside.md");
+    await writeFile(outsidePath, "# Outside policy\n");
+    await symlink(outsidePath, path.join(harnessRoot, "ai/escaped.md"));
+    const pointerPath = path.join(consumerRoot, "AGENTS.md");
+    const pointer = "Read ../demo-structor/ai/escaped.md before editing.\n";
+    await writeFile(pointerPath, pointer);
+
+    const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
+    assert.notEqual(doctor.status, 0);
+    assert.match(outputText(doctor), /outside the generated harness/);
+    for (const args of [
+      ["scripts/check-workspace.mjs"],
+      ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"],
+      ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"],
+    ]) {
+      const result = spawnSync(process.execPath, args, { cwd: harnessRoot, encoding: "utf8" });
+      assert.match(outputText(result), /outside the generated harness/, args.join(" "));
+      if (!args[0].includes("bootstrap-codex")) assert.notEqual(result.status, 0);
+    }
+    assert.equal(await readFile(pointerPath, "utf8"), pointer);
+    assert.equal(await readFile(outsidePath, "utf8"), "# Outside policy\n");
+  } finally {
+    await rm(workspaceRoot, { recursive: true, force: true });
+  }
+});
+
+async function snapshotWorkspace(root) {
+  const entries = [];
+  for (const relativePath of (await readdir(root, { recursive: true })).sort()) {
+    const target = path.join(root, relativePath);
+    const info = await lstat(target);
+    const content = info.isSymbolicLink() ? await readlink(target)
+      : info.isFile() ? await readFile(target, "utf8") : null;
+    entries.push({ relativePath, content, mode: info.mode, mtimeMs: info.mtimeMs });
+  }
+  return entries;
+}
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [
+    { openai: true, anthropic: false },
+    { openai: false, anthropic: true },
+    { openai: true, anthropic: true },
+  ]) {
+    test(`routing parity for ${profile}, OpenAI=${models.openai}, Anthropic=${models.anthropic}`, async (t) => {
+      const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace({ profile, models });
+      try {
+        assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8" }), "initialize synthetic consumer");
+        const entrypoint = models.openai ? "AGENTS.md" : "CLAUDE.md";
+        const pointerPath = path.join(consumerRoot, entrypoint);
+        const aliasRoot = path.join(workspaceRoot, "alias", "demo-structor");
+        await mkdir(path.dirname(aliasRoot));
+        await symlink(harnessRoot, aliasRoot);
+        await symlink(path.join(harnessRoot, "ai/context.md"), path.join(harnessRoot, "ai/context-alias.md"));
+        const cases = [
+          { name: "relative Markdown reference", content: `Read [policy](../demo-structor/${entrypoint}).`, valid: true },
+          { name: "absolute repeated reference", content: `Read \`${harnessRoot}/${entrypoint}\` and \`${harnessRoot}/${entrypoint}\`.`, valid: true },
+          { name: "canonical root alias", content: `Read ../alias/demo-structor/${entrypoint}.`, valid: true },
+          { name: "internal target symlink", content: "Read ../demo-structor/ai/context-alias.md.", valid: true },
+          { name: "substring only", content: "This mentions demo-structor without a path.", diagnostic: /does not contain a resolvable/ },
+          { name: "lookalike name", content: `Read ../demo-structor-other/${entrypoint}.`, diagnostic: /does not contain a resolvable/ },
+          { name: "stale relative", content: `Read ../old/demo-structor/${entrypoint}.`, diagnostic: /instead of/ },
+          { name: "wrong absolute root", content: `Read ${workspaceRoot}/other/demo-structor/${entrypoint}.`, diagnostic: /instead of/ },
+          { name: "missing target", content: "Read ../demo-structor/ai/MISSING.md.", diagnostic: /references missing generated-harness file ai\/MISSING\.md/ },
+          { name: "directory target", content: "Read ../demo-structor/ai.", diagnostic: /references missing generated-harness file ai/ },
+          { name: "root without file", content: "Read ../demo-structor.", diagnostic: /references missing generated-harness file \./ },
+          { name: "valid and invalid references", content: `Read ../demo-structor/${entrypoint} and ../demo-structor/ai/MISSING.md.`, diagnostic: /references missing generated-harness file ai\/MISSING\.md/ },
+          ...(!models.openai ? [{ name: "disabled OpenAI entrypoint", content: "Read ../demo-structor/AGENTS.md.", diagnostic: /OpenAI support is disabled/ }] : []),
+          ...(!models.anthropic ? [{ name: "disabled Anthropic entrypoint", content: "Read ../demo-structor/CLAUDE.md.", diagnostic: /Anthropic support is disabled/ }] : []),
+        ];
+        for (const testCase of cases) {
+          await t.test(testCase.name, async () => {
+            await writeFile(pointerPath, testCase.content);
+            const before = await snapshotWorkspace(workspaceRoot);
+            const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
+            assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "Doctor must not write any workspace file");
+            const workspace = spawnSync(process.execPath, ["scripts/check-workspace.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+            assert.equal(doctor.status === 0, Boolean(testCase.valid), outputText(doctor));
+            assert.equal(workspace.status === 0, Boolean(testCase.valid), outputText(workspace));
+            if (!testCase.valid) {
+              assert.match(outputText(doctor), testCase.diagnostic);
+              assert.match(outputText(workspace), testCase.diagnostic);
+            }
+            // Worktree commands are expanded-only surfaces; focused keeps the resolver for workspace checks.
+            if (profile === "expanded") {
+              const check = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"], { cwd: harnessRoot, encoding: "utf8" });
+              assert.equal(check.status === 0, Boolean(testCase.valid), outputText(check));
+              const bootstrap = spawnSync(process.execPath, ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"], { cwd: harnessRoot, encoding: "utf8" });
+              assertSuccess(bootstrap, "read-only worktree bootstrap inspection");
+              assert.match(outputText(bootstrap), testCase.valid ? /already valid/ : testCase.diagnostic);
+              if (!testCase.valid) assert.match(outputText(check), testCase.diagnostic);
+            }
+            assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "validation and dry-run must preserve workspace state");
+          });
+        }
+      } finally {
+        await rm(workspaceRoot, { recursive: true, force: true });
+      }
+    });
+  }
+}
 
 test("doctor warns for consumers without validation commands but exits zero", async () => {
   const { workspaceRoot } = await createDoctorWorkspace({ validation: {} });

@@ -137,6 +137,7 @@ export const generatedHarnessArtifacts = [
   script("scripts/check-worktrees.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/check-worktree-bootstrap-fixtures.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/lib/path-safety.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
+  script("scripts/lib/harness-routing.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
   script("scripts/lib/worktree-bootstrap.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
   artifact("scripts/fixtures/worktrees/README.md.tpl", { workspaceCheck: "repo" }),
   script("scripts/bootstrap-workspace.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
@@ -163,7 +164,7 @@ export const generatedHarnessValidationChecks = [
   {
     path: "scripts/check-worktree-bootstrap-fixtures.mjs",
     phase: "required",
-    dependencies: ["scripts/lib/path-safety.mjs", "scripts/lib/worktree-bootstrap.mjs"],
+    dependencies: ["scripts/lib/path-safety.mjs", "scripts/lib/harness-routing.mjs", "scripts/lib/worktree-bootstrap.mjs"],
   },
   { path: "scripts/check-repo-name-consistency.mjs", optional: true },
   { path: "scripts/check-linear-contract.mjs", optional: true },

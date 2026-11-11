@@ -4,7 +4,7 @@ import { access, readFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { assertReferencesHarnessRoot } from "./lib/worktree-bootstrap.mjs";
+import { validateHarnessReferences } from "./lib/harness-routing.mjs";
 import {
   consumerEntrypointsForSettings,
   requiredHarnessRepoFilesForWorkspaceCheck,
@@ -63,13 +63,15 @@ async function collectHarnessRoutingIssue({ basePath, relativePath, expectedHarn
   const pointerPath = path.join(basePath, relativePath);
   const pointerContent = await readIfExists(pointerPath);
   if (pointerContent === null) return `${relativePath} missing.`;
-  return assertReferencesHarnessRoot({
+  const issues = await validateHarnessReferences({
     pointerPath: relativePath,
     pointerContent,
-    consumerRoot: basePath,
+    basePath,
+    harnessRepoName,
     expectedHarnessRoot,
     models,
   });
+  return issues[0]?.message ?? null;
 }
 
 async function collectClaudeMemoryRoutingIssue({ basePath, relativePath }) {
@@ -79,14 +81,16 @@ async function collectClaudeMemoryRoutingIssue({ basePath, relativePath }) {
   if (!pointerContent.includes("../CLAUDE.md")) {
     return `${relativePath} must route through ../CLAUDE.md.`;
   }
-  return assertReferencesHarnessRoot({
+  const issues = await validateHarnessReferences({
     pointerPath: relativePath,
     pointerContent,
-    consumerRoot: basePath,
+    basePath,
+    harnessRepoName,
     expectedHarnessRoot: repoRoot,
     models,
     requireHarnessReference: false,
   });
+  return issues[0]?.message ?? null;
 }
 
 async function collectEntrypointRoutingIssue({ basePath, entrypoint, expectedHarnessRoot }) {

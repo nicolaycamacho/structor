@@ -824,6 +824,10 @@ export async function generateHarness(config, {
     path.join(repoRoot, "scripts/generated-harness-contract.mjs"),
     "utf8",
   );
+  values.HARNESS_ROUTING_MODULE = await readFile(
+    path.join(repoRoot, "scripts/harness-routing.mjs"),
+    "utf8",
+  );
 
   const templateFiles = await collectTemplateFiles();
   values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, resolvedConfig.plan, values);
