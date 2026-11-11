@@ -13,7 +13,21 @@ daemon contract and it does not start or control agent sessions.
 ## Execution Rules
 
 - Work only in authorized repos and paths.
+- `repos` declares editable owners; `read_only_repos` declares inspected
+  dependencies. Names must be canonical, distinct and non-overlapping.
+- `execution_intent: report_only` requires empty editable owners and allowed
+  paths, plus inspected repositories in `read_only_repos`. Implementation intent
+  must agree with autonomy; omitted intent follows `autonomy: report_only`,
+  otherwise it defaults to `implementation`.
+- Single-owner implementation policy enabled: {{SINGLE_OWNER_IMPLEMENTATION}}.
+  When enabled, concrete implementation briefs require exactly one editable
+  owner. Read-only dependencies do not count toward that limit.
 - Keep changes within `allowed_paths` when provided.
+- Paths are relative to each editable owner, never to the workspace. Use
+  `repo:path` to qualify a pattern for one canonical owner. Unqualified patterns
+  apply to each declared owner when multi-repository implementation is enabled.
+  Use `/` separators and simple globs (`*`, `**`, `?`, character classes); reject
+  absolute paths, `..` segments, backslashes, braces and extglobs.
 - Do not touch `forbidden_paths`.
 - Make the smallest change that satisfies the task.
 - Stop when task intent conflicts with harness contracts.
@@ -24,11 +38,72 @@ daemon contract and it does not start or control agent sessions.
 
 ## Validation Rules
 
+- Validate a concrete brief with `node scripts/check-task-template.mjs --file
+  ../task.md` or `node scripts/check-issue-template.mjs --file ../issue.md`.
+- Metadata and these static checks do not authorize implementation, constrain
+  runtime tools, inspect symlink targets, or prove agent behavior. Scope prose
+  must agree with metadata; these validators do not interpret prose as authority.
 - Run every safe validation command listed in the task.
 - Capture commands run, failures, skipped checks, and reasons.
 - Fix validation failures in the smallest relevant scope.
 - If validation cannot run, report the blocker explicitly instead of implying
   coverage.
+
+## Repository Fit Before Implementation
+
+For a standard issue or task brief, record a compact `## Repository Fit` section
+before treating the work as ready. Use these level-three evidence categories:
+
+- `### Guidance`: inspected repo entrypoint, routed/path-matched instructions,
+  glossary and relevant architecture decisions, with exact files and rules.
+- `### Analogues`: comparable local implementations and the patterns found;
+  inspect at least two when available. If fewer exist, record where you looked
+  and explain the absence, conflict or uncertainty instead of inventing a rule.
+- `### Callers and Ownership`: owning modules, affected callers, boundaries and
+  the blast radius of shared-file changes, inspected before editing.
+- `### Conventions`: contracts to preserve, reusable types/helpers, data/query
+  and mutation boundaries, and error/status/feedback patterns as applicable.
+- `### Departures`: necessary departures with reasons, or an explicit account
+  that none are needed. Stop for existing architecture review before coding a
+  sensitive change to ownership, routing, repo boundaries, data flow or shared
+  abstractions. Unresolved protected architecture changes block implementation.
+- `### Validation and Browser Evidence`: relevant checks, their coverage and
+  browser evidence needed for affected UI flows/states, or why it cannot be
+  collected. Distinguish planned checks from actual results.
+
+Follow the repo's existing architecture-review route. Expanded harnesses also
+index their architecture review skill through the Hub; focused harnesses do not
+need expanded files to apply this policy. Record the review outcome and resolve
+blocking findings before proceeding. A structurally valid brief is not review
+approval.
+
+Tiny tasks still inspect the local instructions, changed surface and relevant
+check, but do not require Repository Fit or long-form planning. Task size never
+waives protected-surface approval or architecture review when applicable.
+
+Validate concrete briefs with:
+
+```sh
+node scripts/check-issue-template.mjs --file ../issue.md
+node scripts/check-task-template.mjs --file ../task.md
+```
+
+These read-only checks require the section and nonempty evidence categories;
+they do not judge whether an analogue, departure or architecture decision is
+correct, verify that inspection happened, or require particular prose.
+
+## Validation Evidence Selection
+
+Use the consumer repo's documented checks and existing test seams. Choose
+focused checks for changed behavior, then the required integration gates; record
+the command, working repo, exit status, relevant output and any skipped check
+with its reason. Do not invent commands or report planned checks as passed.
+
+For UI changes, collect relevant browser evidence for the affected flows, states
+and viewports, including interactions when behavior changes. Record what was
+actually observed and where the evidence can be inspected. If browser evidence
+was not collected, state the reason and remaining uncertainty explicitly.
+Static validation alone does not prove UI behavior or agent effectiveness.
 
 ## Handoff Rules
 

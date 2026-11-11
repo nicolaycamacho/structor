@@ -1,37 +1,24 @@
-# Harness Quality
+# Harness Quality Evidence
 
-This scorecard tracks harness readiness. Keep grades evidence-based and update
-them when validation or policy changes.
+Review the four independent evidence dimensions in `ai/READINESS.md`.
+That file is canonical for scope, source evidence, observation date, method,
+result and limitations. Do not duplicate observations or assign overall grades.
+Run `node scripts/check-readiness.mjs` to check the record contract only.
 
-| Domain | Grade | Evidence | Enforced by | Blocking gaps |
-| --- | --- | --- | --- | --- |
-| Entrypoints | B | `AGENTS.md`, `CLAUDE.md` | `scripts/validate-governance.mjs` | Customize after initial generation |
-| Context routing | B | `ai/HUB.md`, `ai/context.md` | Manual review | Add project-specific routing as needed |
-| Contracts | B | `ai/contracts/*` | `scripts/check-template-governance.mjs`, manual review | Replace starter contracts with project contracts |
-| Task shape | B | `ai/templates/task-brief-template.md` | `scripts/check-task-template.mjs` | Fill concrete project issue metadata and path contracts |
-| Review skills | B | `ai/skills/*` | Manual review | Customize review inputs and evaluator routing |
-| Readiness contract | B | `ai/READINESS.md`, `scripts/check-readiness.mjs` | `scripts/check-readiness.mjs`, manual review | Run post-generation machine gates and accept manual review domains |
-| Runner boundary | A | `ai/RUNNER-SAFETY.md` | Manual review | Keep runtime out of harness |
-| Workspace bootstrap | B | `scripts/bootstrap-workspace.mjs`, `scripts/check-workspace.mjs` | `node scripts/check-workspace.mjs` | Run after consumer repos are cloned |
+## Review Expectations
 
-## Production-Grade Checklist
+- Structural validity: inspect saved deterministic check results at the recorded
+  snapshot; generated files and passing static checks prove only their scope.
+- Verified knowledge: compare project context, routes, commands and contracts
+  with the bounded source evidence. Separate stable policy from source facts.
+- Installation/adoption: inspect evidence of installation or actual use for the
+  named client and sample. Hook configuration alone does not prove adoption.
+- Observed effectiveness: inspect the bounded comparison log and its limitations.
+  A complete record may report failure or an inconclusive result.
+- Keep missing evidence unassessed. Never infer adoption or effectiveness from
+  successful generation, configured clients or passing governance checks.
 
-- Entry points are short maps, not large manuals.
-- The hub routes agents to the smallest relevant context.
-- Task briefs include risk, autonomy, model, repo, path, validation, review,
-  and recovery metadata.
-- Contracts define repository boundaries and protected surfaces.
-- Validation scripts check every invariant that can be checked cheaply and
-  safely.
-- `ai/READINESS.md` distinguishes machine gates from manual review domains.
-- Validation failures include enough context for an agent to repair drift.
-- Consumer repos expose local commands and evidence hooks.
-- Repeated review feedback is captured in `ai/AGENT-GARBAGE-COLLECTION.md`.
-- Runner integration remains read-only until a separate runtime contract is
-  approved.
-
-## Update Rule
-
-When a grade changes, update the evidence and the blocking gap in the same
-edit. Do not improve a grade based on intent alone; use validation output,
-contract coverage, or review evidence.
+Use the optional manual comparison protocol in `ai/READINESS.md` only when
+separately performing authorized observations. Generation and validation require
+no live-agent evaluation, model invocation or telemetry. Static tests do not
+prove agent behavior.

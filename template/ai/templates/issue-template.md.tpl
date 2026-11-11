@@ -1,12 +1,14 @@
 ---
 id: <ISSUE-ID>
 task_size: standard
+execution_intent: implementation
 status: Backlog
 risk: medium
 autonomy: pr_ready
 model_policy: standard
 repos:
   - {{HARNESS_REPO_NAME}}
+read_only_repos: []
 allowed_paths:
   - <path-or-glob>
 forbidden_paths:
@@ -36,6 +38,9 @@ Explain why the change is needed and what existing behavior matters.
 
 ## Scope
 
+Keep this section consistent with the metadata: `repos` names editable owners;
+`read_only_repos` names inspected dependencies and grants no write scope.
+
 ### In Scope
 
 - List allowed surfaces.
@@ -50,6 +55,10 @@ Explain why the change is needed and what existing behavior matters.
 
 - `<path-or-glob>`
 
+Use repository-relative paths or globs, optionally qualified as `repo:path`.
+Unqualified patterns apply only within the declared editable owners. Never use
+absolute paths, parent traversal, braces, extglobs or backslash separators.
+
 ### Forbidden Paths
 
 - `<path-or-glob>`
@@ -61,6 +70,40 @@ Explain why the change is needed and what existing behavior matters.
 ## Bootstrap Requirements
 
 - State what the agent must read or check before editing.
+
+## Repository Fit
+
+### Guidance
+
+- Record inspected repo entrypoint, routed/path-matched guidance, glossary and
+  relevant architecture decisions, with exact files and applicable rules.
+
+### Analogues
+
+- Cite comparable implementations and patterns; inspect two when available.
+  Explain the search if fewer exist, including uncertainty or conflicting
+  precedent.
+
+### Callers and Ownership
+
+- Map affected callers, owning modules, boundaries and shared-file blast radius.
+
+### Conventions
+
+- State contracts and local conventions to preserve, including reusable helpers,
+  data/query and mutation boundaries, and error/status/feedback patterns.
+
+### Departures
+
+- Justify necessary departures or explicitly record none. Route sensitive
+  boundary or architecture changes to existing architecture review before coding;
+  stop on unresolved protected changes.
+
+### Validation and Browser Evidence
+
+- Identify relevant checks and coverage. For UI changes, specify browser evidence
+  for affected flows/states or the reason it cannot be collected. Report actual
+  results separately in Validation Evidence Required.
 
 ## Proposed Approach
 

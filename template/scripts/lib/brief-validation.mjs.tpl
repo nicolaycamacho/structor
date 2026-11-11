@@ -1,4 +1,6 @@
 // Deliberately bounded metadata: flat scalars and string lists, not general YAML.
+const singleOwnerImplementation = {{SINGLE_OWNER_IMPLEMENTATION}};
+
 export function readMetadata(content, file) {
   const lines = content.replace(/\r\n/g, "\n").split("\n");
   const errors = [];
@@ -89,6 +91,7 @@ export const standardSections = [
   "Path Contract",
   "Requirements",
   "Bootstrap Requirements",
+  "Repository Fit",
   "Proposed Approach",
   "Agent Execution Protocol",
   "Success Criteria",
@@ -101,25 +104,28 @@ export const standardSections = [
   "Open Questions",
   "Notes for the Agent",
 ];
+const repositoryFitCategories = ["Guidance", "Analogues", "Callers and Ownership", "Conventions", "Departures", "Validation and Browser Evidence"];
 const metadataKeys = ["id", "status", "risk", "autonomy", "model_policy", "repos", "allowed_paths", "forbidden_paths", "requires_human_approval"];
 const enums = {
   risk: ["low", "medium", "high"],
   autonomy: ["report_only", "pr_ready", "auto_merge"],
   model_policy: ["cheap", "standard", "reasoning", "frontier", "review_only"],
   task_size: ["tiny", "standard"],
+  execution_intent: ["implementation", "report_only"],
 };
 const statuses = ["Backlog", "Ready for Agent", "Running", "Needs Fix", "Report Ready", "PR Ready", "Human Review", "Blocked", "Done"];
 const placeholderPattern = /<[^>\n]+>|\{\{[^}\n]+\}\}|\b(?:TASK-ID|ISSUE-ID|TODO|TBD)\b|^# Title[ \t]*$/im;
 const protectedSurfacePattern = /\b(auth|authentication|authorization|billing|subscription|payment|secret|environment variable|infrastructure|deployment|database migration|production data|tenant|quota|rate limit|shared contract)\b/i;
 
-function sectionsIn(body) {
+function sectionsIn(body, level = 2) {
   const sections = new Map();
   const duplicates = [];
   let section = null;
   let fence = null;
-  for (const line of body.split("\n")) {
+  for (const line of body.replace(/<!--[\s\S]*?-->/g, "").split("\n")) {
     const delimiter = line.match(/^\s{0,3}(`{3,}|~{3,})/);
     if (delimiter) {
+      if (section) sections.set(section, sections.get(section) + line + "\n");
       if (!fence) fence = delimiter[1];
       else if (delimiter[1][0] === fence[0] && delimiter[1].length >= fence.length) fence = null;
       continue;
@@ -128,7 +134,7 @@ function sectionsIn(body) {
       if (section) sections.set(section, sections.get(section) + line + "\n");
       continue;
     }
-    const heading = line.match(/^## (.+?)\s*$/);
+    const heading = line.match(new RegExp(`^#{${level}} (.+?)\\s*$`));
     if (heading) {
       section = heading[1];
       if (sections.has(section)) duplicates.push(section);
@@ -140,19 +146,47 @@ function sectionsIn(body) {
   return { sections, duplicates };
 }
 
+function pathContractError(value, key, owners, canonicalRepos) {
+  let pattern = value;
+  const separator = value.indexOf(":");
+  if (separator !== -1) {
+    const repo = value.slice(0, separator);
+    if (!canonicalRepos.has(repo)) return `must use a canonical repository qualifier, got '${repo}'`;
+    if (key === "allowed_paths" && !owners.includes(repo)) return `must name an editable repo, got '${repo}'`;
+    pattern = value.slice(separator + 1);
+  }
+  // These are declarations, never expanded globs or filesystem access checks.
+  // Keep the supported grammar portable and unable to express parent traversal.
+  const relative = pattern.replace(/^(?:\.\/)+/, "");
+  if (!relative || relative === "." || relative.startsWith("/") || relative.startsWith("~") ||
+      /[\\:\x00-\x1f\x7f{}()]/.test(relative) || relative.startsWith("!") ||
+      relative.split("/").includes("..")) {
+    return "must be a repository-relative path or glob without absolute paths, traversal, backslashes, controls, braces or extglobs";
+  }
+  const withoutClasses = relative.replace(/\[[^\[\]\/]+\]/g, "x");
+  if (/[\[\]]/.test(withoutClasses)) return "contains a malformed glob character class";
+  if (key === "allowed_paths" && owners.length === 0) return "requires at least one editable repo in repos";
+  return null;
+}
+
+function hasText(content) {
+  return Boolean(content.replace(/<!--[\s\S]*?-->/g, "").replace(/^#{3,}.*$/gm, "").replace(/^\s{0,3}(?:`{3,}|~{3,}).*$/gm, "").replace(/[-*\s]/g, ""));
+}
+
 export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceholders = false }) {
   const { metadata, body, errors } = readMetadata(content, file);
   if (errors.length) return errors;
   const size = metadata.task_size ?? "standard";
+  const intent = metadata.execution_intent ?? (metadata.autonomy === "report_only" ? "report_only" : "implementation");
   const required = size === "tiny" ? ["task_size"] : [...metadataKeys, ...(kind === "task" ? ["model"] : [])];
   for (const key of required) {
     if (!Object.hasOwn(metadata, key)) errors.push(`${file} is missing front matter key '${key}'.`);
   }
   for (const [key, value] of Object.entries(metadata)) {
-    if (["repos", "allowed_paths", "forbidden_paths"].includes(key)) {
+    if (["repos", "read_only_repos", "allowed_paths", "forbidden_paths"].includes(key)) {
       if (!Array.isArray(value) || value.some((item) => typeof item !== "string" || !item.trim())) {
         errors.push(`${file} field '${key}' must be a string list.`);
-      } else if (kind === "issue" && size !== "tiny" && key !== "repos" && value.length === 0) {
+      } else if (kind === "issue" && size !== "tiny" && (key === "forbidden_paths" || (key === "allowed_paths" && intent !== "report_only")) && value.length === 0) {
         errors.push(`${file} field '${key}' must contain at least one path.`);
       }
     } else if (key === "requires_human_approval") {
@@ -166,9 +200,35 @@ export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceh
     const allowed = kind === "task" ? [...statuses, ...statuses.map((status) => status.toLowerCase().replaceAll(" ", "_"))] : statuses;
     if (!allowed.includes(metadata.status)) errors.push(`${file} has invalid status '${metadata.status}'.`);
   }
-  if (Array.isArray(metadata.repos)) {
-    for (const repo of metadata.repos) {
+  for (const key of ["repos", "read_only_repos"]) {
+    if (!Array.isArray(metadata[key])) continue;
+    const seen = new Set();
+    for (const repo of metadata[key]) {
+      if (seen.has(repo)) errors.push(`${file} field '${key}' contains duplicate repo '${repo}'.`);
+      seen.add(repo);
       if (!(allowPlaceholders && placeholderPattern.test(repo)) && !canonicalRepos.has(repo)) errors.push(`${file} references non-canonical repo '${repo}'.`);
+      if (key === "read_only_repos" && Array.isArray(metadata.repos) && metadata.repos.includes(repo)) errors.push(`${file} field 'read_only_repos' overlaps editable repos at '${repo}'.`);
+    }
+  }
+  if (metadata.execution_intent !== undefined && metadata.autonomy !== undefined &&
+      (intent === "report_only") !== (metadata.autonomy === "report_only")) {
+    errors.push(`${file} execution_intent and autonomy contradict each other.`);
+  }
+  if (intent === "report_only") {
+    if (Array.isArray(metadata.repos) && metadata.repos.length) errors.push(`${file} report_only submissions must declare no editable repos.`);
+    if (Array.isArray(metadata.allowed_paths) && metadata.allowed_paths.length) errors.push(`${file} report_only submissions must declare no allowed_paths.`);
+    if (!Array.isArray(metadata.read_only_repos) || metadata.read_only_repos.length === 0) errors.push(`${file} report_only submissions must identify inspected repositories in read_only_repos.`);
+  }
+  if (!allowPlaceholders && intent === "implementation" && singleOwnerImplementation &&
+      (!Array.isArray(metadata.repos) || metadata.repos.length !== 1)) {
+    errors.push(`${file} taskPolicy.singleOwnerImplementation requires exactly one editable repo in repos for implementation.`);
+  }
+  for (const key of ["allowed_paths", "forbidden_paths"]) {
+    if (!Array.isArray(metadata[key])) continue;
+    for (const value of metadata[key]) {
+      if (allowPlaceholders && placeholderPattern.test(value)) continue;
+      const error = pathContractError(value, key, Array.isArray(metadata.repos) ? metadata.repos : [], canonicalRepos);
+      if (error) errors.push(`${file} field '${key}' path '${value}' ${error}.`);
     }
   }
   if (metadata.risk === "high" && metadata.autonomy === "auto_merge") errors.push(`${file} has risk: high with autonomy: auto_merge.`);
@@ -179,7 +239,15 @@ export function validateBrief(file, content, { kind, canonicalRepos, allowPlaceh
   for (const section of duplicates) errors.push(`${file} has duplicate section '${section}'.`);
   for (const section of size === "tiny" ? ["Goal", "Scope", "Acceptance", "Validation"] : standardSections) {
     if (!sections.has(section)) errors.push(`${file} is missing required section '${section}'.`);
-    else if (!allowPlaceholders && !sections.get(section).replace(/<!--[\s\S]*?-->/g, "").replace(/^#{3,}.*$/gm, "").replace(/[-*\s]/g, "")) errors.push(`${file} section '${section}' must contain substantive text.`);
+    else if (!allowPlaceholders && !hasText(sections.get(section))) errors.push(`${file} section '${section}' must contain substantive text.`);
+  }
+  if (size !== "tiny" && sections.has("Repository Fit")) {
+    const fit = sectionsIn(sections.get("Repository Fit"), 3);
+    for (const category of fit.duplicates) errors.push(`${file} Repository Fit has duplicate category '${category}'.`);
+    for (const category of repositoryFitCategories) {
+      if (!fit.sections.has(category)) errors.push(`${file} Repository Fit is missing evidence category '${category}' (use a level-three heading).`);
+      else if (!allowPlaceholders && !hasText(fit.sections.get(category))) errors.push(`${file} Repository Fit category '${category}' must contain evidence or an explicit explanation.`);
+    }
   }
   if (!allowPlaceholders) {
     for (const [key, value] of Object.entries(metadata)) {

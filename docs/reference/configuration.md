@@ -11,6 +11,43 @@
 
 See the package-level [example config](../../harness.config.example.json).
 
+## Task Ownership Policy
+
+```json
+"taskPolicy": {
+  "singleOwnerImplementation": true
+}
+```
+
+This opt-in policy requires exactly one editable repository in concrete
+implementation submissions, including tiny tasks. Omitted `taskPolicy`, an empty
+object, or `singleOwnerImplementation: false` preserves multi-repository
+implementation and legacy empty task scope. Profiles and client support do not
+change this policy. Existing generated projects are not silently rewritten;
+review configuration and regeneration before adopting it.
+
+Generated task metadata retains `repos` for editable owners and adds
+`read_only_repos` for inspected dependencies. Names must be canonical, unique
+within each list and non-overlapping. `execution_intent` is `implementation` or
+`report_only`; when omitted it follows `autonomy: report_only`, otherwise it
+defaults to implementation. Explicit intent and autonomy must agree. Report-only
+submissions declare no editable owners or allowed paths and identify inspected
+repositories in `read_only_repos`. Legacy reports must move inspection-only names
+out of `repos`; missing read-only metadata otherwise means no inspections.
+
+Allowed and forbidden paths use repository-relative POSIX paths or simple globs
+(`*`, `**`, `?`, character classes). An optional `repo:path` qualifier targets a
+canonical repository; allowed paths may target only editable owners. Unqualified
+allowed patterns apply inside each declared owner. Absolute paths, drive paths,
+parent traversal, backslashes, controls, braces and extglobs are rejected. Split
+brace alternatives into separate list entries. Forbidden paths can also name
+read-only repositories. Scope prose must match metadata; it is not parsed for
+additional authority.
+
+These static declarations do not confine runtime tools, resolve symlinks,
+authorize implementation, or prove agent behavior. Existing risk, human-approval
+and future-facing `auto_merge` semantics remain in effect.
+
 ## Harness Profiles
 
 `profile` makes the generated surface choice explicit:
