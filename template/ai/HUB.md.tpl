@@ -29,6 +29,8 @@ Always read:
 - Security-sensitive work: `./ai/WORKFLOW.md`; identify the owner and approval boundary before editing.
 - Product or repository context: `./ai/PRODUCT-SUMMARY.md`, `./ai/context.md`
 - Workflow or validation guidance: `./ai/WORKFLOW.md`, `./ai/READINESS.md`
+- Implementation planning and repository-fit preparation: `./ai/WORKFLOW.md`,
+  then repo-local entrypoints, routed guidance, analogues and affected callers
 - Preserved-guidance population: `./ai/tasks/populate-generated-harness.md`
 
 {{EXPANDED_PROFILE_ROUTING}}

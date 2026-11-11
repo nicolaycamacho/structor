@@ -29,6 +29,48 @@ Claude compatibility checks when those surfaces are enabled.
 Validation detects structural drift. It does not certify that all
 project-specific guidance is complete or correct.
 
+## Readiness Evidence
+
+In both profiles, `ai/READINESS.md` records four independent dimensions:
+structural validity, verified knowledge, installation/adoption and observed
+effectiveness. Each starts `unassessed`, with all evidence fields set to
+`Not observed`. Passing generation, governance or hook checks does not update
+these records or establish adoption or effectiveness.
+
+Run `node scripts/check-readiness.mjs` inside the generated harness. It validates
+the record contract, not the truth or freshness of an observation. A `recorded`
+row requires scope, revision or bounded source evidence, a real `YYYY-MM-DD`
+observation date, method, result and limitations. Negative and inconclusive
+results are valid; `recorded` does not mean successful. Use one single-line row
+per dimension and no pipe characters inside fields.
+
+These examples are synthetic, not observations of a real project. A complete
+record could replace the structural-validity starter row with:
+
+```markdown
+| Structural validity | recorded | Synthetic product-app docs at fixture revision alpha | saved-check.log lines 1-4 | 2026-01-12 | node scripts/check-workspace.mjs | Failed: pointer missing | No agent use or source-knowledge review observed |
+```
+
+This incomplete record fails because its observation date is missing:
+
+```markdown
+| Structural validity | recorded | Synthetic product-app docs at fixture revision alpha | saved-check.log lines 1-4 | | node scripts/check-workspace.mjs | Failed: pointer missing | No agent use or source-knowledge review observed |
+```
+
+Expanded `ai/QUALITY.md` supplies review guidance for the same canonical records;
+the readiness and quality cockpit pages display them as unverified observations.
+The optional bounded manual comparison protocol in `ai/READINESS.md` records
+task sample, baseline, settings, rubric, both outcomes and confounders. It invokes
+no model, installs no client and collects no telemetry. Static tests do not prove
+agent behavior. Launch/adoption proof remains downstream in
+[issue #123](https://github.com/nicolaycamacho/structor/issues/123); it is not
+performed or completed here.
+
+Keep stable policy separate from change-sensitive source knowledge. Revalidate
+affected knowledge when its source changes or drift appears, rather than expiring
+all guidance by calendar age. Existing generated projects retain their files
+until an explicit, reviewed regeneration.
+
 ## Validate A Concrete Issue Or Task
 
 Both profiles include read-only submission validators. From the generated
@@ -60,6 +102,8 @@ for the existing `standard` shape, or set it to `standard` explicitly. Standard
 retains the substantive sections of the existing task/issue starters, including
 Path Contract, Bootstrap Requirements, Success Criteria, Validation Evidence
 Required and Review Routing.
+Standard briefs now also require Repository Fit as described below; metadata
+names and the omitted-size default remain unchanged.
 
 For a tiny brief, set `task_size: tiny` and provide four substantive sections:
 Goal, Scope, Acceptance and Validation. Other metadata is optional for tiny
@@ -86,6 +130,45 @@ The example matches the existing package script.
 Run `npm test`.
 ```
 
+### Repository Fit
+
+Before a standard task is treated as ready, record `## Repository Fit` with six
+level-three headings. Each must contain evidence or an explicit explanation:
+
+| Heading | Preparation evidence |
+| --- | --- |
+| `### Guidance` | Inspected repo entrypoint, routed/path-matched guidance, glossary and relevant ADRs; exact files and applicable rules |
+| `### Analogues` | Comparable implementations and established patterns; two when available, otherwise the search and why fewer exist or conflict |
+| `### Callers and Ownership` | Owning modules, affected callers, boundaries and shared-file blast radius |
+| `### Conventions` | Contracts, reusable types/helpers, data/query and mutation boundaries, error/status/feedback patterns to preserve |
+| `### Departures` | Necessary departures with reasons, or an explicit account that none are needed; architecture-review route and outcome when applicable |
+| `### Validation and Browser Evidence` | Relevant checks and coverage; browser evidence for changed UI flows/states or why it was not collected |
+
+The generated Hub routes implementation planning to `ai/WORKFLOW.md`, which
+defines this preparation in both profiles. Expanded starters include the shape;
+focused users can write a concrete file using these headings without installing
+expanded surfaces. Tiny tasks keep focused local inspection and their four
+sections, without mandatory Repository Fit or long-form planning.
+
+Architecture-sensitive departures follow the repository's existing architecture
+review before coding; expanded harnesses also provide their architecture review
+skill. Resolve blocking findings and unresolved protected changes before
+implementation. Tiny size does not waive these gates.
+
+Choose the consumer repo's documented focused checks and required integration
+gates. Record actual commands, working repo, exit status and relevant output;
+explain skipped checks and residual uncertainty. For UI changes, collect browser
+evidence for affected flows, states, viewports and interactions, or state why it
+was not collected. Keep plans distinct from observed results in Validation
+Evidence Required. A Markdown-only task can explain that browser evidence is
+inapplicable.
+
+Validators reject absent, duplicate or empty Repository Fit categories in
+standard submissions. They accept varied prose, including explanations that
+analogues are absent or browser evidence is unavailable. They do not verify
+inspection, assess architectural correctness, approve departures or establish
+that the task is ready to execute. Human/reviewer judgment remains necessary.
+
 ### Metadata Compatibility
 
 Existing names remain unchanged: `id`, `status`, `risk`, `autonomy`,
@@ -104,7 +187,8 @@ authorize a merge. Standard briefs retain the explicit protected-surfaces and
 future-facing-metadata statements. Task list fields retain `[]` compatibility;
 standard issues retain nonempty allowed/forbidden path lists. Repository names
 must match the generated harness or its configured consumers. These structural
-checks do not implement ownership or repository-fit evidence enforcement.
+checks do not enforce write ownership; Repository Fit validation checks only the
+recorded evidence structure.
 
 The shared reader supports a bounded flat front-matter subset: unquoted
 single-line strings, single/double-quoted strings, literal `true`/`false`,

@@ -214,6 +214,20 @@ async function validateCase(smokeCase) {
     `${smokeCase.name} exact guidance target`, "missing guidance target ./ai/missing-workflow.md");
   await writeFile(hubPath, originalHub);
   run(nodeCommand, ["scripts/check-knowledge-manifest.mjs"], harnessRoot);
+  const readinessPath = path.join(harnessRoot, "ai/READINESS.md");
+  const starterReadiness = await readFile(readinessPath, "utf8");
+  for (const dimension of ["Structural validity", "Verified knowledge", "Installation/adoption", "Observed effectiveness"]) {
+    if (!starterReadiness.includes(`| ${dimension} | unassessed |`)) {
+      throw new Error(`${smokeCase.name}: passing governance must leave ${dimension} unassessed.`);
+    }
+  }
+  const observation = "| Verified knowledge | recorded | Synthetic product-app README only | README excerpt lines 1-2 at fixture revision alpha | 2020-01-01 | Manual source comparison | Title matches; broader facts unknown | No installation or effectiveness observation |";
+  const observedReadiness = starterReadiness.replace(/^\| Verified knowledge .*$/m, observation);
+  await writeFile(readinessPath, observedReadiness);
+  run(nodeCommand, ["scripts/check-readiness.mjs"], harnessRoot);
+  await writeFile(readinessPath, observedReadiness.replace("2020-01-01", "Not observed"));
+  assertFails(nodeCommand, ["scripts/check-readiness.mjs"], harnessRoot, `${smokeCase.name} incomplete evidence`, "Observed on");
+  await writeFile(readinessPath, starterReadiness);
   assertExists(path.join(harnessRoot, "ai/views/index.html"), `${smokeCase.name} generated HTML view`);
   run(nodeCommand, ["scripts/bootstrap-workspace.mjs", "--dry-run"], harnessRoot);
   run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], harnessRoot);

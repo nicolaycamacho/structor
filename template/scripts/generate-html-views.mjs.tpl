@@ -90,10 +90,11 @@ function markdownTableRows(content, headerText, expectedCellCount) {
   for (const line of lines.slice(start + 2)) {
     if (!line.startsWith("|")) break;
     const cells = line
+      .trimEnd()
       .split("|")
-      .slice(1, -1)
+      .slice(1, line.trimEnd().endsWith("|") ? -1 : undefined)
       .map((cell) => cell.trim());
-    if (cells.length >= expectedCellCount) rows.push(cells.slice(0, expectedCellCount));
+    if (cells.length === expectedCellCount) rows.push(cells);
   }
   return rows;
 }
@@ -413,11 +414,23 @@ async function contractsView() {
 `);
 }
 
+async function evidenceTable() {
+  const readiness = await read("ai/READINESS.md");
+  const headers = ["Dimension", "State", "Scope", "Source evidence", "Observed on", "Method", "Result", "Limitations"];
+  const rows = markdownTableRows(readiness, `| ${headers.join(" | ")} |`, headers.length);
+  return `<h2>Independent Evidence Dimensions</h2>
+    <p>Source: ${code("ai/READINESS.md")}. Recorded observations are not verified by this view.
+    Unassessed means no observation. Static checks do not prove adoption or effectiveness.</p>
+    ${rows.length !== 4 ? "<p>Evidence records missing or incomplete; inspect the canonical source.</p>" : ""}
+    ${table(headers, rows.map((row) => row.map(escapeHtml)))}`;
+}
+
 async function qualityView() {
   const quality = await read("ai/QUALITY.md");
   const lines = quality.split(/\r?\n/).filter((line) => /^[-*]\s+/.test(line)).slice(0, 20);
   return layout("Quality", `
-    <p>Source: <code>ai/QUALITY.md</code></p>
+    ${await evidenceTable()}
+    <p>Review guidance: <code>ai/QUALITY.md</code></p>
     <ul>${lines.map((line) => `<li>${escapeHtml(line.replace(/^[-*]\s+/, ""))}</li>`).join("")}</ul>
 `);
 }
@@ -433,6 +446,7 @@ async function readinessView() {
     pill(gate.expectation, gate.expectation === "expected" ? "ok" : "warn"),
   ]);
   return layout("Readiness", `
+    ${await evidenceTable()}
     <p>Source: ${code("ai/READINESS.md")}. The cockpit shows expectations only; it does not run validation or record pass/fail results.</p>
     <p>Run ${code("node scripts/validate-governance.mjs")} and ${code("node scripts/check-workspace.mjs")} for authoritative local validation.</p>
     ${table(["Gate", "Command", "Required Evidence", "Source Doc", "Script", "Expectation"], rows)}

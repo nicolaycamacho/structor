@@ -15,6 +15,7 @@ const requiredSections = [
   "## Path Contract",
   "## Requirements",
   "## Bootstrap Requirements",
+  "## Repository Fit",
   "## Proposed Approach",
   "## Agent Execution Protocol",
   "## Success Criteria",

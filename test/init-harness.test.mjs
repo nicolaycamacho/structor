@@ -279,6 +279,102 @@ test("generated graph rejects unsafe and inexact routes and ignores undeclared p
   });
 });
 
+test("generated readiness starts with four independent unassessed evidence dimensions", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate readiness evidence");
+    const readiness = await readFile(path.join(harnessRoot, "ai/READINESS.md"), "utf8");
+    for (const dimension of ["Structural validity", "Verified knowledge", "Installation/adoption", "Observed effectiveness"]) {
+      assert.ok(readiness.includes(`| ${dimension} | unassessed |`), dimension);
+    }
+    const result = spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+    assertSuccess(result, "unassessed records are valid without claiming success");
+    assert.match(result.stdout, /record contract only/i);
+  });
+});
+
+test("expanded review views show scoped observations without promoting unobserved dimensions", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "expanded" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate expanded evidence");
+    const file = path.join(harnessRoot, "ai/READINESS.md");
+    const starter = await readFile(file, "utf8");
+    const observation = "| Structural validity | recorded | Synthetic product-app; docs only | saved-check.log lines 1-4 at fixture revision alpha | 2026-01-12 | node scripts/check-workspace.mjs | Failed: pointer missing; effectiveness unknown | No agent use observed; sample size < 3 & source not independently verified |";
+    await writeFile(file, starter.replace(/^\| Structural validity .*$/m, observation));
+    assertSuccess(spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "negative observation is a complete record");
+    assertSuccess(spawnSync(process.execPath, ["scripts/generate-html-views.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "refresh evidence views");
+    for (const name of ["readiness", "quality"]) {
+      const html = await readFile(path.join(harnessRoot, `ai/views/${name}.html`), "utf8");
+      assert.match(html, /saved-check.log lines 1-4/);
+      assert.match(html, /2026-01-12/);
+      assert.match(html, /Failed: pointer missing/);
+      assert.match(html, /sample size &lt; 3 &amp;/);
+      assert.match(html, /Installation\/adoption<\/td><td>unassessed/);
+      assert.match(html, /not verified/i);
+    }
+    const quality = await readFile(path.join(harnessRoot, "ai/QUALITY.md"), "utf8");
+    assert.doesNotMatch(quality, /\| Domain \| Grade \|/);
+    assert.equal(await readFile(file, "utf8"), starter.replace(/^\| Structural validity .*$/m, observation));
+    await writeFile(file, starter.replace(/^\| Structural validity .*$/m, `${observation.slice(0, -1)}| Extra cell without terminal pipe`));
+    assertSuccess(spawnSync(process.execPath, ["scripts/generate-html-views.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "show incomplete evidence diagnostics");
+    for (const name of ["readiness", "quality"]) {
+      const html = await readFile(path.join(harnessRoot, `ai/views/${name}.html`), "utf8");
+      assert.match(html, /Evidence records missing or incomplete/);
+      assert.doesNotMatch(html, /saved-check.log lines 1-4/);
+    }
+  });
+});
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`readiness validates observation contracts without inferring outcomes: ${profile} ${JSON.stringify(models)}`, async () => {
+      await withTempDir(async (root) => {
+        const configPath = await writeMinimalConfig(root, "./test-structor", {
+          profile, models, clientSupport: { codex: { hooks: models.openai } },
+        });
+        const harnessRoot = path.join(root, "test-structor");
+        assertSuccess(runInitHarness(configPath), "generate configured evidence checks");
+        const file = path.join(harnessRoot, "ai/READINESS.md");
+        const starter = await readFile(file, "utf8");
+        const run = () => spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+        assertSuccess(runValidateGovernance(harnessRoot), "starter governance passes with enabled clients");
+        assert.equal(await readFile(file, "utf8"), starter, "passing gates must not promote any dimension");
+        const valid = "| Observed effectiveness | recorded | Synthetic two-task sample, client alpha | comparison.log lines 1-20; fixture revision alpha | 2020-02-29 | Manual paired comparison; fixed rubric | 50% met rubric; causal effect unknown | Small sample; no broader adoption claim |";
+        const recorded = starter.replace(/^\| Observed effectiveness .*$/m, valid);
+        await writeFile(file, recorded);
+        assertSuccess(run(), "complete bounded observation with an old real date and uncertain result");
+        await writeFile(file, recorded.replace(valid, valid.slice(0, -1)));
+        assertSuccess(run(), "Markdown terminal pipes are optional without discarding cells");
+        const mutations = [
+          [recorded.replace("2020-02-29", "2025-02-29"), /Observed on.*real YYYY-MM-DD/],
+          [recorded.replace("comparison.log lines 1-20; fixture revision alpha", ""), /all eight cells/],
+          [recorded.replace("Manual paired comparison; fixed rubric", ["T", "BD"].join("")), /Method.*placeholder/],
+          [recorded.replace("Small sample; no broader adoption claim", ""), /all eight cells/],
+          [recorded.replace("Small sample; no broader adoption claim |", "Small sample | Extra discarded cell"), /all eight cells/],
+          [recorded.replace("Synthetic two-task sample, client alpha", ""), /all eight cells/],
+          [recorded.replace("50% met rubric; causal effect unknown", ""), /all eight cells/],
+          [recorded.replace("| recorded |", "| successful |"), /State must be unassessed or recorded/],
+          [starter.replace(/^\| Verified knowledge .*\n/m, ""), /exactly one evidence row for Verified knowledge/],
+          [starter.replace(/^\| Structural validity .*$/m, (row) => `${row}\n${row}`), /exactly one evidence row for Structural validity/],
+          [starter.replace("| Structural validity | unassessed | Not observed", "| Structural validity | unassessed | generation passed"), /unassessed fields must be Not observed/],
+          [starter + "\n| Domain | Grade | Evidence |\n| Overall | A | static checks |\n", /not letter grades/],
+        ];
+        for (const [content, diagnostic] of mutations) {
+          await writeFile(file, content);
+          const result = run();
+          assert.equal(result.status, 1, result.stdout + result.stderr);
+          assert.match(result.stderr, diagnostic);
+          assert.equal(await readFile(file, "utf8"), content, "validator is read-only");
+        }
+        await writeFile(file, starter);
+        if (profile === "focused") assert.equal(await exists(path.join(harnessRoot, "ai/QUALITY.md")), false);
+      });
+    });
+  }
+}
+
 test("generated issue validator checks an explicit concrete file without changing its starter", async () => {
   await withTempDir(async (root) => {
     const configPath = await writeMinimalConfig(root, "./test-structor");
@@ -300,6 +396,65 @@ test("generated issue validator checks an explicit concrete file without changin
 
 for (const profile of ["focused", "expanded"]) {
   for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`generated validators require standard Repository Fit: ${profile} ${JSON.stringify(models)}`, async () => {
+      await withTempDir(async (root) => {
+        const configPath = await writeMinimalConfig(root, "./test-structor", { profile, models });
+        const harnessRoot = path.join(root, "test-structor");
+        assertSuccess(runInitHarness(configPath), "generate repository-fit validators");
+        const fixture = await readFile(path.join(repoRoot, "template/ai/templates/fixtures/issues/valid-ready.md.tpl"), "utf8");
+        const issue = fixture.replaceAll(placeholder("HARNESS_REPO_NAME"), "test-structor");
+        const file = path.join(root, "submission.md");
+        for (const kind of ["issue", "task"]) {
+          const standard = kind === "task" ? issue.replace("status: Ready for Agent", "status: backlog\nmodel: runtime-selected") : issue;
+          const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`), "--file", file], { cwd: root, encoding: "utf8" });
+          await writeFile(file, standard.replace(/## Repository Fit\n[\s\S]*?(?=\n## |$)/, ""));
+          const invalid = run();
+          assert.equal(invalid.status, 1, `${kind}: missing Repository Fit\n${invalid.stdout}${invalid.stderr}`);
+          assert.match(invalid.stderr, /missing required section 'Repository Fit'/);
+          assert.ok(invalid.stderr.includes(file));
+          await writeFile(file, standard);
+          assertSuccess(run(), `${kind}: complete repository evidence`);
+          const alternativeFit = [
+            "## Repository Fit",
+            "### Guidance\nRead `AGENTS.md` and the routed guide: keep the CLI local.",
+            "### Analogues\nSearched the command and test folders; this is the first command of its kind, so no comparable implementation exists.",
+            "### Callers and Ownership\nThe command module owns the change; its CLI caller keeps the existing exit contract.",
+            "### Conventions\nReuse the existing argument reader and error output; no data mutations apply.",
+            "### Departures\nThe new boundary needs the repository's architecture review before coding; that review remains pending.",
+            "### Validation and Browser Evidence\nPlan `npm test` for CLI behavior. The synthetic UI preview cannot be opened in this environment; browser evidence was not collected.",
+          ].join("\n\n");
+          await writeFile(file, standard.replace(/## Repository Fit\n[\s\S]*?(?=\n## |$)/, alternativeFit));
+          assertSuccess(run(), `${kind}: alternate prose, absent analogues and disclosed evidence gaps are structurally valid`);
+          const categories = ["Guidance", "Analogues", "Callers and Ownership", "Conventions", "Departures", "Validation and Browser Evidence"];
+          for (const category of categories) {
+            for (const replacement of ["", `### ${category}\n\n<!-- evidence still missing -->\n#### Empty detail\n- \n`, `### ${category}\n\n\`\`\`text\n\`\`\`\n`]) {
+              const heading = `### ${category}\n`;
+              const start = standard.indexOf(heading);
+              assert.notEqual(start, -1);
+              const next = standard.slice(start + heading.length).search(/\n##(?:#)? /);
+              const end = next === -1 ? standard.length : start + heading.length + next;
+              await writeFile(file, standard.slice(0, start) + replacement + standard.slice(end));
+              const missing = run();
+              assert.equal(missing.status, 1, `${kind}: ${category}\n${missing.stdout}${missing.stderr}`);
+              assert.ok(missing.stderr.includes(file));
+              assert.ok(missing.stderr.includes("Repository Fit") && missing.stderr.includes(category), missing.stderr);
+            }
+          }
+          for (const [name, mutate, diagnostic] of [
+            ["duplicate category", (text) => text.replace("### Analogues", "### Guidance\n\nA second account.\n\n### Analogues"), /Repository Fit.*duplicate.*Guidance/i],
+            ["fenced category", (text) => text.replace("### Guidance", "```md\n### Guidance\n```"), /Repository Fit.*missing.*Guidance/i],
+            ["commented category", (text) => text.replace("### Guidance", "<!--\n### Guidance").replace("### Analogues", "-->\n### Analogues"), /Repository Fit.*missing.*Guidance/i],
+          ]) {
+            await writeFile(file, mutate(standard));
+            const result = run();
+            assert.equal(result.status, 1, `${kind}: ${name}\n${result.stdout}${result.stderr}`);
+            assert.match(result.stderr, diagnostic);
+          }
+          assertSuccess(spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`)], { cwd: root, encoding: "utf8" }), `${kind}: starter compatibility`);
+        }
+      });
+    });
+
     test(`generated validators accept tiny tasks and reject missing acceptance: ${profile} ${JSON.stringify(models)}`, async () => {
       await withTempDir(async (root) => {
         const configPath = await writeMinimalConfig(root, "./test-structor", { profile, models });
