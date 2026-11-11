@@ -2,14 +2,21 @@
 
 Keep Structor changes small, evidence-backed, and easy to review.
 
-| Domain | Grade | Evidence | Enforced by | Blocking gaps |
-| --- | --- | --- | --- | --- |
-| Product boundary | A | `README.md`, `CONTEXT.md`, `CONTRIBUTING.md` | Manual review | Keep runner behavior out of Structor core |
-| Generic templates | A | `template/**`, `scripts/generated-harness-contract.mjs` | `npm run validate` | Do not add Structor-specific content to active templates |
-| Path safety | A | `scripts/lib.mjs`, `test/init-harness.test.mjs` | `npm test` | Add exploit-shaped regressions for write-path changes |
-| Contributor setup | B | `contrib/self-harness/**`, `scripts/setup-contributor.mjs` | Manual setup validation | Keep future bootstrap out of this path |
-| Issue work | A | Live issue scope and regression evidence | Review | Avoid opportunistic refactors |
-| Readiness | B | `ai/READINESS.md`, `scripts/check-readiness.mjs` | `node scripts/validate-governance.mjs` | Preserve the manual-review state for skipped source entrypoints |
+Use the four independent evidence dimensions in `ai/READINESS.md` rather than
+assigning contribution grades. Each recorded observation needs scope, revision
+or bounded source evidence, observation date, method, result and limitations.
+`node scripts/check-readiness.mjs` validates the record contract only.
+
+- Structural validity: record the exact `npm run validate` result and snapshot.
+- Verified knowledge: review source guidance, generic template boundaries and
+  path-safety contracts against the named source evidence.
+- Installation/adoption: require observed installation or use; contributor setup
+  and configured hooks alone do not establish use.
+- Observed effectiveness: require a bounded comparison; keep it unassessed until
+  observed. Passing static checks proves neither adoption nor effectiveness.
+
+No observation is supplied by this preset. Stable policy does not expire by
+calendar age; recheck change-sensitive knowledge when the scoped source changes.
 
 ## Completion Checklist
 

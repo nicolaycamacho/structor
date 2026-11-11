@@ -265,6 +265,102 @@ for (const profile of ["focused", "expanded"]) {
   });
 }
 
+test("generated readiness starts with four independent unassessed evidence dimensions", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate readiness evidence");
+    const readiness = await readFile(path.join(harnessRoot, "ai/READINESS.md"), "utf8");
+    for (const dimension of ["Structural validity", "Verified knowledge", "Installation/adoption", "Observed effectiveness"]) {
+      assert.ok(readiness.includes(`| ${dimension} | unassessed |`), dimension);
+    }
+    const result = spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+    assertSuccess(result, "unassessed records are valid without claiming success");
+    assert.match(result.stdout, /record contract only/i);
+  });
+});
+
+test("expanded review views show scoped observations without promoting unobserved dimensions", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "expanded" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate expanded evidence");
+    const file = path.join(harnessRoot, "ai/READINESS.md");
+    const starter = await readFile(file, "utf8");
+    const observation = "| Structural validity | recorded | Synthetic product-app; docs only | saved-check.log lines 1-4 at fixture revision alpha | 2026-01-12 | node scripts/check-workspace.mjs | Failed: pointer missing; effectiveness unknown | No agent use observed; sample size < 3 & source not independently verified |";
+    await writeFile(file, starter.replace(/^\| Structural validity .*$/m, observation));
+    assertSuccess(spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "negative observation is a complete record");
+    assertSuccess(spawnSync(process.execPath, ["scripts/generate-html-views.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "refresh evidence views");
+    for (const name of ["readiness", "quality"]) {
+      const html = await readFile(path.join(harnessRoot, `ai/views/${name}.html`), "utf8");
+      assert.match(html, /saved-check.log lines 1-4/);
+      assert.match(html, /2026-01-12/);
+      assert.match(html, /Failed: pointer missing/);
+      assert.match(html, /sample size &lt; 3 &amp;/);
+      assert.match(html, /Installation\/adoption<\/td><td>unassessed/);
+      assert.match(html, /not verified/i);
+    }
+    const quality = await readFile(path.join(harnessRoot, "ai/QUALITY.md"), "utf8");
+    assert.doesNotMatch(quality, /\| Domain \| Grade \|/);
+    assert.equal(await readFile(file, "utf8"), starter.replace(/^\| Structural validity .*$/m, observation));
+    await writeFile(file, starter.replace(/^\| Structural validity .*$/m, `${observation.slice(0, -1)}| Extra cell without terminal pipe`));
+    assertSuccess(spawnSync(process.execPath, ["scripts/generate-html-views.mjs"], { cwd: harnessRoot, encoding: "utf8" }), "show incomplete evidence diagnostics");
+    for (const name of ["readiness", "quality"]) {
+      const html = await readFile(path.join(harnessRoot, `ai/views/${name}.html`), "utf8");
+      assert.match(html, /Evidence records missing or incomplete/);
+      assert.doesNotMatch(html, /saved-check.log lines 1-4/);
+    }
+  });
+});
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`readiness validates observation contracts without inferring outcomes: ${profile} ${JSON.stringify(models)}`, async () => {
+      await withTempDir(async (root) => {
+        const configPath = await writeMinimalConfig(root, "./test-structor", {
+          profile, models, clientSupport: { codex: { hooks: models.openai } },
+        });
+        const harnessRoot = path.join(root, "test-structor");
+        assertSuccess(runInitHarness(configPath), "generate configured evidence checks");
+        const file = path.join(harnessRoot, "ai/READINESS.md");
+        const starter = await readFile(file, "utf8");
+        const run = () => spawnSync(process.execPath, ["scripts/check-readiness.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+        assertSuccess(runValidateGovernance(harnessRoot), "starter governance passes with enabled clients");
+        assert.equal(await readFile(file, "utf8"), starter, "passing gates must not promote any dimension");
+        const valid = "| Observed effectiveness | recorded | Synthetic two-task sample, client alpha | comparison.log lines 1-20; fixture revision alpha | 2020-02-29 | Manual paired comparison; fixed rubric | 50% met rubric; causal effect unknown | Small sample; no broader adoption claim |";
+        const recorded = starter.replace(/^\| Observed effectiveness .*$/m, valid);
+        await writeFile(file, recorded);
+        assertSuccess(run(), "complete bounded observation with an old real date and uncertain result");
+        await writeFile(file, recorded.replace(valid, valid.slice(0, -1)));
+        assertSuccess(run(), "Markdown terminal pipes are optional without discarding cells");
+        const mutations = [
+          [recorded.replace("2020-02-29", "2025-02-29"), /Observed on.*real YYYY-MM-DD/],
+          [recorded.replace("comparison.log lines 1-20; fixture revision alpha", ""), /all eight cells/],
+          [recorded.replace("Manual paired comparison; fixed rubric", ["T", "BD"].join("")), /Method.*placeholder/],
+          [recorded.replace("Small sample; no broader adoption claim", ""), /all eight cells/],
+          [recorded.replace("Small sample; no broader adoption claim |", "Small sample | Extra discarded cell"), /all eight cells/],
+          [recorded.replace("Synthetic two-task sample, client alpha", ""), /all eight cells/],
+          [recorded.replace("50% met rubric; causal effect unknown", ""), /all eight cells/],
+          [recorded.replace("| recorded |", "| successful |"), /State must be unassessed or recorded/],
+          [starter.replace(/^\| Verified knowledge .*\n/m, ""), /exactly one evidence row for Verified knowledge/],
+          [starter.replace(/^\| Structural validity .*$/m, (row) => `${row}\n${row}`), /exactly one evidence row for Structural validity/],
+          [starter.replace("| Structural validity | unassessed | Not observed", "| Structural validity | unassessed | generation passed"), /unassessed fields must be Not observed/],
+          [starter + "\n| Domain | Grade | Evidence |\n| Overall | A | static checks |\n", /not letter grades/],
+        ];
+        for (const [content, diagnostic] of mutations) {
+          await writeFile(file, content);
+          const result = run();
+          assert.equal(result.status, 1, result.stdout + result.stderr);
+          assert.match(result.stderr, diagnostic);
+          assert.equal(await readFile(file, "utf8"), content, "validator is read-only");
+        }
+        await writeFile(file, starter);
+        if (profile === "focused") assert.equal(await exists(path.join(harnessRoot, "ai/QUALITY.md")), false);
+      });
+    });
+  }
+}
+
 test("generated issue validator checks an explicit concrete file without changing its starter", async () => {
   await withTempDir(async (root) => {
     const configPath = await writeMinimalConfig(root, "./test-structor");

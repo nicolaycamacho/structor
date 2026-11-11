@@ -23,9 +23,8 @@ const readinessCommands = {
   checkCodexHooks: "node scripts/check-codex-hooks.mjs",
   checkClaudeCompatibility: "node scripts/check-claude-compatibility.mjs",
 };
-const qualityTableHeader = "| Domain | Grade | Evidence | Enforced by | Blocking gaps |";
-const gradePattern = /^(A|B|C|D|F|Manual|N\/A)$/;
-const placeholderPattern = /^(todo|tbd|none)$/i;
+const evidenceTableHeader = "| Dimension | State | Scope | Source evidence | Observed on | Method | Result | Limitations |";
+const dimensions = ["Structural validity", "Verified knowledge", "Installation/adoption", "Observed effectiveness"];
 
 async function read(relativePath) {
   return readFile(path.join(repoRoot, relativePath), "utf8");
@@ -45,8 +44,9 @@ function tableRows(markdown, headerPrefix) {
 
 function cells(row) {
   return row
+    .trimEnd()
     .split("|")
-    .slice(1, -1)
+    .slice(1, row.trimEnd().endsWith("|") ? -1 : undefined)
     .map((cell) => cell.trim());
 }
 
@@ -84,36 +84,53 @@ const scorePatterns = [
 const readinessDocuments = [["ai/READINESS.md", readiness]];
 if (quality !== null) readinessDocuments.push(["ai/QUALITY.md", quality]);
 for (const [relativePath, content] of readinessDocuments) {
+  // Bounded observation results may contain measurements; they are not an
+  // aggregate readiness score.
+  const summary = content.split(/\r?\n/)
+    .filter((line) => !dimensions.some((dimension) => line.startsWith(`| ${dimension} |`)))
+    .join("\n");
   for (const pattern of scorePatterns) {
-    if (pattern.test(content)) {
+    if (pattern.test(summary)) {
       errors.push(`${relativePath} must not use a numeric readiness score.`);
       break;
     }
   }
 }
 
-const qualityRows = quality === null ? [] : tableRows(quality, qualityTableHeader);
-if (profile === "expanded" && qualityRows.length === 0) {
-  errors.push("ai/QUALITY.md must include the readiness scorecard table.");
+const evidenceRows = tableRows(readiness, evidenceTableHeader).map(cells);
+for (const dimension of dimensions) {
+  const matching = evidenceRows.filter((row) => row[0] === dimension);
+  if (matching.length !== 1) errors.push(`ai/READINESS.md must include exactly one evidence row for ${dimension}.`);
 }
-
-for (const row of qualityRows) {
-  const [domain, grade, evidence, enforcedBy, blockingGaps] = cells(row);
-  if (![domain, grade, evidence, enforcedBy, blockingGaps].every(Boolean)) {
-    errors.push(`ai/QUALITY.md has an incomplete scorecard row: ${row}`);
+for (const row of evidenceRows) {
+  const [dimension, state, ...fields] = row;
+  const label = `ai/READINESS.md evidence for ${dimension}`;
+  if (row.length !== 8 || !row.every(Boolean)) {
+    errors.push(`${label} must contain all eight cells.`);
     continue;
   }
-  if (!gradePattern.test(grade)) {
-    errors.push(`ai/QUALITY.md has unsupported grade "${grade}" for ${domain}.`);
-  }
-  for (const [label, value] of [
-    ["Evidence", evidence],
-    ["Enforced by", enforcedBy],
-    ["Blocking gaps", blockingGaps],
-  ]) {
-    if (placeholderPattern.test(value)) {
-      errors.push(`ai/QUALITY.md ${label} for ${domain} must be evidence-based, not "${value}".`);
+  if (!dimensions.includes(dimension)) errors.push(`${label} has an unsupported dimension.`);
+  if (state === "unassessed") {
+    if (fields.some((field) => field !== "Not observed")) errors.push(`${label}: unassessed fields must be Not observed.`);
+  } else if (state === "recorded") {
+    const names = ["Scope", "Source evidence", "Observed on", "Method", "Result", "Limitations"];
+    fields.forEach((field, index) => {
+      if (/\b(todo|tbd)\b|<[^>]+>|\{\{/.test(field.toLowerCase()) || /^(none|n\/a|unknown|not observed|-)$/i.test(field)) {
+        errors.push(`${label}: ${names[index]} must contain observation evidence, not a placeholder.`);
+      }
+    });
+    const date = fields[2];
+    const parsed = new Date(`${date}T00:00:00Z`);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || Number.isNaN(parsed.getTime()) || parsed.toISOString().slice(0, 10) !== date) {
+      errors.push(`${label}: Observed on must be a real YYYY-MM-DD date.`);
     }
+  } else {
+    errors.push(`${label}: State must be unassessed or recorded.`);
+  }
+}
+for (const [relativePath, content] of readinessDocuments) {
+  if (/\|\s*(Domain|Overall)\s*\|\s*Grade\s*\|/i.test(content) || /\boverall (?:quality )?grade\s*[:=]\s*[ABCDF]\b/i.test(content)) {
+    errors.push(`${relativePath} must use independent evidence dimensions, not letter grades.`);
   }
 }
 
@@ -127,4 +144,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("Readiness check passed.");
+console.log("Readiness check passed (record contract only; not truth, adoption or effectiveness).");
