@@ -1,11 +1,59 @@
 # Harness Readiness
 
 This file defines the post-generation readiness contract for the
-{{PROJECT_NAME}} harness. Readiness is a gate with evidence, not a numeric score.
+{{PROJECT_NAME}} harness. Readiness uses independent evidence, never an overall
+letter grade or numeric score.
+
+## Evidence Dimensions
+
+This table is the canonical evidence record in both profiles. Generation leaves
+every dimension unassessed. Passing generation, governance checks or hook
+configuration never promotes knowledge, adoption or effectiveness.
+
+| Dimension | State | Scope | Source evidence | Observed on | Method | Result | Limitations |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Structural validity | unassessed | Not observed | Not observed | Not observed | Not observed | Not observed | Not observed |
+| Verified knowledge | unassessed | Not observed | Not observed | Not observed | Not observed | Not observed | Not observed |
+| Installation/adoption | unassessed | Not observed | Not observed | Not observed | Not observed | Not observed | Not observed |
+| Observed effectiveness | unassessed | Not observed | Not observed | Not observed | Not observed | Not observed | Not observed |
+
+Use exactly one row per dimension. State is `unassessed` or `recorded`.
+`unassessed` requires all six evidence fields to remain `Not observed`.
+`recorded` means an observation was documented, including negative or inconclusive
+results; it is not a success verdict. Supply all six fields:
+
+- Scope: the bounded repository, files, client and task/sample covered.
+- Source evidence: a revision plus relevant paths, or a bounded source artifact
+  such as a saved command transcript, reviewed source excerpt or comparison log.
+- Observed on: the observation date as a real `YYYY-MM-DD` calendar date.
+- Method: how the observation was made, including commands or review procedure.
+- Result: the observed outcome, keeping uncertainty explicit.
+- Limitations: what was not checked and what cannot be concluded.
+
+Keep each field on one line without pipe characters. Do not use unfinished
+markers or placeholders for recorded claims. `scripts/check-readiness.mjs`
+checks this record contract only, not truth, source freshness or agent behavior.
+It neither executes methods nor updates records.
+
+Structural validity covers deterministic local checks at the observed snapshot.
+Verified knowledge requires comparison with the scoped source evidence.
+Installation/adoption needs explicit observation of the named installation or
+use, distinguishing configured surfaces from actual use. Observed effectiveness
+needs a bounded comparison and may remain unknown even when adoption is observed.
+
+## Knowledge Revalidation
+
+Keep stable policy (authority boundaries, conventions and accepted decisions)
+distinct from change-sensitive source knowledge (paths, commands, interfaces and
+repository facts). Recheck affected knowledge when its source changes or drift
+is found. Record the new source and limitations; do not expire all guidance by
+calendar age. An old observation date alone neither invalidates stable policy
+nor proves source knowledge is current.
 
 ## Verdicts
 
-- PASS: required machine gates pass and manual review domains are accepted.
+- PASS: required machine gates pass and manual review domains are accepted,
+  within the recorded scope only; this does not establish adoption or effectiveness.
 - FAIL: any required machine gate fails.
 - MANUAL REVIEW REQUIRED: machine gates pass, but project-specific guidance
   still needs human judgment.
@@ -33,3 +81,20 @@ This file defines the post-generation readiness contract for the
 
 When readiness changes, update the relevant command or manual-review evidence in
 the same edit. Do not promote readiness based on intent alone.
+
+## Optional Bounded Manual Comparison
+
+This protocol is guidance only; Structor runs no agents or model evaluations.
+
+1. Before observation, choose a small fixed task sample, source revision,
+   client/model/settings, time bound and rubric (correctness, convention fit,
+   review corrections and effort). Record these in a local comparison log.
+2. Compare equivalent baseline and harness-assisted attempts under the same
+   conditions; record ordering and learning effects. Use only authorized tasks.
+3. Record both outcomes, failures, corrections and effort against the preset
+   rubric. Keep installation/use observations separate from comparative results.
+4. Put the bounded log reference, date, method, result and limitations in the
+   relevant row. Report confounders and sample limits; inconclusive is valid.
+
+No comparison or live-agent evaluation is required for generation or static
+validation. This protocol does not supply adoption or effectiveness evidence.
