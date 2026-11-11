@@ -139,6 +139,7 @@ export const generatedHarnessArtifacts = [
   script("scripts/check-worktree-bootstrap-fixtures.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/lib/path-safety.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
   script("scripts/lib/harness-routing.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
+  script("scripts/lib/target-provenance.mjs.tpl", { workspaceCheck: "repo" }),
   script("scripts/lib/worktree-bootstrap.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),
   artifact("scripts/fixtures/worktrees/README.md.tpl", { workspaceCheck: "repo" }),
   script("scripts/bootstrap-workspace.mjs.tpl", { includedInFocusedProfile: true, workspaceCheck: "repo" }),

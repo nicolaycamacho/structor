@@ -62,6 +62,53 @@ npx @structor-dev/cli doctor --workspace .
 `doctor` reports local setup and guidance-readiness signals. It is not a repair
 loop, workflow runner, or agent coordinator.
 
+Inspect one checkout without checking unrelated consumers, workspace pointers,
+or auxiliary worktrees:
+
+```sh
+structor doctor --workspace . --target ./app
+structor doctor --config ./project-structor/harness.config.json --target ./app --json
+structor doctor --workspace . --target ./app --require-git-freshness
+```
+
+`--target` paths resolve from the command's current directory. Configuration
+discovery and durable `workspace.root` semantics stay unchanged. `--json` and
+`--require-git-freshness` require `--target`.
+
+The shared diagnostic result reports the physical target root, expected and
+actually referenced harness roots, HEAD and upstream revisions, branch,
+detached state, Git-visible dirty state, and upstream relationship (`equal`,
+`ahead`, `behind`, `diverged`, or `unavailable`). Enabled consumer entrypoints,
+their declared harness references, and baseline `ai/AGENTS.md`, `ai/HUB.md`,
+and `ai/context.md` receive SHA-256 fingerprints of current file bytes.
+Missing or unsafe files have no fingerprint. This inventory does not traverse
+the full guidance graph or prove guidance correctness or agent adoption.
+
+Upstream comparisons use **cached local refs**. Live freshness is always marked
+unavailable: diagnostics never fetch, synchronize, repair, switch branches,
+delete worktrees, or write checkouts. Git optional locks, filesystem monitors,
+and lazy object fetching are disabled for evidence collection.
+
+Ordinary inspection exits 0 when selected routing and fingerprints are valid,
+even if Git is unavailable, dirty, behind, or diverged. The explicit Git gate
+additionally requires both target and referenced harness to have complete,
+clean Git evidence with a configured upstream and an `equal` or `ahead`
+relationship. Missing commits/upstream refs, detached HEAD, shallow history,
+dirty state, or stale/diverged sources fail that gate. All diagnostic failures
+exit 1. Passing this gate proves readiness against cached refs only.
+
+Expanded generated harnesses expose the same result and exit rules:
+
+```sh
+node scripts/check-worktrees.mjs --target ../app --json
+node scripts/check-worktrees.mjs --target ../app --require-git-freshness
+```
+
+Existing unscoped worktree discovery, `--include-canonical`, `--strict`, and
+`--no-worktree-list` behavior is unchanged. Focused harnesses retain Doctor
+support without adding expanded worktree commands. Existing generated projects
+gain these scripts only through explicit regeneration.
+
 ## `structor contribute structor`
 
 Create or refresh a local Structor contributor workspace:

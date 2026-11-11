@@ -29,6 +29,24 @@ This file defines the post-generation readiness contract for the
 - `ai/WORKFLOW.md` records the real validation and handoff expectations.
 {{EXPANDED_READINESS_DOMAINS}}
 
+## Target Source Evidence
+
+Use `structor doctor --config ./harness.config.json --target <checkout-path>`
+to inspect one checkout. Add `--json` for the shared diagnostic result or
+`--require-git-freshness` to require clean target and harness Git evidence that
+is equal to or ahead of each configured upstream. Expanded harnesses also
+provide `node scripts/check-worktrees.mjs --target <checkout-path>` with the
+same options. Paths resolve from the current directory.
+
+The report identifies physical roots, revisions, branch/upstream relationships,
+dirty state, and enabled entrypoint/declared guidance fingerprints. Upstream
+refs are cached: no live freshness is claimed and no fetch, pointer repair,
+branch change, or checkout write occurs. Ordinary inspection supports non-Git
+workspaces with evidence marked unavailable. The explicit Git gate fails on
+missing or shallow history, missing upstream evidence, detached HEAD, dirty
+state, or behind/diverged sources. Unrelated worktrees are not inspected in
+target mode. This evidence does not establish guidance quality or agent behavior.
+
 ## Update Rule
 
 When readiness changes, update the relevant command or manual-review evidence in
