@@ -161,6 +161,7 @@ export function harnessTemplateValuesForPlan(plan, options = {}) {
     HARNESS_PROFILE: markdownCodeSpan(plan.profile),
     HARNESS_PROFILE_JSON: javascriptLiteral(plan.profile),
     ENABLED_BASELINE_ENTRYPOINTS: [config.models.openai && "- `./AGENTS.md`", config.models.anthropic && "- `./CLAUDE.md`"].filter(Boolean).join("\n"),
+    SINGLE_OWNER_IMPLEMENTATION: javascriptBoolean(config.taskPolicy?.singleOwnerImplementation ?? false),
     EXPANDED_PROFILE_ROUTING: expandedProfileRouting(plan.profile),
     EXPANDED_READINESS_GATES: expandedReadinessGates(plan.profile),
     EXPANDED_READINESS_DOMAINS: expandedReadinessDomains(plan.profile),

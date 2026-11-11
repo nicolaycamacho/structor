@@ -1,12 +1,14 @@
 ---
 id: <ISSUE-ID>
 task_size: standard
+execution_intent: implementation
 status: Backlog
 risk: medium
 autonomy: pr_ready
 model_policy: standard
 repos:
   - {{HARNESS_REPO_NAME}}
+read_only_repos: []
 allowed_paths:
   - <path-or-glob>
 forbidden_paths:
@@ -36,6 +38,9 @@ Explain why the change is needed and what existing behavior matters.
 
 ## Scope
 
+Keep this section consistent with the metadata: `repos` names editable owners;
+`read_only_repos` names inspected dependencies and grants no write scope.
+
 ### In Scope
 
 - List allowed surfaces.
@@ -49,6 +54,10 @@ Explain why the change is needed and what existing behavior matters.
 ### Allowed Paths
 
 - `<path-or-glob>`
+
+Use repository-relative paths or globs, optionally qualified as `repo:path`.
+Unqualified patterns apply only within the declared editable owners. Never use
+absolute paths, parent traversal, braces, extglobs or backslash separators.
 
 ### Forbidden Paths
 

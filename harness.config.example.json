@@ -1,6 +1,9 @@
 {
   "$schema": "./schemas/harness-config.schema.json",
   "profile": "focused",
+  "taskPolicy": {
+    "singleOwnerImplementation": false
+  },
   "project": {
     "name": "Example Project",
     "slug": "example-project",

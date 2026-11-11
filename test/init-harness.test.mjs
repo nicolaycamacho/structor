@@ -288,6 +288,166 @@ test("generated graph rejects unsafe and inexact routes and ignores undeclared p
   });
 });
 
+const tinyOwnershipBrief = `---
+task_size: tiny
+execution_intent: implementation
+repos: ["product-app"]
+read_only_repos: ["test-structor"]
+allowed_paths: ["src/**/*.mjs"]
+---
+# Correct the formatter
+
+## Goal
+Correct formatting of the output.
+
+## Scope
+Edit the application and inspect the harness guidance.
+
+## Acceptance
+The output matches the documented format.
+
+## Validation
+Run \`npm test\`.
+`;
+
+test("generated concrete validators distinguish editable owners from inspected repositories", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate ownership validators");
+    const file = path.join(root, "ownership.md");
+    for (const kind of ["issue", "task"]) {
+      const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`), "--file", file], { cwd: root, encoding: "utf8" });
+      await writeFile(file, tinyOwnershipBrief);
+      assertSuccess(run(), `${kind} separate ownership`);
+      for (const [label, text, diagnostic] of [
+        ["overlap", tinyOwnershipBrief.replace('read_only_repos: ["test-structor"]', 'read_only_repos: ["product-app"]'), /read_only_repos.*overlap.*product-app/i],
+        ["duplicate owner", tinyOwnershipBrief.replace('repos: ["product-app"]', 'repos: ["product-app", "product-app"]'), /repos.*duplicate.*product-app/i],
+        ["duplicate reader", tinyOwnershipBrief.replace('read_only_repos: ["test-structor"]', 'read_only_repos: ["test-structor", "test-structor"]'), /read_only_repos.*duplicate/i],
+        ["unknown reader", tinyOwnershipBrief.replace('read_only_repos: ["test-structor"]', 'read_only_repos: ["unknown-repo"]'), /non-canonical repo.*unknown-repo/i],
+      ]) {
+        await writeFile(file, text);
+        const invalid = run();
+        assert.equal(invalid.status, 1, `${kind}: ${label}\n${invalid.stdout}${invalid.stderr}`);
+        assert.match(invalid.stderr, diagnostic);
+      }
+    }
+  });
+});
+
+test("generated validators require report-only submissions to identify inspections without write scope", async () => {
+  await withTempDir(async (root) => {
+    const configPath = await writeMinimalConfig(root, "./test-structor");
+    const harnessRoot = path.join(root, "test-structor");
+    assertSuccess(runInitHarness(configPath), "generate report validators");
+    const file = path.join(root, "report.md");
+    const report = tinyOwnershipBrief.replace("execution_intent: implementation", "execution_intent: report_only\nautonomy: report_only")
+      .replace('repos: ["product-app"]', "repos: []").replace('allowed_paths: ["src/**/*.mjs"]', "allowed_paths: []");
+    for (const kind of ["issue", "task"]) {
+      const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`), "--file", file], { cwd: root, encoding: "utf8" });
+      for (const valid of [report, report.replace("execution_intent: report_only\n", ""), report.replace("autonomy: report_only\n", "")]) {
+        await writeFile(file, valid);
+        assertSuccess(run(), `${kind} report intent`);
+      }
+      for (const [text, diagnostic] of [
+        [report.replace("repos: []", 'repos: ["product-app"]'), /report_only.*no editable repos/i],
+        [report.replace("allowed_paths: []", 'allowed_paths: ["src/**"]'), /report_only.*no allowed_paths/i],
+        [report.replace('read_only_repos: ["test-structor"]', "read_only_repos: []"), /report_only.*read_only_repos/i],
+        [report.replace('read_only_repos: ["test-structor"]\n', ""), /report_only.*read_only_repos/i],
+        [report.replace("autonomy: report_only", "autonomy: pr_ready"), /execution_intent.*autonomy.*contradict/i],
+        [report.replace("execution_intent: report_only", "execution_intent: implementation"), /execution_intent.*autonomy.*contradict/i],
+        [report.replace("execution_intent: report_only", "execution_intent: deploy"), /invalid execution_intent/i],
+      ]) {
+        await writeFile(file, text);
+        const invalid = run();
+        assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+        assert.match(invalid.stderr, diagnostic);
+      }
+      const standard = await readFile(path.join(harnessRoot, "ai/templates/fixtures/issues/valid-ready.md"), "utf8");
+      await writeFile(file, standard.replace("autonomy: pr_ready", "autonomy: report_only").replace("repos:\n  - test-structor", 'repos: []\nread_only_repos: ["product-app"]')
+        .replace("allowed_paths:\n  - ai/HARNESS.md", "allowed_paths: []").replace("status: Ready for Agent", kind === "task" ? "status: report_ready\nmodel: runtime-selected" : "status: Report Ready"));
+      assertSuccess(run(), `${kind} standard report with empty paths`);
+    }
+  });
+});
+
+for (const profile of ["focused", "expanded"]) {
+  for (const models of [{ openai: true, anthropic: false }, { openai: false, anthropic: true }, { openai: true, anthropic: true }]) {
+    test(`Initializer renders opt-in ownership policy without changing legacy multi-repo behavior: ${profile} ${JSON.stringify(models)}`, async () => {
+      for (const enabled of [undefined, false, true]) {
+        await withTempDir(async (root) => {
+          const configPath = await writeMinimalConfig(root, "./test-structor", { profile, models });
+          const config = JSON.parse(await readFile(configPath, "utf8"));
+          if (enabled !== undefined) config.taskPolicy = { singleOwnerImplementation: enabled };
+          const configContent = JSON.stringify(config, null, 2) + "\n";
+          await writeFile(configPath, configContent);
+          const harnessRoot = path.join(root, "test-structor");
+          assertSuccess(runInitHarness(configPath), "generate policy validators");
+          const file = path.join(root, "policy.md");
+          for (const kind of ["issue", "task"]) {
+            const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`), "--file", file], { cwd: root, encoding: "utf8" });
+            await writeFile(file, tinyOwnershipBrief);
+            assertSuccess(run(), "one editable owner with read-only dependency");
+            for (const paths of ['["src/**"]', '["product-app:src/**", "test-structor:ai/**"]']) {
+              await writeFile(file, tinyOwnershipBrief.replace('repos: ["product-app"]', 'repos: ["product-app", "test-structor"]')
+                .replace('read_only_repos: ["test-structor"]', "read_only_repos: []").replace('["src/**/*.mjs"]', paths));
+              const multi = run();
+              if (enabled) {
+                assert.equal(multi.status, 1, multi.stdout + multi.stderr);
+                assert.match(multi.stderr, /singleOwnerImplementation.*exactly one editable repo/i);
+              } else assertSuccess(multi, "multiple editable owners remain supported");
+            }
+            await writeFile(file, tinyOwnershipBrief.replace('repos: ["product-app"]', "repos: []").replace('allowed_paths: ["src/**/*.mjs"]', "allowed_paths: []"));
+            const empty = run();
+            if (enabled) {
+              assert.equal(empty.status, 1, empty.stdout + empty.stderr);
+              assert.match(empty.stderr, /singleOwnerImplementation.*exactly one editable repo/i);
+            } else assertSuccess(empty, "legacy empty task scope");
+            await writeFile(file, tinyOwnershipBrief.replace("execution_intent: implementation", "autonomy: report_only")
+              .replace('repos: ["product-app"]', "repos: []").replace('allowed_paths: ["src/**/*.mjs"]', "allowed_paths: []"));
+            assertSuccess(run(), "reports are exempt from single-owner implementation policy");
+          }
+          assertSuccess(runValidateGovernance(harnessRoot), "policy respects profile and enabled-client gates");
+          assert.equal(await readFile(configPath, "utf8"), configContent, "Initializer preserves source configuration");
+        });
+      }
+    });
+  }
+  test(`generated concrete validators keep path contracts inside editable owners: ${profile}`, async () => {
+    await withTempDir(async (root) => {
+      const configPath = await writeMinimalConfig(root, "./test-structor", { profile });
+      const harnessRoot = path.join(root, "test-structor");
+      assertSuccess(runInitHarness(configPath), "generate path validators");
+      const file = path.join(root, "paths.md");
+      for (const kind of ["issue", "task"]) {
+        const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", `check-${kind}-template.mjs`), "--file", file], { cwd: root, encoding: "utf8" });
+        for (const allowed of ["src/**/*.mjs", "product-app:src/**", "./docs/*.md", "src/file?.[jt]s", "docs/with spaces.md", "**", "README.md"]) {
+          await writeFile(file, tinyOwnershipBrief.replace('"src/**/*.mjs"', JSON.stringify(allowed)));
+          assertSuccess(run(), `${kind} safe pattern ${allowed}`);
+        }
+        for (const allowed of ["/tmp/file", "//host/share", "C:/temp/file", "C:relative", "\\\\host\\share", "src\\..\\other", "../file", "src/../../file", "product-app:../other/**", "product-app:/tmp/file", "test-structor:ai/**", "unknown:src/**", "*:src/**", "src/{safe,../escape}/**", "!(src)/**", "~/file", "src/\u0000file", ":src/**", "product-app:", "src/[broken"]) {
+          await writeFile(file, tinyOwnershipBrief.replace('"src/**/*.mjs"', JSON.stringify(allowed)));
+          const invalid = run();
+          assert.equal(invalid.status, 1, `${kind} unsafe pattern ${JSON.stringify(allowed)}\n${invalid.stdout}${invalid.stderr}`);
+          assert.match(invalid.stderr, /allowed_paths/);
+        }
+        await writeFile(file, tinyOwnershipBrief.replace('repos: ["product-app"]', "repos: []"));
+        const unowned = run();
+        assert.equal(unowned.status, 1, unowned.stdout + unowned.stderr);
+        assert.match(unowned.stderr, /allowed_paths.*editable repo/i);
+        for (const forbidden of ["../outside", "unknown:src/**", "/tmp/file"]) {
+          await writeFile(file, tinyOwnershipBrief.replace("---\n#", `forbidden_paths: ${JSON.stringify([forbidden])}\n---\n#`));
+          const invalid = run();
+          assert.equal(invalid.status, 1, invalid.stdout + invalid.stderr);
+          assert.match(invalid.stderr, /forbidden_paths/);
+        }
+        await writeFile(file, tinyOwnershipBrief.replace("---\n#", 'forbidden_paths: ["test-structor:ai/**"]\n---\n#'));
+        assertSuccess(run(), "forbidden paths may name a canonical read-only repository");
+      }
+    });
+  });
+}
+
 test("generated readiness starts with four independent unassessed evidence dimensions", async () => {
   await withTempDir(async (root) => {
     const configPath = await writeMinimalConfig(root, "./test-structor", { profile: "focused" });
@@ -475,7 +635,7 @@ for (const profile of ["focused", "expanded"]) {
           await writeFile(file, brief);
           const run = () => spawnSync(process.execPath, [path.join(harnessRoot, "scripts", script), "--file", file], { cwd: root, encoding: "utf8" });
           assertSuccess(run(), "tiny submission");
-          await writeFile(file, brief.replace("task_size: tiny", "task_size: tiny\nrisk: high\nautonomy: report_only"));
+          await writeFile(file, brief.replace("task_size: tiny", 'task_size: tiny\nrisk: high\nautonomy: report_only\nread_only_repos: ["product-app"]'));
           assertSuccess(run(), "tiny size is independent of risk and autonomy");
           await writeFile(file, brief.replace("## Acceptance", "## Result"));
           const invalid = run();

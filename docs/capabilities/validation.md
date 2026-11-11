@@ -184,11 +184,50 @@ lowercase underscore spellings, including the starter's `backlog`.
 `autonomy: auto_merge` remains valid future-facing metadata, subject to the
 existing rejection of `risk: high` with `auto_merge`. It does not execute or
 authorize a merge. Standard briefs retain the explicit protected-surfaces and
-future-facing-metadata statements. Task list fields retain `[]` compatibility;
-standard issues retain nonempty allowed/forbidden path lists. Repository names
-must match the generated harness or its configured consumers. These structural
-checks do not enforce write ownership; Repository Fit validation checks only the
+future-facing-metadata statements. Task list fields retain `[]` compatibility
+when the single-owner policy is disabled; standard implementation issues retain
+nonempty allowed/forbidden path lists. Repository names must match the generated
+harness or its configured consumers. Repository Fit validation checks only the
 recorded evidence structure.
+
+### Ownership and Execution Intent
+
+`repos` names editable owners. `read_only_repos` names inspected dependencies;
+neither list may contain duplicates or unknown names, and the lists cannot
+overlap. The optional `execution_intent` accepts `implementation` or
+`report_only`. Omitted intent follows `autonomy: report_only`, otherwise it
+defaults to implementation. Explicit intent and autonomy must agree.
+
+Reports of either size must identify inspected repositories and declare no
+editable owners or allowed paths. For example, this metadata can accompany a
+tiny brief's four required sections:
+
+```yaml
+task_size: tiny
+execution_intent: report_only
+autonomy: report_only
+repos: []
+read_only_repos: ["example-app"]
+allowed_paths: []
+```
+
+Legacy report-only submissions must move inspection-only `repos` entries into
+`read_only_repos`. Other omitted read-only lists default to empty. Empty tiny
+scope lists may be omitted and grant no write scope. Scope and Path Contract
+prose must agree with metadata; the validator does not interpret prose.
+
+Allowed paths require editable owners. Both path lists accept repository-relative
+POSIX paths and simple globs (`*`, `**`, `?`, character classes); absolute paths,
+parent traversal, backslashes, controls, braces and extglobs are rejected. An
+optional `repo:path` qualifier must name a canonical repo, and allowed paths can
+only qualify editable owners. Unqualified allowed patterns apply inside each
+declared owner. Forbidden paths can qualify read-only repositories too.
+
+The opt-in [single-owner configuration](../reference/configuration.md#task-ownership-policy)
+requires exactly one editable owner for concrete implementation submissions,
+including tiny tasks. Omitted or disabled policy preserves multi-repository
+implementation. These checks validate declarations without expanding globs,
+resolving symlinks, authorizing implementation or confining runtime tools.
 
 The shared reader supports a bounded flat front-matter subset: unquoted
 single-line strings, single/double-quoted strings, literal `true`/`false`,
