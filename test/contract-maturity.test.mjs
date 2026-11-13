@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtemp, mkdir, readFile, readdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, readFile, readdir, writeFile, rm, symlink } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -80,7 +81,7 @@ test("generated contract checks reject malformed maturity with field diagnostics
       assert.equal(result.status, 1, JSON.stringify(maturity));
       assert.match(result.stderr, /api-boundary\.contract\.json.*maturity/);
     }
-    for (const level of levels) {
+    for (const level of levels.slice(0, 5)) {
       await writeFile(manifestPath, JSON.stringify({ ...manifest, maturity: { ...valid, level } }));
       const result = checkContracts(harnessRoot);
       assert.equal(result.status, 0, result.stdout + result.stderr);
@@ -170,5 +171,239 @@ test("regeneration preserves existing legacy and reviewed maturity without an ex
       assert.equal(result.status, 0, result.stdout + result.stderr);
       assert.equal(await readFile(manifestPath, "utf8"), before);
     }
+  });
+});
+
+
+test("C5 explicitly blocks a claim without bounded evidence and a change baseline", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const manifestPath = path.join(harnessRoot, "ai/contracts/api-boundary.contract.json");
+    const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+    manifest.maturity.level = "C5 Governed";
+    await writeFile(manifestPath, JSON.stringify(manifest));
+    const result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /api-boundary.*evidence/);
+    assert.match(result.stderr, /baseline/);
+  });
+});
+
+const digest = (content) => createHash("sha256").update(content).digest("hex");
+function canonicalEvidence(value) {
+  if (Array.isArray(value)) return `[${value.map(canonicalEvidence).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) => `${JSON.stringify(key)}:${canonicalEvidence(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+
+async function evidenceFixture(harnessRoot, level = "C4 Validated") {
+  const manifestPath = path.join(harnessRoot, "ai/contracts/api-boundary.contract.json");
+  const docPath = path.join(harnessRoot, "ai/contracts/api-boundary.md");
+  const sourcePath = path.join(path.dirname(harnessRoot), "example-app/boundary.json");
+  await writeFile(sourcePath, '{"input":"widget"}\n');
+  const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
+  const source = { repo: "example-app", path: "boundary.json", sha256: digest(await readFile(sourcePath)) };
+  if (level === "C5 Governed") {
+    const marker = digest(canonicalEvidence([source]));
+    await writeFile(docPath, `${await readFile(docPath, "utf8")}\n<!-- structor:contract-sources-sha256 ${marker} -->\n`);
+  }
+  const documentationSha256 = digest(await readFile(docPath));
+  manifest.maturity = {
+    level, scope: "Synthetic widget input declaration", limitations: ["No behavior or prose correctness checked"],
+    evidence: {
+      sources: [source], documentationSha256,
+      check: "Review the synthetic input declaration against the sibling map",
+      observation: "The fixture input is declared as widget", result: "pass",
+      limitations: ["Recorded manual observation only; runtime behavior is unobserved"],
+    },
+  };
+  if (level === "C5 Governed") manifest.maturity.governance = {
+    surfaces: [{ repo: source.repo, path: source.path }],
+    baseline: {
+      sources: [{ ...source }], documentationSha256,
+      evidenceSha256: digest(canonicalEvidence(manifest.maturity.evidence)),
+    },
+  };
+  const save = () => writeFile(manifestPath, JSON.stringify(manifest, null, 2));
+  await save();
+  return { manifest, sourcePath, docPath, save };
+}
+
+test("C4 accepts current bounded evidence and reports missing/stale evidence without blocking", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, save } = await evidenceFixture(harnessRoot);
+    assert.deepEqual(shapeErrors(manifest), []);
+    let result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.stderr, "");
+    await writeFile(sourcePath, '{"input":"changed"}\n');
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /Advisory:.*evidence source.*stale.*rerun/);
+    await rm(sourcePath);
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /source.*unavailable.*restore/);
+    delete manifest.maturity.evidence;
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0);
+    assert.match(result.stderr, /evidence.*record/);
+
+  });
+});
+
+test("C5 unchanged surfaces pass; changed surfaces require matching evidence and documentation refresh", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, docPath, save } = await evidenceFixture(harnessRoot, "C5 Governed");
+    assert.deepEqual(shapeErrors(manifest), []);
+    let result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    const governance = spawnSync(process.execPath, ["scripts/validate-governance.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+    assert.equal(governance.status, 0, governance.stdout + governance.stderr);
+    await writeFile(sourcePath, '{"input":"changed"}\n');
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /governed surface.*requires matching current evidence/);
+    assert.match(result.stderr, /changed without documentation updates/);
+    assert.match(result.stderr, /changed without evidence updates/);
+    manifest.maturity.evidence.sources[0].sha256 = digest(await readFile(sourcePath));
+    manifest.maturity.evidence.observation = "The fixture now declares changed input";
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /changed without documentation updates/);
+    await writeFile(docPath, "# Synthetic declaration\nThe input declaration is now changed.\n");
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /documentationSha256 is stale/);
+    const marker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `${await readFile(docPath, "utf8")}<!-- structor:contract-sources-sha256 ${marker} -->\n`);
+    manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(result.stderr, "");
+    // Keep the old checkpoint: refreshed evidence/docs satisfy its change policy.
+    assert.notEqual(manifest.maturity.evidence.sources[0].sha256, manifest.maturity.governance.baseline.sources[0].sha256);
+  });
+});
+
+test("C5 fails closed for incomplete/scope-mismatched baselines, sources and evidence records", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, save } = await evidenceFixture(harnessRoot, "C5 Governed");
+    const original = structuredClone(manifest.maturity);
+    const cases = [
+      [(m) => { delete m.governance.baseline; }, /baseline/],
+      [(m) => { m.governance.baseline.sources = []; }, /baseline.sources.*at least one/],
+      [(m) => { delete m.governance.baseline.sources[0].sha256; }, /baseline.sources.*sha256/],
+      [(m) => { m.governance.baseline.sources[0].path = "other.json"; }, /baseline is stale/],
+      [(m) => { m.governance.surfaces = []; }, /surfaces.*at least one/],
+      [(m) => { m.evidence.sources = []; }, /evidence.sources.*at least one/],
+      [(m) => { m.evidence.sources[0].sha256 = "bad"; }, /sha256/],
+      [(m) => { m.evidence.sources.push({ ...m.evidence.sources[0] }); }, /duplicate source/],
+      [(m) => { m.evidence.result = "fail"; }, /evidence.result/],
+      [(m) => { m.evidence.check = " "; }, /evidence.check/],
+      [(m) => { m.evidence.observation = ""; }, /evidence.observation/],
+      [(m) => { m.evidence.limitations = []; }, /evidence.limitations/],
+      [(m) => { delete m.evidence; }, /evidence/],
+      [(m) => { m.evidence.sources[0].repo = "not-configured"; }, /unknown repo/],
+      [(m) => { m.evidence.sources[0].path = "../example-app/boundary.json"; }, /without traversal/],
+      [(m) => { m.evidence.sources[0].path = "/boundary.json"; }, /repository-relative/],
+      [(m) => { m.evidence.sources[0].path = "*.json"; }, /without traversal/],
+      [(m) => { m.evidence.sources[0].path = ".git/config"; }, /without traversal/],
+      [(m) => { m.governance.surfaces[0].path = "missing.json"; }, /governed surface.*unavailable/],
+    ];
+    for (const [mutate, expected] of cases) {
+      manifest.maturity = structuredClone(original);
+      mutate(manifest.maturity);
+      await save();
+      const result = checkContracts(harnessRoot);
+      assert.equal(result.status, 1, result.stdout + result.stderr);
+      assert.match(result.stderr, expected);
+    }
+    manifest.maturity = structuredClone(original);
+    await save();
+    await rm(sourcePath);
+    let result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /source.*unavailable/);
+    await symlink(path.join(harnessRoot, "ai/contracts/api-boundary.md"), sourcePath);
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /inside its declared repository/);
+  });
+});
+
+
+test("documentation-only C5 updates cannot conceal stale evidence and checks never execute manifest methods", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, docPath, save } = await evidenceFixture(harnessRoot, "C5 Governed");
+    const marker = path.join(harnessRoot, "unexpected-execution");
+    manifest.maturity.evidence.check = `node -e 'require("node:fs").writeFileSync(${JSON.stringify(marker)}, "executed")'`;
+    manifest.validation = [manifest.maturity.evidence.check];
+    await save();
+    assert.equal(checkContracts(harnessRoot).status, 0);
+    await assert.rejects(readFile(marker), { code: "ENOENT" });
+    await writeFile(sourcePath, "changed declaration\n");
+    await writeFile(docPath, "# Updated synthetic declaration\n");
+    await save();
+    const result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /evidence source.*stale/);
+    assert.match(result.stderr, /documentationSha256 is stale/);
+  });
+});
+
+test("new evidence metadata has a machine-readable shape while low-maturity evidence gaps stay advisory", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, save } = await evidenceFixture(harnessRoot);
+    const original = structuredClone(manifest.maturity.evidence);
+    for (const field of ["sources", "documentationSha256", "check", "observation", "result", "limitations"]) {
+      manifest.maturity.evidence = structuredClone(original);
+      delete manifest.maturity.evidence[field];
+      assert.ok(shapeErrors(manifest).some((error) => error.includes(field)), field);
+    }
+    for (const level of levels.slice(0, 5)) {
+      manifest.maturity.level = level;
+      manifest.maturity.evidence = {};
+      manifest.maturity.governance = {};
+      await save();
+      const result = checkContracts(harnessRoot);
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.match(result.stderr, /Advisory:.*evidence/);
+      assert.match(result.stderr, /governance is inactive/);
+    }
+  });
+});
+
+test("C5 requires a new documentation update on every consecutive source refresh", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, docPath, save } = await evidenceFixture(harnessRoot, "C5 Governed");
+    // First complete change, still compared with the initial reviewed checkpoint.
+    await writeFile(sourcePath, "second declaration\n");
+    manifest.maturity.evidence.sources[0].sha256 = digest(await readFile(sourcePath));
+    manifest.maturity.evidence.observation = "The second declaration was reviewed";
+    const marker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `# Second declaration\n<!-- structor:contract-sources-sha256 ${marker} -->\n`);
+    manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
+    await save();
+    let result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    // A second change cannot reuse the first change's documentation update.
+    await writeFile(sourcePath, "third declaration\n");
+    manifest.maturity.evidence.sources[0].sha256 = digest(await readFile(sourcePath));
+    manifest.maturity.evidence.observation = "The third declaration was reviewed";
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /documentation.*source fingerprint.*refresh/);
+    const refreshedMarker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `# Third declaration\n<!-- structor:contract-sources-sha256 ${refreshedMarker} -->\n`);
+    manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
   });
 });
