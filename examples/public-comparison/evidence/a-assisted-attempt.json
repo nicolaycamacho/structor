@@ -1,0 +1,226 @@
+{
+  "condition": "a-assisted",
+  "model": "gpt-6.1-sol",
+  "reasoningEffort": "high",
+  "serviceTier": "inherited; not independently logged in child turn context",
+  "startedAt": "2026-11-13T22:32:20.383Z",
+  "endedAt": "2026-11-13T22:33:22.930Z",
+  "durationMs": 62589,
+  "visibleToolCalls": 8,
+  "freshContext": true,
+  "sharedStartingDirectory": "artifacts checkout (same for all children); every observed command must be checked for scoped workdir",
+  "publicationFilter": "only commentary, final, tool requests/results; personal path prefixes normalized to EVIDENCE or ARTIFACTS; no reasoning or system/developer messages",
+  "events": [
+    {
+      "at": "2026-11-13T22:32:27.408Z",
+      "type": "assistant_message",
+      "text": "I’ll follow the local guidance, add `archivedCard`, and run the existing tests and focused checks.\n"
+    },
+    {
+      "at": "2026-11-13T22:32:28.301Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat example-platform-structor/AGENTS.md\",\"workdir\":\"EVIDENCE/attempts/a-assisted\",\"max_output_tokens\":6000}));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:28.440Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"b9c42a\",\"wall_time_seconds\":0.000023057,\"exit_code\":0,\"original_token_count\":220,\"output\":\"# Example Platform AI Harness Engineering Framework Repo Guide\\n\\nThis repository is the canonical AI Harness Engineering Framework for Example Platform.\\n\\n## Read Order\\n\\n1. `./README.md`\\n2. `./ai/AGENTS.md`\\n3. `./ai/HUB.md`\\n4. `./ai/context.md`\\n5. Topical docs selected by `./ai/HUB.md`\\n\\n## Rules\\n\\n- Treat `ai/*` as canonical harness policy.\\n- Keep model-specific files thin.\\n- Keep consumer repo implementation details in consumer repos.\\n- Do not add runner, polling, PR automation, live dashboards, orchestration UI,\\n  or external writes to this harness.\\n- Read-only generated Harness Cockpit views under `ai/views/*` are review\\n  artifacts, not workflow control surfaces.\\n- Validate harness changes with `node scripts/validate-governance.mjs`.\\n- Use `node scripts/bootstrap-workspace.mjs --dry-run` before installing or\\n  refreshing workspace-level or consumer repo entrypoints.\\n\"}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:32:33.357Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat README.md ai/AGENTS.md ai/HUB.md ai/context.md\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-platform-structor\",\"max_output_tokens\":12000}));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:33.495Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"f1e656\",\"wall_time_seconds\":0.00002326,\"exit_code\":0,\"original_token_count\":2675,\"output\":\"# Example Platform AI Harness Engineering Framework\\n\\nThis repository contains the AI Harness Engineering Framework for Example Platform.\\n\\nGenerated profile: `focused`. The `focused` profile keeps the first-session\\nsurface small; `expanded` adds contracts, reviews, quality tracking, model\\noverlays, plans, views, and specialized templates.\\n\\nThe AI Harness Engineering Framework defines the selected policy, context routing,\\ntask guidance, and validation surface. It does not implement product behavior and\\nit is not a runner or orchestration runtime.\\n\\n## Client Support\\n\\nThis harness includes the client support selected during generation:\\n\\n- OpenAI/Codex enabled: `true`\\n- Anthropic/Claude Code enabled: `false`\\n- Codex hooks enabled: `false`\\n- Claude project rules deferred: `false`\\n- Claude hooks enabled: `false`\\n- Claude skills enabled: `false`\\n\\nCanonical policy lives in `ai/*`. Client-specific files are thin startup,\\noverlay, or local guardrail surfaces that route back to that canonical policy.\\nThey should not become independent policy sources.\\n\\nCodex hook support, when enabled, is intentionally conservative: deterministic,\\nlocal, bounded by short timeouts, and validated to avoid network calls, external\\nwrites, and runtime-state mutation. It is a harness guardrail, not a runner or a\\ncomplete security boundary. Hooks catch common high-risk operations and provide\\ncontextual reminders, but they do not replace sandboxing, permission controls,\\ncode review, CI policy, or secret management.\\n\\n## Expected Workspace Layout\\n\\nThis AI Harness Engineering Framework is intended to live as a sibling of the consumer\\nrepositories it governs:\\n\\n```text\\nworkspace/\\n  example-platform-structor/\\n  <consumer-repo>/\\n  <optional-second-consumer-repo>/\\n```\\n\\nThe workspace bootstrap and check scripts resolve consumer repositories from\\nthat shared parent folder.\\n\\n## Consumer Repositories\\n\\n- `example-frontend`: Synthetic ticket-card consumer\\n- `example-api`: Synthetic ticket response and schema owner\\n\\n## First Run\\n\\nValidate the AI Harness Engineering Framework:\\n\\n```sh\\nnode scripts/validate-governance.mjs\\n```\\n\\nGenerated artifact, entrypoint, and check participation lives in\\n`scripts/generated-harness-contract.mjs`. The validator uses that contract to\\nresolve required files, trusted check dependencies, and enabled client-support\\nsurfaces.\\n\\n`validate-governance.mjs` also runs client-support checks when the matching\\nsurfaces are enabled:\\n\\n- `scripts/check-codex-hooks.mjs`\\n- `scripts/check-claude-compatibility.mjs`\\n- `scripts/check-overlay-drift.mjs`\\n\\nPreview workspace-level pointer files:\\n\\n```sh\\nnode scripts/bootstrap-workspace.mjs --dry-run\\n```\\n\\nIf the preview is safe, install or refresh workspace-level pointers and verify\\nthe full layout:\\n\\n```sh\\nnode scripts/bootstrap-workspace.mjs\\nnode scripts/check-workspace.mjs\\n```\\n\\n`bootstrap-workspace.mjs` installs workspace-level `AGENTS.md` and `CLAUDE.md`\\nwhen the selected model support requires them. It skips existing files unless\\n`--force` is passed.\\n\\n## Daily Use\\n\\nAgents should start from the workspace, this harness repo, or a bootstrapped\\nconsumer repo, then follow the local `AGENTS.md` or `CLAUDE.md` entrypoint into\\n`ai/HUB.md`.\\n\\nConsumer repos own implementation, runtime behavior, local validation, and\\ndeployment checks. The harness owns shared policy, contracts, task templates,\\nreview guidance, and validation evidence expectations.\\n\\n## Validation\\n\\n```sh\\nnode scripts/validate-governance.mjs\\nnode scripts/check-workspace.mjs\\n```\\n\\nIf workspace entrypoints are missing or stale:\\n\\n```sh\\nnode scripts/bootstrap-workspace.mjs --dry-run\\nnode scripts/bootstrap-workspace.mjs\\n```\\n\\nConsumer repos should expose local install, lint, test, build, and health\\ncommands. The harness documents expected contracts and validation evidence, but\\nconsumer repos own implementation and runtime checks.\\n# Example Platform Shared AI Guide\\n\\nThis folder holds canonical shared guidance for the Example Platform AI Harness\\nEngineering Framework.\\n\\nGenerated profile: `focused`.\\n\\n## Scope\\n\\n- shared policy for AI-assisted development\\n- context routing and task shape\\n- product and repository context ready to fill from consumer repos\\n- workflow, readiness, and validation policy\\n- focused first-session guidance, with advanced policy available in the\\n  `expanded` profile\\n\\n## Rules\\n\\n- Keep shared docs model-neutral.\\n- Keep model overlays thin and synchronized.\\n- Keep consumer implementation details out of this layer.\\n- Use `ai/HUB.md` to route tasks before loading topical docs.\\n- Use `node scripts/validate-governance.mjs` for harness validation.\\n- Use `node scripts/check-workspace.mjs` when changing workspace bootstrap or\\n  consumer entrypoint behavior.\\n\\n## Coding Conventions\\n\\n- Prefer deep modules that hide decisions behind clear APIs.\\n- Keep coordination logic close to the module that owns the decision.\\n- Use precise names that make the domain model obvious.\\n- Reuse existing types, helpers, and abstractions before adding new ones.\\n- Keep diffs minimal and avoid unrelated rewrites.\\n- Comments should explain non-obvious intent, invariants, constraints, and\\n  trade-offs; do not narrate syntax.\\n- In UI or structured modules, use section markers when they improve scanning:\\n  `// PROPS`, `// STATE`, `// RQ`, `// RHF`, `// HOOKS`, `// EFFECTS`,\\n  `// METHODS`, `// VARS`, `// ARGS`, and `// PARAMS`.\\n# Example Platform Harness Hub\\n\\nThis is the canonical navigation layer for the Example Platform AI Harness\\nEngineering Framework.\\n\\n## First Session\\n\\n1. Read `./ai/context.md` and `./ai/PRODUCT-SUMMARY.md` to verify the project\\n   and repository facts.\\n2. If existing guidance was preserved, follow\\n   `./ai/tasks/populate-generated-harness.md` and review every proposed change.\\n3. Record the real work and validation flow in `./ai/WORKFLOW.md`.\\n4. Run `node scripts/validate-governance.mjs`, then use `./ai/READINESS.md`\\n   to identify the next manual review.\\n\\n## Baseline\\n\\nAlways read:\\n\\n- `./AGENTS.md`\\n- `./ai/AGENTS.md`\\n- `./ai/context.md`\\n\\n## Routing\\n\\n- Implement a change: `./ai/context.md`, `./ai/WORKFLOW.md`\\n- Diagnose a defect: `./ai/context.md`, `./ai/WORKFLOW.md`\\n- Review a change: `./ai/WORKFLOW.md`, `./ai/READINESS.md`\\n- Security-sensitive work: `./ai/WORKFLOW.md`; identify the owner and approval boundary before editing.\\n- Product or repository context: `./ai/PRODUCT-SUMMARY.md`, `./ai/context.md`\\n- Workflow or validation guidance: `./ai/WORKFLOW.md`, `./ai/READINESS.md`\\n- Implementation planning and repository-fit preparation: `./ai/WORKFLOW.md`,\\n  then repo-local entrypoints, routed guidance, analogues and affected callers\\n- Preserved-guidance population: `./ai/tasks/populate-generated-harness.md`\\n\\n- Advanced contracts, review structures, quality tracking, model overlays, plans, and specialized templates are available by setting `profile` to `expanded` and regenerating after review.\\n\\n## Load Rules\\n\\n- Load the smallest doc set that can answer the task.\\n- Add topical docs only when the task clearly needs them.\\n- Do not load every doc by default.\\n\\n## Missing Guidance\\n\\nIf a route is missing or stale, check the local entrypoint and this hub once,\\nthen inspect the repository's own documented conventions. Record the missing\\npath and ask the task owner for the smallest necessary clarification before\\nchanging a protected or unclear surface. Do not guess policy or load every doc.\\n\\nRoutes are navigation choices, not a requirement to read all reachable files.\\nGovernance proves static reachability only, not that a model reads or follows it.\\n\\n## Route Maintenance\\n\\nDeclare navigation files and exact heading names in `ai/knowledge-manifest.json`\\nunder `routingSurfaces`. Only inline code paths and Markdown link destinations\\nin those sections form edges; fenced examples, URLs and anchors are ignored.\\n`base: root` resolves paths from the harness root, including `./ai/...`;\\n`base: source` resolves from the navigation file's directory. A trailing slash\\nselects that directory's `README.md`. There is no basename search. File anchors\\ndo not change the target file. Absolute paths and lexical or symlink escapes fail.\\n\\nEvery `canonicalDocs` target must exist and be reachable from each enabled root\\nentrypoint and, in expanded output, each enabled model overlay. `linkedFrom`\\nrequires a direct exact edge from a declared surface. Reachable leaves need no\\nsurface declaration unless they also route onward. Disabled clients do not\\ncontribute entrypoints and must not be routing targets.\\n\\nDynamic filename patterns require `dynamicReferences` entries with an exact\\n`source`, exact `reference` and nonempty `reason`. Only one filename wildcard\\nwith a Markdown, JSON or HTML suffix in an existing safe directory is allowed;\\nparent traversal and directory wildcards are rejected. Exceptions never satisfy\\nrequired reachability. Remove stale exceptions. Run\\n`node scripts/validate-governance.mjs` after reviewed navigation changes.\\n# Example Platform Harness Context\\n\\n## Current Focus\\n\\n- Keep canonical AI engineering policy versioned in this harness.\\n- Make consumer repo work discoverable, bounded, and verifiable.\\n- Keep model overlays and consumer entrypoints thin.\\n\\n## Known Fragile Areas\\n\\n- Drift between model-specific overlays.\\n- Consumer repos duplicating or contradicting harness policy.\\n- Harness docs growing too large to route effectively.\\n\\n## Consumer Repos\\n\\n- `example-frontend`: Synthetic ticket-card consumer\\n- `example-api`: Synthetic ticket response and schema owner\\n\\n<!-- structor:populate:start -->\\n## Local Consumer Evidence\\n\\nRun `structor populate --dry-run` from the workspace to preview deterministic\\nlocal starter-guidance updates. Review any populated evidence before relying on\\nit as durable policy.\\n<!-- structor:populate:end -->\\n\\n## Verified synthetic source map\\n\\nThis is a library-only synthetic ticket workspace, with no service or browser.\\nSource snapshot: frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a;\\nAPI 575d29897ba046835e70b04a6a0a64090f08b59d.\\n\\n- example-frontend/README.md documents card-builder conventions.\\n- example-frontend/src/cards.mjs contains two analogous card builders and their\\n  shared factory; example-frontend/checks.mjs is a caller.\\n- example-frontend/src/priority.mjs reads the API priority field.\\n- example-api/src/ticket.mjs owns serialization; example-api/checks.mjs calls it.\\n- example-api/contracts/ticket.json is the API-owned response schema.\\n- Each package.json declares `npm test`, executing its local checks.mjs.\\n\\nRead both repositories for boundary work, but edit only the repository named by\\nthe task. Repository-local README.md and AGENTS.md remain preserved authorities.\\nNo source is copied into this context map; recheck facts against the source.\\n\"}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:32:38.077Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat ai/WORKFLOW.md ai/PRODUCT-SUMMARY.md ai/tasks/populate-generated-harness.md\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-platform-structor\",\"max_output_tokens\":10000}));\ntext(await tools.exec_command({cmd:\"rg --files -g AGENTS.md -g README.md -g package.json -g '*.mjs' -g '*.json' example-frontend example-api\",\"workdir\":\"EVIDENCE/attempts/a-assisted\",\"max_output_tokens\":4000}));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:38.201Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"9efbce\",\"wall_time_seconds\":0.000023629,\"exit_code\":0,\"original_token_count\":2089,\"output\":\"# Agent Workflow Policy\\n\\nThis is harness policy for AI-assisted engineering tasks. It is not a runtime\\ndaemon contract and it does not start or control agent sessions.\\n\\n## Load Order\\n\\n1. Read the task brief.\\n2. Read `ai/HUB.md`.\\n3. Read the smallest routed doc set needed for the task.\\n4. Read any named contract or review skill.\\n\\n## Execution Rules\\n\\n- Work only in authorized repos and paths.\\n- `repos` declares editable owners; `read_only_repos` declares inspected\\n  dependencies. Names must be canonical, distinct and non-overlapping.\\n- `execution_intent: report_only` requires empty editable owners and allowed\\n  paths, plus inspected repositories in `read_only_repos`. Implementation intent\\n  must agree with autonomy; omitted intent follows `autonomy: report_only`,\\n  otherwise it defaults to `implementation`.\\n- Single-owner implementation policy enabled: true.\\n  When enabled, concrete implementation briefs require exactly one editable\\n  owner. Read-only dependencies do not count toward that limit.\\n- Keep changes within `allowed_paths` when provided.\\n- Paths are relative to each editable owner, never to the workspace. Use\\n  `repo:path` to qualify a pattern for one canonical owner. Unqualified patterns\\n  apply to each declared owner when multi-repository implementation is enabled.\\n  Use `/` separators and simple globs (`*`, `**`, `?`, character classes); reject\\n  absolute paths, `..` segments, backslashes, braces and extglobs.\\n- Do not touch `forbidden_paths`.\\n- Make the smallest change that satisfies the task.\\n- Stop when task intent conflicts with harness contracts.\\n- State expected file changes, preserved contracts, validation commands, and\\n  unresolved risks before editing.\\n- Keep handoff notes current when work spans multiple sessions or context\\n  resets.\\n\\n## Validation Rules\\n\\n- Validate a concrete brief with `node scripts/check-task-template.mjs --file\\n  ../task.md` or `node scripts/check-issue-template.mjs --file ../issue.md`.\\n- Metadata and these static checks do not authorize implementation, constrain\\n  runtime tools, inspect symlink targets, or prove agent behavior. Scope prose\\n  must agree with metadata; these validators do not interpret prose as authority.\\n- Run every safe validation command listed in the task.\\n- Capture commands run, failures, skipped checks, and reasons.\\n- Fix validation failures in the smallest relevant scope.\\n- If validation cannot run, report the blocker explicitly instead of implying\\n  coverage.\\n\\n## Repository Fit Before Implementation\\n\\nFor a standard issue or task brief, record a compact `## Repository Fit` section\\nbefore treating the work as ready. Use these level-three evidence categories:\\n\\n- `### Guidance`: inspected repo entrypoint, routed/path-matched instructions,\\n  glossary and relevant architecture decisions, with exact files and rules.\\n- `### Analogues`: comparable local implementations and the patterns found;\\n  inspect at least two when available. If fewer exist, record where you looked\\n  and explain the absence, conflict or uncertainty instead of inventing a rule.\\n- `### Callers and Ownership`: owning modules, affected callers, boundaries and\\n  the blast radius of shared-file changes, inspected before editing.\\n- `### Conventions`: contracts to preserve, reusable types/helpers, data/query\\n  and mutation boundaries, and error/status/feedback patterns as applicable.\\n- `### Departures`: necessary departures with reasons, or an explicit account\\n  that none are needed. Stop for existing architecture review before coding a\\n  sensitive change to ownership, routing, repo boundaries, data flow or shared\\n  abstractions. Unresolved protected architecture changes block implementation.\\n- `### Validation and Browser Evidence`: relevant checks, their coverage and\\n  browser evidence needed for affected UI flows/states, or why it cannot be\\n  collected. Distinguish planned checks from actual results.\\n\\nFollow the repo's existing architecture-review route. Expanded harnesses also\\nindex their architecture review skill through the Hub; focused harnesses do not\\nneed expanded files to apply this policy. Record the review outcome and resolve\\nblocking findings before proceeding. A structurally valid brief is not review\\napproval.\\n\\nTiny tasks still inspect the local instructions, changed surface and relevant\\ncheck, but do not require Repository Fit or long-form planning. Task size never\\nwaives protected-surface approval or architecture review when applicable.\\n\\nValidate concrete briefs with:\\n\\n```sh\\nnode scripts/check-issue-template.mjs --file ../issue.md\\nnode scripts/check-task-template.mjs --file ../task.md\\n```\\n\\nThese read-only checks require the section and nonempty evidence categories;\\nthey do not judge whether an analogue, departure or architecture decision is\\ncorrect, verify that inspection happened, or require particular prose.\\n\\n## Validation Evidence Selection\\n\\nUse the consumer repo's documented checks and existing test seams. Choose\\nfocused checks for changed behavior, then the required integration gates; record\\nthe command, working repo, exit status, relevant output and any skipped check\\nwith its reason. Do not invent commands or report planned checks as passed.\\n\\nFor UI changes, collect relevant browser evidence for the affected flows, states\\nand viewports, including interactions when behavior changes. Record what was\\nactually observed and where the evidence can be inspected. If browser evidence\\nwas not collected, state the reason and remaining uncertainty explicitly.\\nStatic validation alone does not prove UI behavior or agent effectiveness.\\n\\n## Handoff Rules\\n\\nLong-running work should leave enough state for a fresh agent to continue\\nwithout reconstructing intent from chat:\\n\\n- current goal and accepted non-goals\\n- files changed and files intentionally avoided\\n- validation already run and remaining validation\\n- decisions made and open questions\\n- known risks, rollback path, and human approval gates\\n# Example Platform Product Summary\\n\\nThis document captures the short product context agents need before proposing\\nor changing user-facing behavior.\\n\\n## Product\\n\\n- Name: Example Platform\\n- Primary consumer repo: example-frontend\\n- Consumer repos:\\n- `example-frontend`: Synthetic ticket-card consumer\\n- `example-api`: Synthetic ticket response and schema owner\\n\\n## Users\\n\\n- Primary users are defined as any actors that consume the product surface from\\n  example-frontend or downstream consumer repos.\\n- Product value is measured by how reliably each actor reaches intended outcome\\n  with the fewest failure handoffs.\\n\\n## Core Workflows\\n\\n- Keep a single workflow map per critical actor in the relevant task brief.\\n- Track entrypoint, validation, decision points, and durable handoff/output.\\n- Link detailed specs or active task briefs when they exist.\\n\\n## Current Focus\\n\\n- Keep this section short and update it when product direction changes.\\n# Populate Generated Harness Task\\n\\nUse `ai/templates/populate-generated-harness-prompt.md` for the populate-generated-harness prompt.\\n\\n## example-frontend\\n\\nConsumer repo:\\n  `./example-frontend`\\nGenerated harness:\\n  `./example-platform-structor`\\nPreserved guidance:\\n  `.structor/preserved-guidance/2026-11-13T22-31-00`\\nMigration targets:\\n  ai/context.md\\n  ai/HUB.md\\n  ai/PRODUCT-SUMMARY.md\\n  ai/WORKFLOW.md\\n  ai/READINESS.md\\n\\n## example-api\\n\\nConsumer repo:\\n  `./example-api`\\nGenerated harness:\\n  `./example-platform-structor`\\nPreserved guidance:\\n  `.structor/preserved-guidance/2026-11-13T22-31-00`\\nMigration targets:\\n  ai/context.md\\n  ai/HUB.md\\n  ai/PRODUCT-SUMMARY.md\\n  ai/WORKFLOW.md\\n  ai/READINESS.md\\n\\n## Behavior\\n\\n- If preserved guidance exists, use preserved guidance plus repo scan evidence.\\n- If no preserved guidance exists, use repo scan evidence only.\\n- This task is required before the harness is considered guidance-ready.\\n- Structor does not mechanically certify guidance readiness.\\n\\n## Recommended Workflow\\n\\n1. Run `structor init`.\\n2. Verify the generated harness bootstrap.\\n3. Populate the harness with repo analysis.\\n4. Validate the populated harness by checking navigation, references, and commands.\\n5. Write a final report with the verification evidence and remaining risks.\\n\\nUse a frontier model such as GPT-5.5 or Opus 4.8 for the populate step. Manually\\nverify generated content, navigation, references, and commands before treating\\nthe harness as guidance-ready.\\n\"}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"75802a\",\"wall_time_seconds\":0.000025124,\"exit_code\":0,\"original_token_count\":83,\"output\":\"example-api/AGENTS.md\\nexample-api/checks.mjs\\nexample-api/README.md\\nexample-api/package.json\\nexample-frontend/package.json\\nexample-frontend/AGENTS.md\\nexample-frontend/checks.mjs\\nexample-frontend/README.md\\nexample-frontend/src/priority.mjs\\nexample-frontend/src/cards.mjs\\nexample-api/src/ticket.mjs\\nexample-api/contracts/ticket.json\\n\"}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:32:43.664Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat AGENTS.md README.md package.json src/cards.mjs checks.mjs\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":9000}));\ntext(await tools.exec_command({cmd:\"rg --files --hidden .structor/preserved-guidance\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":4000}));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:43.790Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"eba16a\",\"wall_time_seconds\":0.000015642,\"exit_code\":0,\"original_token_count\":615,\"output\":\"# example-frontend Agent Guide\\n\\nThis consumer repository is governed by the Example Platform AI Harness\\nEngineering Framework.\\n\\n## Harness\\n\\nRead the harness first:\\n\\n1. Root guide: `../example-platform-structor/AGENTS.md`\\n2. Shared guide: `../example-platform-structor/ai/AGENTS.md`\\n3. Hub: `../example-platform-structor/ai/HUB.md`\\n4. Context: `../example-platform-structor/ai/context.md`\\n\\n## Preserved Guidance\\n\\nExisting root guidance was preserved at:\\n`.structor/preserved-guidance/2026-11-13T22-31-00`\\n\\nPopulate the generated harness before relying on it for real project work.\\nUse the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8.\\nManually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.\\n\\n## Local Purpose\\n\\nSynthetic ticket-card consumer\\n\\n## Local Validation\\n\\n- test: `npm test`\\n\\nKeep this file short. Canonical policy belongs in the harness.\\n# Example frontend\\n\\nSynthetic ticket-card library. No browser or installed dependencies are needed.\\nRun `npm test` for the existing smoke checks.\\n\\n`src/cards.mjs` owns card presentation. New card builders follow the two\\nexisting builders: use the shared title normalizer and frozen card factory;\\npreserve their input errors, key shape and immutable results.\\n`src/priority.mjs` consumes the API's `priority` wire field. The API repository\\nowns the response contract; do not duplicate its schema here.\\n{\\n  \\\"name\\\": \\\"example-frontend\\\",\\n  \\\"private\\\": true,\\n  \\\"type\\\": \\\"module\\\",\\n  \\\"scripts\\\": { \\\"test\\\": \\\"node checks.mjs\\\" }\\n}\\nfunction normalizeTitle(title) {\\n  if (typeof title !== \\\"string\\\") throw new TypeError(\\\"title must be a string\\\");\\n  return title.trim().replace(/\\\\s+/g, \\\" \\\");\\n}\\n\\nfunction makeCard(state, title) {\\n  return Object.freeze({ state, title: normalizeTitle(title) });\\n}\\n\\nexport function activeCard(title) {\\n  return makeCard(\\\"active\\\", title);\\n}\\n\\nexport function queuedCard(title) {\\n  return makeCard(\\\"queued\\\", title);\\n}\\nimport assert from \\\"node:assert/strict\\\";\\nimport { activeCard, queuedCard } from \\\"./src/cards.mjs\\\";\\nimport { priorityLabel } from \\\"./src/priority.mjs\\\";\\n\\nassert.deepEqual(activeCard(\\\"  A   title \\\"), { state: \\\"active\\\", title: \\\"A title\\\" });\\nassert.equal(Object.isFrozen(queuedCard(\\\"Queue\\\")), true);\\nassert.throws(() => activeCard(null), TypeError);\\nassert.equal(priorityLabel({ priority: \\\"high\\\" }), \\\"High priority\\\");\\nconsole.log(\\\"frontend smoke: passed\\\");\\n\"}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"e2a567\",\"wall_time_seconds\":0.000027125,\"exit_code\":0,\"original_token_count\":46,\"output\":\".structor/preserved-guidance/2026-11-13T22-31-00/AGENTS.md\\n.structor/preserved-guidance/2026-11-13T22-31-00/manifest.json\\n.structor/preserved-guidance/2026-11-13T22-31-00/README.md\\n\"}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:32:49.641Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat .structor/preserved-guidance/2026-11-13T22-31-00/AGENTS.md .structor/preserved-guidance/2026-11-13T22-31-00/README.md .structor/preserved-guidance/2026-11-13T22-31-00/manifest.json src/priority.mjs\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":5000}));\ntext(await tools.exec_command({cmd:\"git status --short --branch\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":4000}));\ntext(await tools.exec_command({cmd:\"cat AGENTS.md README.md package.json checks.mjs src/ticket.mjs contracts/ticket.json\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-api\",\"max_output_tokens\":6000}));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:49.814Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"d0e0e9\",\"wall_time_seconds\":0.000019933,\"exit_code\":0,\"original_token_count\":433,\"output\":\"# Local guidance\\n\\nRead README.md, the relevant source and its callers before editing. Keep changes\\ninside the task's editable repository. Run `npm test`. No network is needed.\\n# Preserved Guidance\\n\\nStructor found existing root guidance files before generating Structor root\\nentrypoints.\\n\\nThese files were preserved as local source material. Structor did not delete,\\nupload, merge, analyze, or reinterpret them.\\n\\nUse the generated populate-generated-harness task in the Structor harness with\\na frontier model such as GPT-5.5 or Opus 4.8 to review this material and\\nmigrate still-relevant repo-specific knowledge into canonical harness docs.\\n\\nManually verify generated content, navigation, references, and commands before\\ntreating the harness as guidance-ready.\\n\\nDo not blindly copy this guidance. Verify paths, commands, architecture claims,\\nand workflow rules against the current consumer repo.\\n{\\n  \\\"createdBy\\\": \\\"structor\\\",\\n  \\\"createdAt\\\": \\\"2026-11-13T22:31:00.726Z\\\",\\n  \\\"reason\\\": \\\"Existing root guidance files were preserved before Structor generated new root entrypoints.\\\",\\n  \\\"consumer\\\": {\\n    \\\"name\\\": \\\"example-frontend\\\",\\n    \\\"path\\\": \\\"./example-frontend\\\"\\n  },\\n  \\\"preservedFiles\\\": [\\n    {\\n      \\\"source\\\": \\\"AGENTS.md\\\",\\n      \\\"preservedAs\\\": \\\".structor/preserved-guidance/2026-11-13T22-31-00/AGENTS.md\\\"\\n    }\\n  ],\\n  \\\"additionalGuidanceCandidates\\\": [],\\n  \\\"nextStep\\\": \\\"Run the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8, then manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.\\\"\\n}\\nexport function priorityLabel(ticket) {\\n  return ticket.priority === \\\"high\\\" ? \\\"High priority\\\" : \\\"Normal priority\\\";\\n}\\n\"}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"e5619c\",\"wall_time_seconds\":0.000016436,\"exit_code\":0,\"original_token_count\":9,\"output\":\"## main\\n M AGENTS.md\\n?? .structor/\\n\"}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"f3b27c\",\"wall_time_seconds\":0.000017712,\"exit_code\":0,\"original_token_count\":528,\"output\":\"# example-api Agent Guide\\n\\nThis consumer repository is governed by the Example Platform AI Harness\\nEngineering Framework.\\n\\n## Harness\\n\\nRead the harness first:\\n\\n1. Root guide: `../example-platform-structor/AGENTS.md`\\n2. Shared guide: `../example-platform-structor/ai/AGENTS.md`\\n3. Hub: `../example-platform-structor/ai/HUB.md`\\n4. Context: `../example-platform-structor/ai/context.md`\\n\\n## Preserved Guidance\\n\\nExisting root guidance was preserved at:\\n`.structor/preserved-guidance/2026-11-13T22-31-00`\\n\\nPopulate the generated harness before relying on it for real project work.\\nUse the generated populate-generated-harness task in the Structor harness with a frontier model such as GPT-5.5 or Opus 4.8.\\nManually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.\\n\\n## Local Purpose\\n\\nSynthetic ticket response and schema owner\\n\\n## Local Validation\\n\\n- test: `npm test`\\n\\nKeep this file short. Canonical policy belongs in the harness.\\n# Example API\\n\\nSynthetic ticket response serializer. Run `npm test`; no installed dependencies,\\nserver, credentials or network are needed.\\n\\n`src/ticket.mjs` owns the wire response. `contracts/ticket.json` is the API-owned\\nresponse schema, consumed by the sibling example-frontend. Change the serializer\\nand its contract together. Extra internal input fields must not leak to the wire.\\n{\\n  \\\"name\\\": \\\"example-api\\\",\\n  \\\"private\\\": true,\\n  \\\"type\\\": \\\"module\\\",\\n  \\\"scripts\\\": { \\\"test\\\": \\\"node checks.mjs\\\" }\\n}\\nimport assert from \\\"node:assert/strict\\\";\\nimport { serializeTicket } from \\\"./src/ticket.mjs\\\";\\n\\nconst response = serializeTicket({ id: \\\"t1\\\", title: \\\"Example\\\", internal: \\\"omit\\\" });\\nassert.equal(response.id, \\\"t1\\\");\\nassert.equal(response.title, \\\"Example\\\");\\nassert.equal(\\\"internal\\\" in response, false);\\nconsole.log(\\\"API smoke: passed\\\");\\nexport function serializeTicket(ticket) {\\n  return { id: ticket.id, title: ticket.title };\\n}\\n{\\n  \\\"title\\\": \\\"Ticket response\\\",\\n  \\\"type\\\": \\\"object\\\",\\n  \\\"additionalProperties\\\": false,\\n  \\\"required\\\": [\\\"id\\\", \\\"title\\\"],\\n  \\\"properties\\\": {\\n    \\\"id\\\": { \\\"type\\\": \\\"string\\\" },\\n    \\\"title\\\": { \\\"type\\\": \\\"string\\\" }\\n  }\\n}\\n\"}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:32:54.925Z",
+      "type": "assistant_message",
+      "text": "The two builders share `makeCard`, which normalizes titles, preserves the `{ state, title }` shape, freezes results, and throws for non-string titles. I’ll add `archivedCard` through that factory in `example-frontend/src/cards.mjs`, then run both packages’ smoke tests and focused checks for the new builder. No contract change or unresolved risk is apparent.\n"
+    },
+    {
+      "at": "2026-11-13T22:32:57.630Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "text(await tools.exec_command({cmd:\"cat .structor/preserved-guidance/2026-11-13T22-31-00/AGENTS.md\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-api\",\"max_output_tokens\":2000}));\ntext(await tools.apply_patch(\"*** Begin Patch\\n*** Update File: EVIDENCE/attempts/a-assisted/example-frontend/src/cards.mjs\\n@@\\n export function queuedCard(title) {\\n   return makeCard(\\\"queued\\\", title);\\n }\\n+\\n+export function archivedCard(title) {\\n+  return makeCard(\\\"archived\\\", title);\\n+}\\n*** End Patch\"));\n"
+    },
+    {
+      "at": "2026-11-13T22:32:57.718Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"chunk_id\":\"5c30f3\",\"wall_time_seconds\":0.0000148,\"exit_code\":0,\"original_token_count\":44,\"output\":\"# Local guidance\\n\\nRead README.md, the relevant source and its callers before editing. Keep changes\\ninside the task's editable repository. Run `npm test`. No network is needed.\\n\"}"
+        },
+        {
+          "type": "input_text",
+          "text": "{}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:33:08.679Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "const results = await Promise.allSettled([\ntools.exec_command({cmd:\"npm test\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":3000}),\ntools.exec_command({cmd:\"npm test\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-api\",\"max_output_tokens\":3000}),\ntools.exec_command({cmd:\"node --input-type=module <<'NODE'\\nimport assert from 'node:assert/strict';\\nimport { activeCard, queuedCard, archivedCard } from './src/cards.mjs';\\nfor (const [build, state] of [[activeCard, 'active'], [queuedCard, 'queued'], [archivedCard, 'archived']]) {\\n  for (const [input, expected] of [['  A\\\\t title\\\\n ', 'A title'], ['', ''], [' \\\\t\\\\n ', ''], ['Résumé  \\\\u00a0 title', 'Résumé title']]) {\\n    const card = build(input);\\n    assert.deepEqual(card, { state, title: expected });\\n    assert.deepEqual(Reflect.ownKeys(card), ['state', 'title']);\\n    assert.equal(Object.isFrozen(card), true);\\n    assert.throws(() => { card.title = 'changed'; }, TypeError);\\n    assert.throws(() => { card.extra = true; }, TypeError);\\n  }\\n  for (const invalid of [undefined, null, 1, true, {}, [], new String('title'), Symbol('title')]) {\\n    assert.throws(() => build(invalid), { name: 'TypeError', message: 'title must be a string' });\\n  }\\n  assert.notEqual(build('same'), build('same'));\\n}\\nconsole.log('card builder parity: passed');\\nNODE\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":3000})\n]);\nfor(let i=0;i<results.length;i++) text({check:i,...results[i]});\n"
+    },
+    {
+      "at": "2026-11-13T22:33:08.926Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.2 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"check\":0,\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"19842d\",\"wall_time_seconds\":0.037099549,\"exit_code\":0,\"original_token_count\":13,\"output\":\"\\n> test\\n> node checks.mjs\\n\\nfrontend smoke: passed\\n\"}}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"check\":1,\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"70b372\",\"wall_time_seconds\":0.046761934,\"exit_code\":0,\"original_token_count\":12,\"output\":\"\\n> test\\n> node checks.mjs\\n\\nAPI smoke: passed\\n\"}}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"check\":2,\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"3fdc34\",\"wall_time_seconds\":0.000021834,\"exit_code\":0,\"original_token_count\":7,\"output\":\"card builder parity: passed\\n\"}}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:33:15.557Z",
+      "type": "tool_call",
+      "name": "exec",
+      "input": "const results = await Promise.allSettled([\ntools.exec_command({cmd:\"git diff --check\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":2000}),\ntools.exec_command({cmd:\"git diff -- src/cards.mjs\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":2000}),\ntools.exec_command({cmd:\"git status --short\",\"workdir\":\"EVIDENCE/attempts/a-assisted/example-frontend\",\"max_output_tokens\":2000}),\n]);\nfor (const result of results) text(result);\n"
+    },
+    {
+      "at": "2026-11-13T22:33:15.638Z",
+      "type": "tool_output",
+      "output": [
+        {
+          "type": "input_text",
+          "text": "Script completed\nWall time 0.1 seconds\nOutput:\n"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"c73d82\",\"wall_time_seconds\":0.000017366,\"exit_code\":0,\"original_token_count\":0,\"output\":\"\"}}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"8e3be9\",\"wall_time_seconds\":0.000032189,\"exit_code\":0,\"original_token_count\":82,\"output\":\"diff --git a/src/cards.mjs b/src/cards.mjs\\nindex cb63095..d8471e7 100644\\n--- a/src/cards.mjs\\n+++ b/src/cards.mjs\\n@@ -14,3 +14,7 @@ export function activeCard(title) {\\n export function queuedCard(title) {\\n   return makeCard(\\\"queued\\\", title);\\n }\\n+\\n+export function archivedCard(title) {\\n+  return makeCard(\\\"archived\\\", title);\\n+}\\n\"}}"
+        },
+        {
+          "type": "input_text",
+          "text": "{\"status\":\"fulfilled\",\"value\":{\"chunk_id\":\"dfce65\",\"wall_time_seconds\":0.000021521,\"exit_code\":0,\"original_token_count\":11,\"output\":\" M AGENTS.md\\n M src/cards.mjs\\n?? .structor/\\n\"}}"
+        }
+      ]
+    },
+    {
+      "at": "2026-11-13T22:33:22.920Z",
+      "type": "assistant_message",
+      "text": "Added exported `archivedCard(title)` in `example-frontend/src/cards.mjs`, using the existing frozen factory with state `\"archived\"`.\n\n- Inspected harness `AGENTS.md`, README, shared guide, HUB, context, workflow, product summary and preserved-guidance route; consumer guides, READMEs, preserved instructions, source and callers.\n- Both packages’ `npm test` passed.\n- Additional local checks passed for all builders: title normalization, exact keys, frozen results, mutation rejection and matching input errors.\n- `git diff --check` passed.\n\nOnly `example-frontend/src/cards.mjs` was changed by this attempt. Existing guidance changes were preserved. No commits, network, installations or report file. Remaining risks/questions: none identified."
+    }
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "comparison.config.json": "9d00ec67f570bc0f364d141eaecdf089d324dddaed92eb822716bfc370add687",
+  "example-api/package.json": "a9410298226e9d1785eaf0a8c69b28feac9d5a7e5d223278ced868449a631050",
+  "example-api/README.md": "a7b45f72179a440c6dcde57b74c0e77a9e2a1afac788a724f54792fcbe69a068",
+  "example-api/checks.mjs": "4222a4ca53dfe57b734f9f25c27021e62d63d50fe36bb8ab63dd1977cde566df",
+  "example-api/AGENTS.md": "1e2a87299653bae6e055ec48337a92c11a7bfeed017cc7a7354f1a06394eefc8",
+  "example-frontend/package.json": "b2a3976872884daa0cfd67da44cb7feb4fdc12bf67df2e477054cded9813212c",
+  "example-frontend/README.md": "bf191f0386d36152481b8b812b2f35c4aa726dadc53be22773167b54b547a2fb",
+  "example-frontend/checks.mjs": "aa09ede99719092c41c8724358363e0e7fca1ed82a88817222c82d9382a603ef",
+  "example-frontend/AGENTS.md": "1e2a87299653bae6e055ec48337a92c11a7bfeed017cc7a7354f1a06394eefc8",
+  "example-frontend/src/cards.mjs": "458291401db56762846505f1d597fd5a1a22a73e71d6d2cb8bc7aca7f3bcd147",
+  "example-frontend/src/priority.mjs": "276e04dd036df5fabcb5b03f0e08583f6ebe0988cf216025b49c70547f713157",
+  "example-api/src/ticket.mjs": "18640810c8704af15f760aae8b117c29ef7d2b75746228ab7f0161372bfbe0db",
+  "example-api/contracts/ticket.json": "aa9b071e706979cf61a3eb3808a3999dbe4271eb1e53cf3c1255314f870913e2"
+}

@@ -1,0 +1,15 @@
+{
+  "evaluatedRevision": "c9123b44374fac68523efe207ee0a6882b2b8ad4",
+  "registrationRevision": "73dc08fc4b56732bea27035b0212a736c80e76be",
+  "packageName": "@structor-dev/cli",
+  "version": "0.2.4",
+  "tarball": "structor-dev-cli-0.2.4.tgz",
+  "tarballSha256": "104deb6e0a083ad831f4c04416a58d245488baa689e091d02ca809e81ed33e5a",
+  "sourceAndInstalledFilesMatched": 182,
+  "node": "24.22.1",
+  "npm": "12.2.2",
+  "validationExit": 0,
+  "tests": 310,
+  "failures": 0,
+  "git": "2.53.0"
+}

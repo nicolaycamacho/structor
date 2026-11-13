@@ -5,6 +5,7 @@ under [#148](https://github.com/nicolaycamacho/structor/issues/148).
 It contains no private source or real customer material.
 
 - [Preregistered protocol](PROTOCOL.md): tasks, conditions, time bound and rubric.
+- [Observed results](RESULTS.md): measured outcomes, limitations and evidence links.
 - [Seed repositories](seed/): a frontend library and its API/schema owner.
 - [Population source map](population-context.md): the assisted context addition.
 - [Evaluator checks](evaluator/acceptance.mjs): kept outside attempt contexts.

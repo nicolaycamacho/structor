@@ -1,0 +1,27 @@
+{
+  "condition": "a-baseline",
+  "scoredAt": "2026-11-13T22:32:13.330539+00:00",
+  "commands": [
+    {
+      "cwd": "example-frontend",
+      "command": "npm test",
+      "exit": 0,
+      "output": "\n> test\n> node checks.mjs\n\nfrontend smoke: passed\n"
+    },
+    {
+      "cwd": "example-api",
+      "command": "npm test",
+      "exit": 0,
+      "output": "\n> test\n> node checks.mjs\n\nAPI smoke: passed\n"
+    },
+    {
+      "cwd": "public-comparison",
+      "command": "node evaluator/acceptance.mjs A WORKSPACE",
+      "exit": 0,
+      "output": "task A acceptance: passed\n"
+    }
+  ],
+  "changedFiles": [
+    "example-frontend/src/cards.mjs"
+  ]
+}
