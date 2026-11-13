@@ -46,7 +46,9 @@ honest lower-maturity inventory.
 C5 explicitly opts into blocking policy: declare exact governed files and a
 reviewed content baseline for their source, documentation and evidence hashes.
 Changed governed files require matching current evidence and documentation
-updates. Missing sources, incomplete or scope-mismatched baselines, and stale
+updates. A documentation source-fingerprint marker binds each successive refresh
+to the current evidence sources so an earlier update cannot cover a later change.
+Missing sources, incomplete or scope-mismatched baselines, and stale
 evidence fail C5. Unchanged files need no artificial updates. The canonical
 contract guide explains checkpoint creation, hashing and refresh. This local
 policy uses no runner, network checks or automatically executed manifest commands.

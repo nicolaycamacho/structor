@@ -204,6 +204,10 @@ async function evidenceFixture(harnessRoot, level = "C4 Validated") {
   await writeFile(sourcePath, '{"input":"widget"}\n');
   const manifest = JSON.parse(await readFile(manifestPath, "utf8"));
   const source = { repo: "example-app", path: "boundary.json", sha256: digest(await readFile(sourcePath)) };
+  if (level === "C5 Governed") {
+    const marker = digest(canonicalEvidence([source]));
+    await writeFile(docPath, `${await readFile(docPath, "utf8")}\n<!-- structor:contract-sources-sha256 ${marker} -->\n`);
+  }
   const documentationSha256 = digest(await readFile(docPath));
   manifest.maturity = {
     level, scope: "Synthetic widget input declaration", limitations: ["No behavior or prose correctness checked"],
@@ -274,6 +278,8 @@ test("C5 unchanged surfaces pass; changed surfaces require matching evidence and
     result = checkContracts(harnessRoot);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /documentationSha256 is stale/);
+    const marker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `${await readFile(docPath, "utf8")}<!-- structor:contract-sources-sha256 ${marker} -->\n`);
     manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
     await save();
     result = checkContracts(harnessRoot);
@@ -369,5 +375,35 @@ test("new evidence metadata has a machine-readable shape while low-maturity evid
       assert.match(result.stderr, /Advisory:.*evidence/);
       assert.match(result.stderr, /governance is inactive/);
     }
+  });
+});
+
+test("C5 requires a new documentation update on every consecutive source refresh", async () => {
+  await withHarness({}, async (harnessRoot) => {
+    const { manifest, sourcePath, docPath, save } = await evidenceFixture(harnessRoot, "C5 Governed");
+    // First complete change, still compared with the initial reviewed checkpoint.
+    await writeFile(sourcePath, "second declaration\n");
+    manifest.maturity.evidence.sources[0].sha256 = digest(await readFile(sourcePath));
+    manifest.maturity.evidence.observation = "The second declaration was reviewed";
+    const marker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `# Second declaration\n<!-- structor:contract-sources-sha256 ${marker} -->\n`);
+    manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
+    await save();
+    let result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    // A second change cannot reuse the first change's documentation update.
+    await writeFile(sourcePath, "third declaration\n");
+    manifest.maturity.evidence.sources[0].sha256 = digest(await readFile(sourcePath));
+    manifest.maturity.evidence.observation = "The third declaration was reviewed";
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stderr, /documentation.*source fingerprint.*refresh/);
+    const refreshedMarker = digest(canonicalEvidence(manifest.maturity.evidence.sources));
+    await writeFile(docPath, `# Third declaration\n<!-- structor:contract-sources-sha256 ${refreshedMarker} -->\n`);
+    manifest.maturity.evidence.documentationSha256 = digest(await readFile(docPath));
+    await save();
+    result = checkContracts(harnessRoot);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
   });
 });

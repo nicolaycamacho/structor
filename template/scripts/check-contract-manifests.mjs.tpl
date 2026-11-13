@@ -94,7 +94,7 @@ function sourcesShape(sources, label, findings, snapshots = true) {
   return findings.length === start;
 }
 
-async function sourceDigest(source) {
+async function sourceBytes(source) {
   const root = sourceRoots.get(source.repo);
   if (!root) throw new Error(`unknown repo ${source.repo}; use the harness name or a configured consumer name`);
   if (!nonempty(source.path) || path.isAbsolute(source.path) || source.path.includes("\\") || /[*?\[\]]/.test(source.path) ||
@@ -109,7 +109,11 @@ async function sourceDigest(source) {
       !(await stat(canonicalTarget)).isFile()) {
     throw new Error("source must resolve to a regular file inside its declared repository");
   }
-  return sha256(await readFile(canonicalTarget));
+  return readFile(canonicalTarget);
+}
+
+async function sourceDigest(source) {
+  return sha256(await sourceBytes(source));
 }
 
 async function reportMaturityEvidence(maturity, manifestPath) {
@@ -130,8 +134,11 @@ async function reportMaturityEvidence(maturity, manifestPath) {
   findings.push(...evidenceShape);
   const docPath = manifestPath.replace(contractFileSuffix, docFileSuffix);
   let documentationDigest;
+  let documentation;
   try {
-    documentationDigest = await sourceDigest({ repo: "{{HARNESS_REPO_NAME}}", path: docPath });
+    const bytes = await sourceBytes({ repo: "{{HARNESS_REPO_NAME}}", path: docPath });
+    documentationDigest = sha256(bytes);
+    documentation = bytes.toString("utf8");
   } catch (error) {
     findings.push(`${label}.evidence: cannot read sibling documentation ${docPath}: ${error.message}.`);
   }
@@ -152,6 +159,13 @@ async function reportMaturityEvidence(maturity, manifestPath) {
   if (maturity.level !== "C5 Governed") {
     if (Object.hasOwn(maturity, "governance")) findings.push(`${label}.governance is inactive; only C5 Governed opts into blocking enforcement.`);
     return findings;
+  }
+  if (evidenceShape.length === 0 && documentation !== undefined) {
+    const marker = `<!-- structor:contract-sources-sha256 ${sha256(canonicalJson(evidence.sources))} -->`;
+    const markers = documentation.split(/\r?\n/).filter((line) => line.startsWith("<!-- structor:contract-sources-sha256 "));
+    if (markers.length !== 1 || markers[0] !== marker) {
+      findings.push(`${label}: documentation source fingerprint is missing or stale; review ${docPath}, refresh its single ${marker} line, then refresh evidence.documentationSha256.`);
+    }
   }
   const governance = maturity.governance;
   const governanceShape = [];

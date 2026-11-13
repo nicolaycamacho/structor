@@ -134,8 +134,21 @@ and unsupported evidence fail C5. Unchanged surfaces pass with current evidence;
 they do not require artificial documentation updates. When any governed surface
 differs from its baseline hash, current evidence must cover every governed file,
 the sibling documentation must differ from its checkpoint hash, and the evidence
-record must differ from its checkpoint hash. Updating only documentation or only
-evidence cannot satisfy this policy. Extra evidence sources remain allowed and
+record must differ from its checkpoint hash. The sibling documentation must
+also contain exactly one current source fingerprint on its own line:
+
+```text
+<!-- structor:contract-sources-sha256 SHA256_OF_CANONICAL_EVIDENCE_SOURCES -->
+```
+
+Replace the uppercase label with the SHA-256 of the canonical JSON for the
+current `evidence.sources` array, using the same algorithm below. This binds the
+documentation to each successive source refresh: a previous documentation update
+cannot satisfy a later source change merely because it differs from an old
+checkpoint. Update the prose after review and refresh the marker before hashing
+the documentation for evidence. The marker proves an update, not prose accuracy.
+
+Updating only documentation or only evidence cannot satisfy this policy. Extra evidence sources remain allowed and
 are also checked for freshness.
 
 This is a file-content checkpoint, not a Git revision, timestamp or automatic
@@ -152,18 +165,22 @@ review; directories and glob-based discovery are outside this bounded policy.
 ### Record And Refresh A Checkpoint
 
 1. Map the boundary and run the declared local check or manual observation.
-2. Record its source hashes, sibling documentation hash, observation, result and
-   limitations in `maturity.evidence`. Select the exact governed files.
+2. Record source hashes, observation, result and limitations in
+   `maturity.evidence`. Select the exact governed files. Compute and insert the
+   source fingerprint marker, then record the sibling documentation hash.
 3. For the initial reviewed checkpoint, copy snapshots for those files into
-   `governance.baseline.sources` and record the documentation and evidence hashes.
+   `governance.baseline.sources` and record the documentation hash. Compute the
+   evidence hash after its documentation hash is final, then record it too.
 4. On a governed change, rerun the relevant check, update the sibling contract,
-   and refresh evidence for the new bytes. Keep the checkpoint for comparison.
+   refresh the source fingerprint marker, and refresh evidence for the new bytes.
+   Keep the checkpoint for comparison.
 5. Run `node scripts/check-contract-manifests.mjs`, then
    `node scripts/validate-governance.mjs`. Review any advisories as evidence gaps.
 
 For `evidenceSha256`, hash UTF-8 JSON with recursively sorted object keys, array
 order preserved and no whitespace. This local snippet prints the evidence hash
-for a reviewed manifest; it does not modify the manifest or run its check:
+and documentation marker for a reviewed manifest; it does not modify the
+manifest or run its check:
 
 ```js
 import { createHash } from "node:crypto";
@@ -177,7 +194,9 @@ function canonical(value) {
   }
   return JSON.stringify(value);
 }
-console.log(createHash("sha256").update(canonical(manifest.maturity.evidence)).digest("hex"));
+const hash = (value) => createHash("sha256").update(canonical(value)).digest("hex");
+console.log("Evidence checkpoint hash:", hash(manifest.maturity.evidence));
+console.log(`<!-- structor:contract-sources-sha256 ${hash(manifest.maturity.evidence.sources)} -->`);
 ```
 
 Save it as a local `.mjs` helper and pass the manifest path as its first argument.
