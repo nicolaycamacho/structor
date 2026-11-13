@@ -23,6 +23,32 @@ import {
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const cliPath = path.join(repoRoot, "bin/structor.mjs");
 
+// Fixture construction and diagnostic subprocesses share one bounded Git environment.
+// Keep repo-local config visible so the unsafe filter/submodule cases stay meaningful.
+const fixtureGitEnv = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_ATTR_NOSYSTEM: "1",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_OPTIONAL_LOCKS: "0",
+};
+const fixtureGitConfig = {
+  "core.hooksPath": "/dev/null",
+  "core.attributesFile": "/dev/null",
+  "core.autocrlf": "false",
+  "commit.gpgSign": "false",
+  "tag.gpgSign": "false",
+  "init.templateDir": "",
+  "init.defaultBranch": "main",
+};
+fixtureGitEnv.GIT_CONFIG_COUNT = String(Object.keys(fixtureGitConfig).length);
+Object.entries(fixtureGitConfig).forEach(([key, value], index) => {
+  fixtureGitEnv[`GIT_CONFIG_KEY_${index}`] = key;
+  fixtureGitEnv[`GIT_CONFIG_VALUE_${index}`] = value;
+});
+
 async function withTempDir(run) {
   const dir = await mkdtemp(path.join(os.tmpdir(), "structor-cli-test-"));
   try {
@@ -36,6 +62,7 @@ function runCli(args, cwd = repoRoot) {
   return spawnSync(process.execPath, [cliPath, ...args], {
     cwd,
     encoding: "utf8",
+    env: fixtureGitEnv,
   });
 }
 
@@ -47,6 +74,7 @@ function runSetupContributor(args = []) {
   return spawnSync(process.execPath, [path.join(repoRoot, "scripts/setup-contributor.mjs"), ...args], {
     cwd: repoRoot,
     encoding: "utf8",
+    env: fixtureGitEnv,
   });
 }
 
@@ -78,7 +106,7 @@ console.log("fixture setup complete");
     ["add", "."],
     ["-c", "user.email=fixture.invalid", "-c", "user.name=Fixture", "commit", "-m", "fixture"],
   ]) {
-    const result = spawnSync("git", args, { cwd: fixtureRoot, encoding: "utf8" });
+    const result = spawnSync("git", args, { cwd: fixtureRoot, encoding: "utf8", env: fixtureGitEnv });
     assertSuccess(result, `git ${args.join(" ")}`);
   }
 
@@ -130,12 +158,14 @@ async function createDoctorWorkspace({ validation = { test: "npm test" }, profil
   ], {
     cwd: workspaceRoot,
     encoding: "utf8",
+    env: fixtureGitEnv,
   });
   assert.equal(generate.status, 0, `generation failed\nstdout:\n${generate.stdout}\nstderr:\n${generate.stderr}`);
 
   const bootstrap = spawnSync(process.execPath, [path.join(harnessRoot, "scripts/bootstrap-workspace.mjs")], {
     cwd: harnessRoot,
     encoding: "utf8",
+    env: fixtureGitEnv,
   });
   assert.equal(bootstrap.status, 0, `workspace bootstrap failed\nstdout:\n${bootstrap.stdout}\nstderr:\n${bootstrap.stderr}`);
 
@@ -231,6 +261,7 @@ test("init customization step explains starter-only mode without scan selection"
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -268,6 +299,7 @@ test("init defaults to generating the harness after the dry-run preview", async 
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           "",
           "",
@@ -323,6 +355,7 @@ test("init confirms all detected repos by default and accepts numeric agent sele
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           "",
           "",
@@ -391,6 +424,7 @@ test("init preserves existing project identity when reusing config", async () =>
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           "",
           "",
@@ -430,6 +464,7 @@ test("init --yes aborts on existing root guidance without explicit preservation"
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -464,6 +499,7 @@ test("init aborts before writing when existing root guidance is not preserved", 
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -504,6 +540,7 @@ test("init does not write generated harness files when root guidance preservatio
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -546,6 +583,7 @@ test("init restores overwritten root guidance when late setup validation fails",
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -586,6 +624,7 @@ test("init does not execute skipped existing generated setup scripts", async () 
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -620,6 +659,7 @@ test("init refuses missing manual consumer paths before installing entrypoints",
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "./missing-app",
@@ -688,6 +728,7 @@ test("doctor prefers the harness-local init config over a stale workspace config
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: initInput,
       },
     );
@@ -718,6 +759,7 @@ test("doctor discovers a harness-local init config in a nested output path", asy
       {
         cwd: repoRoot,
         encoding: "utf8",
+        env: fixtureGitEnv,
         input: [
           workspaceRoot,
           "",
@@ -771,7 +813,7 @@ test("target diagnostics share physical roots and fingerprints without requiring
     assert.equal(report.freshness.refs, "cached");
     assert.equal(report.guidance.find((file) => file.path === path.join(harnessRoot, "ai/context.md")).sha256,
       "42cfb93dc13506063f18074be5c8f1be6a2006a37adc49b048f8354ef4b86f1f");
-    const checker = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", alias, "--json"], { cwd: harnessRoot, encoding: "utf8" });
+    const checker = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", alias, "--json"], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
     assertSuccess(checker, "scoped generated checker");
     assert.deepEqual(JSON.parse(checker.stdout), report);
     for (const result of runTargetPair({ workspaceRoot, consumerRoot, harnessRoot }, ["--require-git-freshness"])) {
@@ -784,9 +826,43 @@ test("target diagnostics share physical roots and fingerprints without requiring
   }
 });
 
+test("target Git fixtures resist inherited process, global and system configuration", async () => {
+  await withTempDir(async (root) => {
+    const globalConfig = path.join(root, "global.gitconfig");
+    const systemConfig = path.join(root, "system.gitconfig");
+    await writeFile(globalConfig, '[filter "global"]\n clean = cat\n[core]\n autocrlf = true\n');
+    await writeFile(systemConfig, '[filter "system"]\n clean = cat\n[commit]\n gpgSign = true\n');
+    const before = await snapshotWorkspace(root);
+    const inheritedEnv = {
+      ...process.env,
+      GIT_CONFIG_GLOBAL: globalConfig,
+      GIT_CONFIG_SYSTEM: systemConfig,
+      GIT_CONFIG_NOSYSTEM: "0",
+      GIT_CONFIG_COUNT: "1",
+      GIT_CONFIG_KEY_0: "filter.inherited.clean",
+      GIT_CONFIG_VALUE_0: "cat",
+      GIT_CONFIG_PARAMETERS: "'filter.parameters.clean=cat'",
+    };
+    // A nested test runner must not inherit the parent runner's child marker.
+    delete inheritedEnv.NODE_TEST_CONTEXT;
+    const result = spawnSync(process.execPath, [
+      "--test",
+      "--test-reporter=tap",
+      "--test-name-pattern=^target (Git evidence|freshness gate classifies|diagnostics never execute|diagnostics avoid recursive|freshness fails closed|inspection reports the selected linked)",
+      "test/cli.test.mjs",
+    ], { cwd: repoRoot, encoding: "utf8", env: inheritedEnv });
+    assertSuccess(result, "ordinary fixtures and intentional safety cases under inherited Git configuration");
+    assert.match(result.stdout, /target Git evidence reports revisions/);
+    assert.match(result.stdout, /target diagnostics avoid recursive submodule status/);
+    assert.ok(Number(result.stdout.match(/# pass (\d+)/)?.[1]) >= 10, "the nested runner must execute all selected provenance cases");
+    assert.deepEqual(await snapshotWorkspace(root), before, "inherited config files must remain unchanged");
+  });
+});
+
 function fixtureGit(root, ...args) {
   const result = spawnSync("git", ["-c", "core.hooksPath=/dev/null", "-c", "commit.gpgsign=false", "-C", root, ...args], {
-    encoding: "utf8", env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_OPTIONAL_LOCKS: "0" },
+    encoding: "utf8",
+    env: fixtureGitEnv,
   });
   assertSuccess(result, `fixture git ${args[0]}`);
   return result.stdout.trim();
@@ -807,7 +883,7 @@ async function trackFixtureRepo(root, remote) {
 function runTargetPair({ workspaceRoot, consumerRoot, harnessRoot }, flags = []) {
   return [
     runCli(["doctor", "--workspace", workspaceRoot, "--target", consumerRoot, "--json", ...flags]),
-    spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json", ...flags], { cwd: harnessRoot, encoding: "utf8" }),
+    spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json", ...flags], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv }),
   ];
 }
 
@@ -905,33 +981,37 @@ for (const source of ["target", "harness"]) {
 }
 
 for (const source of ["target", "harness"]) {
-  test(`target diagnostics never execute configured ${source} clean filters`, async () => {
-    const fixture = await createDoctorWorkspace();
-    try {
-      await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
-      await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
-      const root = source === "target" ? fixture.consumerRoot : fixture.harnessRoot;
-      await writeFile(path.join(root, ".gitattributes"), "data.txt filter=sideeffect\n");
-      await writeFile(path.join(root, "data.txt"), "initial\n");
-      fixtureGit(root, "add", ".");
-      fixtureGit(root, "commit", "-m", "Filtered fixture file");
-      fixtureGit(root, "config", "filter.sideeffect.clean", "cat; echo changed > diagnostic-side-effect.txt");
-      await writeFile(path.join(root, "data.txt"), "changed\n");
-      const before = await snapshotWorkspace(fixture.workspaceRoot);
-      for (const flags of [[], ["--require-git-freshness"]]) {
-        for (const result of runTargetPair(fixture, flags)) {
-          assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
-          assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before, "diagnostics must never execute checkout filters");
-          const git = JSON.parse(result.stdout)[source].git;
-          assert.equal(git.dirty, null);
-          assert.match(git.dirtyUnavailableReason, /filter/);
-          assert.equal(git.relationship, "ahead");
+  for (const filter of ["clean", "process"]) {
+    test(`target diagnostics never execute configured ${source} ${filter} filters`, async () => {
+      const fixture = await createDoctorWorkspace();
+      try {
+        await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+        await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
+        const root = source === "target" ? fixture.consumerRoot : fixture.harnessRoot;
+        await writeFile(path.join(root, ".gitattributes"), "data.txt filter=sideeffect\n");
+        await writeFile(path.join(root, "data.txt"), "initial\n");
+        fixtureGit(root, "add", ".");
+        fixtureGit(root, "commit", "-m", "Filtered fixture file");
+        fixtureGit(root, "config", `filter.sideeffect.${filter}`, "echo changed > diagnostic-side-effect.txt; exit 1");
+        await writeFile(path.join(root, "data.txt"), "changed\n");
+        const before = await snapshotWorkspace(fixture.workspaceRoot);
+        for (const flags of [[], ["--require-git-freshness"]]) {
+          const results = runTargetPair(fixture, flags);
+          assert.deepEqual(JSON.parse(results[0].stdout), JSON.parse(results[1].stdout));
+          for (const result of results) {
+            assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+            assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before, "diagnostics must never execute checkout filters");
+            const git = JSON.parse(result.stdout)[source].git;
+            assert.equal(git.dirty, null);
+            assert.match(git.dirtyUnavailableReason, /filter/);
+            assert.equal(git.relationship, "ahead");
+          }
         }
+      } finally {
+        await rm(fixture.workspaceRoot, { recursive: true, force: true });
       }
-    } finally {
-      await rm(fixture.workspaceRoot, { recursive: true, force: true });
-    }
-  });
+    });
+  }
 }
 
 test("target diagnostics avoid recursive submodule status and report dirty evidence unavailable", async () => {
@@ -947,7 +1027,9 @@ test("target diagnostics avoid recursive submodule status and report dirty evide
     await writeFile(path.join(nested, "README.md"), "changed\n");
     const before = await snapshotWorkspace(fixture.workspaceRoot);
     for (const flags of [[], ["--require-git-freshness"]]) {
-      for (const result of runTargetPair(fixture, flags)) {
+      const results = runTargetPair(fixture, flags);
+      assert.deepEqual(JSON.parse(results[0].stdout), JSON.parse(results[1].stdout));
+      for (const result of results) {
         assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
         assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
         const git = JSON.parse(result.stdout).target.git;
@@ -1008,7 +1090,7 @@ test("target diagnostics require a path and keep JSON and freshness options scop
     for (const flags of [["--target"], ["--target", "--json"], ["--require-git-freshness"], ["--json"]]) {
       for (const result of [
         runCli(["doctor", "--workspace", fixture.workspaceRoot, ...flags]),
-        spawnSync(process.execPath, ["scripts/check-worktrees.mjs", ...flags], { cwd: fixture.harnessRoot, encoding: "utf8" }),
+        spawnSync(process.execPath, ["scripts/check-worktrees.mjs", ...flags], { cwd: fixture.harnessRoot, encoding: "utf8", env: fixtureGitEnv }),
       ]) {
         assert.equal(result.status, 1, outputText(result));
         assert.match(outputText(result), /--target requires|require --target/);
@@ -1024,20 +1106,28 @@ test("target inspection reports the selected linked checkout and unavailable ups
   const fixture = await createDoctorWorkspace();
   try {
     const revision = await trackFixtureRepo(fixture.consumerRoot, path.join(fixture.workspaceRoot, "app.git"));
+    await trackFixtureRepo(fixture.harnessRoot, path.join(fixture.workspaceRoot, "harness.git"));
     const selected = path.join(fixture.workspaceRoot, "feature-app");
     fixtureGit(fixture.consumerRoot, "worktree", "add", "-b", "feature/selected", selected);
     const before = await snapshotWorkspace(fixture.workspaceRoot);
-    for (const result of runTargetPair({ ...fixture, consumerRoot: selected })) {
-      assertSuccess(result, "linked checkout provenance");
-      const report = JSON.parse(result.stdout);
-      assert.equal(report.target.root, selected);
-      assert.equal(report.target.git.root, selected);
-      assert.equal(report.target.git.revision, revision);
-      assert.equal(report.target.git.branch, "feature/selected");
-      assert.equal(report.target.git.upstream, null);
-      assert.equal(report.target.git.relationship, "unavailable");
-      assert.equal(report.target.git.dirty, false);
-      assert.equal(report.harness.root, fixture.harnessRoot);
+    for (const flags of [[], ["--require-git-freshness"]]) {
+      const results = runTargetPair({ ...fixture, consumerRoot: selected }, flags);
+      assert.deepEqual(JSON.parse(results[0].stdout), JSON.parse(results[1].stdout));
+      for (const result of results) {
+        assert.equal(result.status, flags.length ? 1 : 0, outputText(result));
+        const report = JSON.parse(result.stdout);
+        assert.equal(report.target.root, selected);
+        assert.equal(report.target.git.root, selected);
+        assert.equal(report.target.git.revision, revision);
+        assert.equal(report.target.git.branch, "feature/selected");
+        assert.equal(report.target.git.upstream, null);
+        assert.equal(report.target.git.relationship, "unavailable");
+        assert.equal(report.target.git.dirty, false);
+        assert.equal(report.harness.root, fixture.harnessRoot);
+        assert.equal(report.harness.git.relationship, "equal");
+        assert.equal(report.freshness.ready, false);
+        assert.match(report.issues.join("\n"), flags.length ? /Git freshness gate: Target upstream relationship is unavailable/ : /^$/);
+      }
     }
     assert.deepEqual(await snapshotWorkspace(fixture.workspaceRoot), before);
   } finally {
@@ -1074,7 +1164,7 @@ test("doctor names a stale consumer pointer and exits non-zero", async () => {
 test("Doctor and generated checks reject a pointer target escaping the canonical harness", async () => {
   const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace();
   try {
-    assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8" }), "initialize synthetic consumer");
+    assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8", env: fixtureGitEnv }), "initialize synthetic consumer");
     const outsidePath = path.join(workspaceRoot, "outside.md");
     await writeFile(outsidePath, "# Outside policy\n");
     await symlink(outsidePath, path.join(harnessRoot, "ai/escaped.md"));
@@ -1101,7 +1191,7 @@ test("Doctor and generated checks reject a pointer target escaping the canonical
       ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"],
       ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"],
     ]) {
-      const result = spawnSync(process.execPath, args, { cwd: harnessRoot, encoding: "utf8" });
+      const result = spawnSync(process.execPath, args, { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
       assert.match(outputText(result), /outside the generated harness/, args.join(" "));
       if (!args[0].includes("bootstrap-codex")) assert.notEqual(result.status, 0);
     }
@@ -1133,7 +1223,7 @@ for (const profile of ["focused", "expanded"]) {
     test(`routing parity for ${profile}, OpenAI=${models.openai}, Anthropic=${models.anthropic}`, async (t) => {
       const { workspaceRoot, consumerRoot, harnessRoot } = await createDoctorWorkspace({ profile, models });
       try {
-        assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8" }), "initialize synthetic consumer");
+        assertSuccess(spawnSync("git", ["init"], { cwd: consumerRoot, encoding: "utf8", env: fixtureGitEnv }), "initialize synthetic consumer");
         const entrypoint = models.openai ? "AGENTS.md" : "CLAUDE.md";
         const pointerPath = path.join(consumerRoot, entrypoint);
         const aliasRoot = path.join(workspaceRoot, "alias", "demo-structor");
@@ -1163,7 +1253,7 @@ for (const profile of ["focused", "expanded"]) {
             const doctor = runCli(["doctor", "--workspace", workspaceRoot]);
             const scopedDoctor = runCli(["doctor", "--workspace", workspaceRoot, "--target", consumerRoot, "--json"]);
             assert.deepEqual(await snapshotWorkspace(workspaceRoot), before, "Doctor must not write any workspace file");
-            const workspace = spawnSync(process.execPath, ["scripts/check-workspace.mjs"], { cwd: harnessRoot, encoding: "utf8" });
+            const workspace = spawnSync(process.execPath, ["scripts/check-workspace.mjs"], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
             assert.equal(doctor.status === 0, Boolean(testCase.valid), outputText(doctor));
             assert.equal(scopedDoctor.status === 0, Boolean(testCase.valid), outputText(scopedDoctor));
             const targetReport = JSON.parse(scopedDoctor.stdout);
@@ -1176,12 +1266,12 @@ for (const profile of ["focused", "expanded"]) {
             }
             // Worktree commands are expanded-only surfaces; focused keeps the resolver for workspace checks.
             if (profile === "expanded") {
-              const scopedCheck = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json"], { cwd: harnessRoot, encoding: "utf8" });
+              const scopedCheck = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--target", consumerRoot, "--json"], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
               assert.equal(scopedCheck.status, scopedDoctor.status, outputText(scopedCheck));
               assert.deepEqual(JSON.parse(scopedCheck.stdout), targetReport);
-              const check = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"], { cwd: harnessRoot, encoding: "utf8" });
+              const check = spawnSync(process.execPath, ["scripts/check-worktrees.mjs", "--include-canonical", "--no-worktree-list"], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
               assert.equal(check.status === 0, Boolean(testCase.valid), outputText(check));
-              const bootstrap = spawnSync(process.execPath, ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"], { cwd: harnessRoot, encoding: "utf8" });
+              const bootstrap = spawnSync(process.execPath, ["scripts/bootstrap-codex-worktree.mjs", consumerRoot, "--dry-run"], { cwd: harnessRoot, encoding: "utf8", env: fixtureGitEnv });
               assertSuccess(bootstrap, "read-only worktree bootstrap inspection");
               assert.match(outputText(bootstrap), testCase.valid ? /already valid/ : testCase.diagnostic);
               if (!testCase.valid) assert.match(outputText(check), testCase.diagnostic);
@@ -1356,6 +1446,7 @@ test("cli runs when invoked through an npm-style bin symlink", async () => {
     const result = spawnSync(linkedCliPath, ["--help"], {
       cwd: repoRoot,
       encoding: "utf8",
+    env: fixtureGitEnv,
     });
 
     assertSuccess(result, "structor symlink help");
