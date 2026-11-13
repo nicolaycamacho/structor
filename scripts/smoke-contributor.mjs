@@ -6,10 +6,36 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { parsePackReport } from "./npm-pack-report.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nodeCommand = process.execPath;
 const tempRoot = await mkdtemp(path.join(os.tmpdir(), "structor-contributor-smoke-"));
+// Keep fixture commits and nested CLI Git processes independent of host settings.
+const fixtureEnv = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_") && !/^npm_config_/i.test(name))),
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_ATTR_NOSYSTEM: "1",
+  GIT_TERMINAL_PROMPT: "0",
+  npm_config_cache: path.join(tempRoot, "npm-cache"),
+  npm_config_userconfig: path.join(tempRoot, "npmrc"),
+  npm_config_globalconfig: path.join(tempRoot, "global-npmrc"),
+};
+const fixtureGitConfig = {
+  "core.hooksPath": "/dev/null",
+  "core.attributesFile": "/dev/null",
+  "core.autocrlf": "false",
+  "commit.gpgSign": "false",
+  "tag.gpgSign": "false",
+  "init.templateDir": "",
+  "init.defaultBranch": "main",
+};
+fixtureEnv.GIT_CONFIG_COUNT = String(Object.keys(fixtureGitConfig).length);
+Object.entries(fixtureGitConfig).forEach(([key, value], index) => {
+  fixtureEnv[`GIT_CONFIG_KEY_${index}`] = key;
+  fixtureEnv[`GIT_CONFIG_VALUE_${index}`] = value;
+});
 
 function commandText(command, args) {
   return [command, ...args].join(" ");
@@ -20,6 +46,7 @@ function run(command, args, cwd) {
     cwd,
     encoding: "utf8",
     stdio: ["ignore", "pipe", "pipe"],
+    env: fixtureEnv,
   });
   if (result.error) throw result.error;
   if (result.status !== 0) {
@@ -159,32 +186,53 @@ async function smokePackagedCli() {
   initGitFixture(fixtureRoot);
   await mkdir(packRoot, { recursive: true });
 
-  const pack = run("npm", ["pack", "--pack-destination", packRoot, "--cache", npmCache, "--json"], repoRoot);
-  const [packed] = JSON.parse(pack.stdout);
+  const expectedPackage = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
+  const pack = run("npm", ["pack", "--offline", "--pack-destination", packRoot, "--cache", npmCache, "--json"], repoRoot);
+  const packed = parsePackReport(pack.stdout, expectedPackage);
+  const tarballPath = path.join(packRoot, packed.filename);
+  assertExists(tarballPath, "reported package tarball");
   const packedFiles = new Set(packed.files.map((file) => file.path));
+  const archiveFiles = new Set(run("tar", ["-tzf", tarballPath], packRoot).stdout.trim().split("\n"));
   for (const requiredPath of [
+    "package.json",
+    "README.md",
+    "LICENSE",
     "bin/structor.mjs",
     "contrib/self-harness/harness.config.json",
+    "contrib/self-harness/files/ai/AGENTS.md",
+    "scripts/init-harness.mjs",
+    "scripts/generated-harness-contract.mjs",
     "scripts/setup-contributor.mjs",
     "scripts/smoke-contributor.mjs",
+    "scripts/npm-pack-report.mjs",
+    "schemas/harness-config.schema.json",
     "template/AGENTS.md.tpl",
+    "template/ai/AGENTS.md.tpl",
+    "template/scripts/validate-governance.mjs.tpl",
   ]) {
-    if (!packedFiles.has(requiredPath)) {
+    if (!packedFiles.has(requiredPath) || !archiveFiles.has(`package/${requiredPath}`)) {
       throw new Error(`packed artifact is missing ${requiredPath}`);
     }
   }
 
-  const tarballPath = path.join(packRoot, packed.filename);
   const installRoot = path.join(tempRoot, "packaged-install");
   const packagedDryRunWorkspace = path.join(tempRoot, "packaged-dry-run");
   run("npm", [
     "install",
+    "--offline",
+    "--no-audit",
+    "--no-fund",
     "--prefix", installRoot,
     "--cache", npmCache,
     "--yes",
     tarballPath,
   ], repoRoot);
-  const packagedDryRun = run(path.join(installRoot, "node_modules/.bin/structor"), [
+  const installedCli = path.join(installRoot, "node_modules/.bin/structor");
+  const version = run(installedCli, ["--version"], installRoot);
+  if (version.stdout.trim() !== expectedPackage.version) {
+    throw new Error(`installed CLI version did not match ${expectedPackage.version}.`);
+  }
+  const packagedDryRun = run(installedCli, [
     "contribute",
     "structor",
     "--repo-url", fixtureRoot,
@@ -195,10 +243,29 @@ async function smokePackagedCli() {
     throw new Error("packaged CLI dry-run did not render the contributor preview.");
   }
   assertMissing(packagedDryRunWorkspace, "packaged CLI dry-run workspace");
+
+  const generatedWorkspace = path.join(tempRoot, "packaged-generation");
+  await mkdir(path.join(generatedWorkspace, "example-app"), { recursive: true });
+  await writeFile(path.join(generatedWorkspace, "example-app/package.json"), '{"name":"example-app"}\n');
+  const configPath = path.join(generatedWorkspace, "harness.config.json");
+  await writeFile(configPath, `${JSON.stringify({
+    profile: "focused",
+    project: { name: "Example", slug: "example", harnessRepoName: "example-structor" },
+    output: { path: "./example-structor" },
+    models: { openai: true, anthropic: true },
+    consumers: [{ name: "example-app", path: "./example-app", purpose: "Synthetic application", validation: {} }],
+  })}\n`);
+  run(installedCli, ["generate", "--config", configPath, "--install-consumer-entrypoints"], generatedWorkspace);
+  const generatedRoot = path.join(generatedWorkspace, "example-structor");
+  run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], generatedRoot);
+  run(nodeCommand, ["scripts/validate-governance.mjs"], generatedRoot);
+  run(nodeCommand, ["scripts/check-workspace.mjs"], generatedRoot);
 }
 
 let shouldCleanup = false;
 try {
+  await writeFile(fixtureEnv.npm_config_userconfig, "");
+  await writeFile(fixtureEnv.npm_config_globalconfig, "");
   await phase("manual self-harness generation", smokeManualContributorSetup);
   await phase("contribute command clone/reuse behavior", smokeContributeCommand);
   await phase("package contents and packaged CLI dry-run", smokePackagedCli);

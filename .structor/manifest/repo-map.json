@@ -213,7 +213,8 @@
     "docsManifest": "scripts/check-docs-manifest.mjs",
     "publicHygiene": "scripts/check-public-hygiene.mjs",
     "smokeTemplate": "scripts/smoke-template.mjs",
-    "smokeContributor": "scripts/smoke-contributor.mjs"
+    "smokeContributor": "scripts/smoke-contributor.mjs",
+    "packReport": "scripts/npm-pack-report.mjs"
   },
   "publishedFiles": [
     "bin/",
@@ -272,6 +273,13 @@
       "name": "Validation surface",
       "paths": [
         "package.json",
+        "scripts/npm-pack-report.mjs",
+        "test/npm-pack-report.test.mjs",
+        ".github/workflows/validate.yml",
+        ".github/workflows/full-validation.yml",
+        "docs/reference/contributor-setup.md",
+        "CONTRIBUTING.md",
+        "package-lock.json",
         "scripts/check-docs-manifest.mjs",
         "scripts/check-public-hygiene.mjs",
         "scripts/check-repo-map.mjs",

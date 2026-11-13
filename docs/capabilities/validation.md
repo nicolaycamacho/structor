@@ -16,8 +16,12 @@ hygiene, including config examples, shipped schemas, template files, task
 template structure, contract manifests, placeholder hygiene, public hygiene,
 model overlay thinness, the docs manifest, and the source-repo map.
 
-`npm run validate` runs `check:ci`, the Node test suite, and smoke-tested local
-generation flows.
+`npm run validate` runs `check:ci`, the full Node test suite, template smoke,
+and contributor/package smoke using the exact locally packed tarball. Automatic
+push/PR CI runs this full gate across the supported Node/npm reference matrix;
+manual dispatch reuses it. See [contributor setup](../reference/contributor-setup.md#toolchains-and-ci)
+for toolchains, isolated artifact checks, stable check names and the separate
+administrator configuration needed to enforce required checks.
 
 ## Generated Harness Checks
 

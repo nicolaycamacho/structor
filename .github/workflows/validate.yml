@@ -3,6 +3,14 @@ name: validate
 on:
   push:
   pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   linked-issue:
@@ -27,15 +35,31 @@ jobs:
           exit 1
 
   validate:
+    name: full-validation (Node ${{ matrix.node }}, npm ${{ matrix.npm }})
     runs-on: ubuntu-latest
-    timeout-minutes: 5
-    concurrency:
-      group: ${{ github.workflow }}-${{ github.ref }}
-      cancel-in-progress: true
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - node: 20
+            npm: 10
+          - node: 22
+            npm: 10
+          - node: 24
+            npm: 11
+          - node: 24
+            npm: 12
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ matrix.node }}
+      - name: Select npm toolchain
+        run: npm install --global npm@${{ matrix.npm }}
+      - name: Report toolchain
+        run: |
+          node --version
+          npm --version
       - run: npm ci
-      - run: npm run check:ci
+      - run: npm run validate
