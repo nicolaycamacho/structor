@@ -1,0 +1,6 @@
+{
+  "name": "example-api",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node checks.mjs" }
+}

@@ -1,0 +1,26 @@
+{
+  "profile": "focused",
+  "taskPolicy": { "singleOwnerImplementation": true },
+  "project": {
+    "name": "Example Platform",
+    "slug": "example-platform",
+    "harnessRepoName": "example-platform-structor"
+  },
+  "output": { "path": "./example-platform-structor" },
+  "models": { "openai": true, "anthropic": false },
+  "clientSupport": { "codex": { "hooks": false } },
+  "consumers": [
+    {
+      "name": "example-frontend",
+      "path": "./example-frontend",
+      "purpose": "Synthetic ticket-card consumer",
+      "validation": { "test": "npm test" }
+    },
+    {
+      "name": "example-api",
+      "path": "./example-api",
+      "purpose": "Synthetic ticket response and schema owner",
+      "validation": { "test": "npm test" }
+    }
+  ]
+}
