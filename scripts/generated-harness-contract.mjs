@@ -157,7 +157,7 @@ export const generatedHarnessValidationChecks = [
   { path: "scripts/check-plans.mjs", phase: "required" },
   { path: "scripts/check-review-skills.mjs", phase: "required" },
   { path: "scripts/check-garbage-collection.mjs", phase: "required" },
-  { path: "scripts/check-contract-manifests.mjs", phase: "required" },
+  { path: "scripts/check-contract-manifests.mjs", phase: "required", dependencies: ["scripts/lib/path-safety.mjs"] },
   {
     path: "scripts/check-html-views.mjs",
     phase: "required",

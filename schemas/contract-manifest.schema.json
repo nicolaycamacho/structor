@@ -24,7 +24,152 @@
           "enum": ["C0 Inventory", "C1 Flow Mapped", "C2 Boundary Mapped", "C3 Contract Mapped", "C4 Validated", "C5 Governed"]
         },
         "scope": { "type": "string", "pattern": "\\S" },
-        "limitations": { "type": "array", "items": { "type": "string", "pattern": "\\S" } }
+        "limitations": { "type": "array", "items": { "type": "string", "pattern": "\\S" } },
+        "evidence": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "sources",
+            "documentationSha256",
+            "check",
+            "observation",
+            "result",
+            "limitations"
+          ],
+          "properties": {
+            "sources": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "repo",
+                  "path",
+                  "sha256"
+                ],
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "sha256": {
+                    "type": "string",
+                    "pattern": "^[a-f0-9]{64}$"
+                  }
+                }
+              }
+            },
+            "documentationSha256": {
+              "type": "string",
+              "pattern": "^[a-f0-9]{64}$"
+            },
+            "check": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "observation": {
+              "type": "string",
+              "pattern": "\\S"
+            },
+            "result": {
+              "type": "string",
+              "const": "pass"
+            },
+            "limitations": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "pattern": "\\S"
+              }
+            }
+          },
+          "description": "Bounded, repo-owned observation. Hashes bind evidence to current bytes; the checker does not execute check or verify the reported result."
+        },
+        "governance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "surfaces",
+            "baseline"
+          ],
+          "properties": {
+            "surfaces": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": [
+                  "repo",
+                  "path"
+                ],
+                "properties": {
+                  "repo": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  },
+                  "path": {
+                    "type": "string",
+                    "pattern": "\\S"
+                  }
+                }
+              }
+            },
+            "baseline": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "sources",
+                "documentationSha256",
+                "evidenceSha256"
+              ],
+              "properties": {
+                "sources": {
+                  "type": "array",
+                  "minItems": 1,
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                      "repo",
+                      "path",
+                      "sha256"
+                    ],
+                    "properties": {
+                      "repo": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "path": {
+                        "type": "string",
+                        "pattern": "\\S"
+                      },
+                      "sha256": {
+                        "type": "string",
+                        "pattern": "^[a-f0-9]{64}$"
+                      }
+                    }
+                  }
+                },
+                "documentationSha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                },
+                "evidenceSha256": {
+                  "type": "string",
+                  "pattern": "^[a-f0-9]{64}$"
+                }
+              }
+            }
+          },
+          "description": "Only C5 opts into blocking policy. A reviewed content checkpoint, not a Git ref or timestamp. Missing/incomplete or scope-mismatched baselines never count as success."
+        }
       }
     }
   }

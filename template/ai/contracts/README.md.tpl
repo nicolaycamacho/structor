@@ -85,13 +85,105 @@ If implementation and an established contract disagree, update one deliberately
 after review. If a strong claim is unsupported or stale, report the evidence gap
 and narrow or lower the claim rather than inventing certainty.
 
-The manifest checker validates metadata shape and required-file existence only.
-It does not verify source conformance, execute commands from the `validation`
-array, or enforce C5 change policy. Evidence validation and opt-in C5 enforcement
-are follow-up work; do not claim they exist because the label parses. Before
-assigning C4 or C5, document bounded source evidence, the observation/check and
-its limitations in the sibling contract, and verify any claimed local check or
-enforcement actually exists. There is no automatic promotion or certification.
+## Bounded Evidence
+
+The generated manifest checker checks current file fingerprints and recorded
+observations. It never executes a manifest's `validation` entries or
+`evidence.check`. A C4 claim needs `maturity.evidence`; missing, malformed or stale
+evidence produces actionable advisories, with a successful exit for levels below
+C5. Existing core metadata shape and required-file checks still apply. No label
+is automatically promoted or certified.
+
+An evidence record has these fields:
+
+- `sources`: a nonempty list of `{ "repo", "path", "sha256" }` snapshots.
+  `repo` is the exact generated harness name or a configured consumer name.
+  `path` is an exact slash-separated path relative to that repository, without
+  traversal, `.git`, absolute paths or globs. Resolved files must remain inside
+  that repository. Hash the raw file bytes with SHA-256 (64 lowercase hex digits).
+- `documentationSha256`: the SHA-256 of the sibling Markdown contract's bytes.
+- `check`: the bounded manual observation or local command used to compare the
+  mapped contract to those sources. This is a recorded method, never an
+  automatically executed command.
+- `observation` and `result`: a nonempty description of what was observed, and
+  the exact result `pass`. Failed or unobserved checks cannot support the claim.
+- `limitations`: a nonempty array describing the observation's actual limits,
+  separate from the broader `maturity.limitations`.
+
+The check's scope must match `maturity.scope`. Include every file needed to
+support that bounded claim, including local scripts or fixtures used by a
+scripted check. The validator checks byte freshness, presence and record shape;
+it cannot determine whether the selected files are sufficient, whether the
+reported check ran or whether prose correctly describes source behavior. Review
+those facts explicitly. Source changes or documentation changes make the
+record stale until reviewed and refreshed. Freshness here means matching bytes,
+not a time-based expiry or a claim about an external system.
+
+## Explicit C5 Policy
+
+Only the exact `C5 Governed` level opts into blocking enforcement. Add
+`maturity.governance` with:
+
+- `surfaces`: a nonempty list of `{ "repo", "path" }` exact governed files.
+- `baseline`: a reviewed content checkpoint containing `sources` snapshots for
+  exactly that surface set, the sibling `documentationSha256`, and
+  `evidenceSha256` for the evidence record at the checkpoint.
+
+Missing or incomplete baselines, mismatched surface sets, missing source files,
+and unsupported evidence fail C5. Unchanged surfaces pass with current evidence;
+they do not require artificial documentation updates. When any governed surface
+differs from its baseline hash, current evidence must cover every governed file,
+the sibling documentation must differ from its checkpoint hash, and the evidence
+record must differ from its checkpoint hash. Updating only documentation or only
+evidence cannot satisfy this policy. Extra evidence sources remain allowed and
+are also checked for freshness.
+
+This is a file-content checkpoint, not a Git revision, timestamp or automatic
+merge-base. A checkpoint does not expire just because it is old: its source set
+must still match the declared scope, and all current evidence must match bytes.
+An obsolete scope requires deliberate baseline review. Keep the checkpoint while
+refreshing a change; replacing it with current hashes to hide a change defeats
+the policy. Review baseline/scope edits and level reductions explicitly. The
+checker cannot authenticate checkpoint history or detect undeclared files,
+semantic no-op documentation edits, falsified observations or changes reverted
+to identical bytes. File additions/deletions require an explicit scope/checkpoint
+review; directories and glob-based discovery are outside this bounded policy.
+
+### Record And Refresh A Checkpoint
+
+1. Map the boundary and run the declared local check or manual observation.
+2. Record its source hashes, sibling documentation hash, observation, result and
+   limitations in `maturity.evidence`. Select the exact governed files.
+3. For the initial reviewed checkpoint, copy snapshots for those files into
+   `governance.baseline.sources` and record the documentation and evidence hashes.
+4. On a governed change, rerun the relevant check, update the sibling contract,
+   and refresh evidence for the new bytes. Keep the checkpoint for comparison.
+5. Run `node scripts/check-contract-manifests.mjs`, then
+   `node scripts/validate-governance.mjs`. Review any advisories as evidence gaps.
+
+For `evidenceSha256`, hash UTF-8 JSON with recursively sorted object keys, array
+order preserved and no whitespace. This local snippet prints the evidence hash
+for a reviewed manifest; it does not modify the manifest or run its check:
+
+```js
+import { createHash } from "node:crypto";
+import { readFile } from "node:fs/promises";
+const manifest = JSON.parse(await readFile(process.argv[2], "utf8"));
+function canonical(value) {
+  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
+  if (value !== null && typeof value === "object") {
+    return `{${Object.keys(value).sort().map((key) =>
+      `${JSON.stringify(key)}:${canonical(value[key])}`).join(",")}}`;
+  }
+  return JSON.stringify(value);
+}
+console.log(createHash("sha256").update(canonical(manifest.maturity.evidence)).digest("hex"));
+```
+
+Save it as a local `.mjs` helper and pass the manifest path as its first argument.
+Use the same SHA-256 algorithm over raw file bytes for source/document hashes.
+Neither generating hashes nor passing local validation proves that prose is
+correct, the recorded check ran, runtime behavior conforms, or agents are effective.
 
 Contract maturity is separate from structural validity, verified knowledge,
 installation/adoption and observed effectiveness in `ai/READINESS.md`. No level
