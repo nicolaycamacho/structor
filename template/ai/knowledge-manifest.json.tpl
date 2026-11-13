@@ -2,6 +2,12 @@
   "version": 1,
   "canonicalDocs": [
     {
+      "path": "ai/contracts/README.md",
+      "status": "active",
+      "purpose": "Canonical contract maturity model, metadata and per-level agent behavior.",
+      "linkedFrom": ["ai/HUB.md"]
+    },
+    {
       "path": "ai/AGENTS.md",
       "status": "active",
       "purpose": "Canonical agent operating policy.",

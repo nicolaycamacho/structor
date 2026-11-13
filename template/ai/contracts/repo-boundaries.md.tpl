@@ -1,5 +1,8 @@
 # Repo Boundaries
 
+Maturity is declared in the sibling manifest. Read `ai/contracts/README.md`
+for the model and limits before relying on this starter as a project contract.
+
 This contract defines ownership boundaries for {{PROJECT_NAME}}.
 
 ## Harness Repo

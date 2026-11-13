@@ -1,5 +1,8 @@
 # Release Flow Contract
 
+Maturity is declared in the sibling manifest. Read `ai/contracts/README.md`
+for the model and limits before relying on this starter as a project contract.
+
 This contract defines harness release safety for {{PROJECT_NAME_CODE}}.
 
 ## Requirements

@@ -1,5 +1,8 @@
 # App Legibility
 
+Maturity is declared in the sibling manifest. Read `ai/contracts/README.md`
+for the model and limits before relying on this starter as a project contract.
+
 Consumer repos must expose enough local information for agents to inspect and
 validate work without guessing.
 

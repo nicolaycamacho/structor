@@ -9,6 +9,7 @@ import {
   assertSafeWriteTarget,
   exists,
   isSameOrInsidePath,
+  readJson,
   resolveHarnessConfig,
 } from "./lib.mjs";
 import {
@@ -840,6 +841,8 @@ export async function generateHarness(config, {
     path.join(repoRoot, "scripts/target-provenance.mjs"),
     "utf8",
   );
+  const contractSchema = await readJson("schemas/contract-manifest.schema.json");
+  values.CONTRACT_MATURITY_LEVELS_JSON = JSON.stringify(contractSchema.properties.maturity.properties.level.enum);
 
   const templateFiles = await collectTemplateFiles();
   values.GENERATED_SCRIPT_HASHES_JSON = await generatedScriptHashes(templateFiles, resolvedConfig.plan, values);

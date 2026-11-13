@@ -2,7 +2,7 @@
 
 import { readdir, readFile } from "node:fs/promises";
 import path from "node:path";
-import { failIfErrors, repoRoot } from "./lib.mjs";
+import { failIfErrors, readJson, repoRoot, validateJsonSchema } from "./lib.mjs";
 
 const contractsDirectory = "template/ai/contracts";
 const contractsReadmePath = `${contractsDirectory}/README.md.tpl`;
@@ -13,6 +13,7 @@ const semverPattern = /^\d+\.\d+\.\d+$/;
 const placeholderStart = "{".repeat(2);
 const harnessRepoPlaceholder = `${placeholderStart}HARNESS_REPO_NAME}}`;
 const consumerReposPlaceholder = `${placeholderStart}CONSUMER_REPO_NAMES_JSON}}`;
+const maturitySchema = (await readJson("schemas/contract-manifest.schema.json")).properties.maturity;
 
 function renderTemplate(content) {
   return content
@@ -37,6 +38,9 @@ function validateManifest(manifest, label, errors) {
     if (!Array.isArray(manifest[field]) || manifest[field].length === 0) {
       errors.push(`${label}.${field} must be a non-empty array.`);
     }
+  }
+  if (Object.hasOwn(manifest, "maturity")) {
+    validateJsonSchema(manifest.maturity, maturitySchema, `${label}.maturity`, errors);
   }
 }
 
