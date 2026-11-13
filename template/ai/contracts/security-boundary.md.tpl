@@ -1,5 +1,8 @@
 # Security Boundary
 
+Maturity is declared in the sibling manifest. Read `ai/contracts/README.md`
+for the model and limits before relying on this starter as a project contract.
+
 Security-sensitive changes require explicit scope and human review.
 
 ## Protected Surfaces
