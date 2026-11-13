@@ -1,0 +1,20 @@
+{
+  "scope": "Untouched seed preflight; smoke passes, task acceptance fails before work",
+  "records": [
+    {
+      "at": "2026-11-13T22:27:55.256Z",
+      "exit": 0,
+      "output": "example-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d\nnpm notice run test\nnpm notice run node checks.mjs\nfrontend smoke: passed\nnpm notice run test\nnpm notice run node checks.mjs\nAPI smoke: passed\nexample-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d\n575d29897ba046835e70b04a6a0a64090f08b59d\n"
+    },
+    {
+      "at": "2026-11-13T22:27:55.256Z",
+      "exit": 1,
+      "output": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly equal:\n+ actual - expected\n\n+ 'undefined'\n- 'function'\n\n    at file://ARTIFACTS/examples/public-comparison/evaluator/acceptance.mjs:15:10 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: 'undefined',\n  expected: 'function',\n  operator: 'strictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.22.1\n"
+    },
+    {
+      "at": "2026-11-13T22:27:55.256Z",
+      "exit": 1,
+      "output": "node:internal/modules/run_main:107\n    triggerUncaughtException(\n    ^\n\nAssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:\n+ actual - expected\n\n  {\n    id: 't1',\n-   priority: 'high',\n    title: 'Example'\n  }\n\n    at file://ARTIFACTS/examples/public-comparison/evaluator/acceptance.mjs:29:12 {\n  generatedMessage: true,\n  code: 'ERR_ASSERTION',\n  actual: { id: 't1', title: 'Example' },\n  expected: { id: 't1', title: 'Example', priority: 'high' },\n  operator: 'deepStrictEqual',\n  diff: 'simple'\n}\n\nNode.js v24.22.1\n"
+    }
+  ]
+}

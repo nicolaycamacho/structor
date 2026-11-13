@@ -1,0 +1,78 @@
+cwd: pinned clone named structor
+revision: c9123b44374fac68523efe207ee0a6882b2b8ad4
+node: v24.22.1; npm: 12.2.2
+command: npm ci; exit: 0
+command: npm run validate; exit: 0
+Output excerpts (test-name lines omitted):
+npm notice run @structor-dev/cli@0.2.4 validate
+npm notice run npm run check:ci && npm run test && npm run check:smoke && npm run check:contributor
+npm notice run @structor-dev/cli@0.2.4 check:ci
+npm notice run node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map
+Config check passed.
+Schema check passed.
+Template file check passed.
+Task template check passed.
+Contract manifest check passed.
+Model overlay check passed.
+Placeholder check passed.
+Examples check passed.
+Public hygiene check passed.
+npm notice run @structor-dev/cli@0.2.4 check:docs
+npm notice run node scripts/check-docs-manifest.mjs
+Docs manifest check passed.
+npm notice run @structor-dev/cli@0.2.4 check:repo-map
+npm notice run node scripts/check-repo-map.mjs
+Repo map check passed.
+npm notice run @structor-dev/cli@0.2.4 test
+npm notice run node --test
+Workspace layout check passed.
+Generated harness governance check passed.
+Readiness check passed (record contract only; not truth, adoption or effectiveness).
+Knowledge manifest check passed (static guidance reachability only; not proof of model behavior).
+Codex hook check passed.
+Governance validation passed.
+Workspace layout check passed.
+Workspace layout check passed.
+Generated harness governance check passed.
+Readiness check passed (record contract only; not truth, adoption or effectiveness).
+Knowledge manifest check passed (static guidance reachability only; not proof of model behavior).
+Codex hook check passed.
+Governance validation passed.
+Workspace layout check passed.
+Workspace layout check passed.
+Generated harness governance check passed.
+Readiness check passed (record contract only; not truth, adoption or effectiveness).
+Knowledge manifest check passed (static guidance reachability only; not proof of model behavior).
+Codex hook check passed.
+Governance validation passed.
+Workspace layout check passed.
+Workspace layout check passed.
+Generated harness governance check passed.
+Task template check passed.
+Readiness check passed (record contract only; not truth, adoption or effectiveness).
+Issue template check passed.
+Knowledge manifest check passed (static guidance reachability only; not proof of model behavior).
+Plan check passed.
+Review skill check passed.
+Garbage collection check passed.
+Contract manifest check passed.
+HTML view check passed.
+Worktree bootstrap fixture check passed.
+Overlay drift check passed.
+Governance validation passed.
+Workspace layout check passed.
+ℹ tests 310
+ℹ pass 310
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ duration_ms 99431.191209
+npm notice run @structor-dev/cli@0.2.4 check:smoke
+npm notice run node scripts/smoke-template.mjs
+Template smoke check passed.
+npm notice run @structor-dev/cli@0.2.4 check:contributor
+npm notice run node scripts/smoke-contributor.mjs
+[contributor-smoke] manual self-harness generation
+[contributor-smoke] contribute command clone/reuse behavior
+[contributor-smoke] package contents and packaged CLI dry-run
+[contributor-smoke] passed

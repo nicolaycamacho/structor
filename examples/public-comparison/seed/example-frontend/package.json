@@ -1,0 +1,6 @@
+{
+  "name": "example-frontend",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node checks.mjs" }
+}

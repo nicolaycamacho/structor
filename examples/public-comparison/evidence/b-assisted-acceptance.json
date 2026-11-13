@@ -1,0 +1,29 @@
+{
+  "condition": "b-assisted",
+  "scoredAt": "2026-11-13T22:35:38.539686+00:00",
+  "commands": [
+    {
+      "cwd": "example-frontend",
+      "command": "npm test",
+      "exit": 0,
+      "output": "\n> test\n> node checks.mjs\n\nfrontend smoke: passed\n"
+    },
+    {
+      "cwd": "example-api",
+      "command": "npm test",
+      "exit": 0,
+      "output": "\n> test\n> node checks.mjs\n\nAPI smoke: passed\n"
+    },
+    {
+      "cwd": "public-comparison",
+      "command": "node evaluator/acceptance.mjs B WORKSPACE",
+      "exit": 0,
+      "output": "task B acceptance: passed\n"
+    }
+  ],
+  "changedFiles": [
+    "example-api/checks.mjs",
+    "example-api/contracts/ticket.json",
+    "example-api/src/ticket.mjs"
+  ]
+}

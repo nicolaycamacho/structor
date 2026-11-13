@@ -1,0 +1,34 @@
+[
+  {
+    "condition": "a-baseline",
+    "setupStarted": "2026-11-13T22:31:00.356966+00:00",
+    "setupEnded": "2026-11-13T22:31:00.476850+00:00",
+    "packageSha256": "104deb6e0a083ad831f4c04416a58d245488baa689e091d02ca809e81ed33e5a",
+    "revision": "c9123b44374fac68523efe207ee0a6882b2b8ad4",
+    "startingCommits": "example-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d"
+  },
+  {
+    "condition": "a-assisted",
+    "setupStarted": "2026-11-13T22:31:00.491716+00:00",
+    "setupEnded": "2026-11-13T22:31:01.346156+00:00",
+    "packageSha256": "104deb6e0a083ad831f4c04416a58d245488baa689e091d02ca809e81ed33e5a",
+    "revision": "c9123b44374fac68523efe207ee0a6882b2b8ad4",
+    "startingCommits": "example-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d"
+  },
+  {
+    "condition": "b-assisted",
+    "setupStarted": "2026-11-13T22:31:01.364208+00:00",
+    "setupEnded": "2026-11-13T22:31:02.218389+00:00",
+    "packageSha256": "104deb6e0a083ad831f4c04416a58d245488baa689e091d02ca809e81ed33e5a",
+    "revision": "c9123b44374fac68523efe207ee0a6882b2b8ad4",
+    "startingCommits": "example-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d"
+  },
+  {
+    "condition": "b-baseline",
+    "setupStarted": "2026-11-13T22:31:02.236389+00:00",
+    "setupEnded": "2026-11-13T22:31:02.333560+00:00",
+    "packageSha256": "104deb6e0a083ad831f4c04416a58d245488baa689e091d02ca809e81ed33e5a",
+    "revision": "c9123b44374fac68523efe207ee0a6882b2b8ad4",
+    "startingCommits": "example-frontend e9a2b46d6834703ed03c9ffb30171c33dfa4263a\nexample-api 575d29897ba046835e70b04a6a0a64090f08b59d"
+  }
+]
