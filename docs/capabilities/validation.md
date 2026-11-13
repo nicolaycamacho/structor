@@ -70,6 +70,11 @@ agent behavior. Launch/adoption proof remains downstream in
 [issue #123](https://github.com/nicolaycamacho/structor/issues/123); it is not
 performed or completed here.
 
+A separate [synthetic public pilot](../../examples/public-comparison/README.md)
+records a preregistered two-task comparison and actual bounded observations at
+a pinned Structor revision. Its results do not establish general effectiveness
+or complete #123's broader proof set. The manual comparison is not a CI gate.
+
 Keep stable policy separate from change-sensitive source knowledge. Revalidate
 affected knowledge when its source changes or drift appears, rather than expiring
 all guidance by calendar age. Existing generated projects retain their files

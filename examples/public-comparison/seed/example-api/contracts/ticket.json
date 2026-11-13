@@ -1,0 +1,10 @@
+{
+  "title": "Ticket response",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["id", "title"],
+  "properties": {
+    "id": { "type": "string" },
+    "title": { "type": "string" }
+  }
+}

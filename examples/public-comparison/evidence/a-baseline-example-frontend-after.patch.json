@@ -1,0 +1,4 @@
+{
+  "format": "unified diff",
+  "patch": "diff --git a/src/cards.mjs b/src/cards.mjs\nindex cb63095..d8471e7 100644\n--- a/src/cards.mjs\n+++ b/src/cards.mjs\n@@ -14,3 +14,7 @@ export function activeCard(title) {\n export function queuedCard(title) {\n   return makeCard(\"queued\", title);\n }\n+\n+export function archivedCard(title) {\n+  return makeCard(\"archived\", title);\n+}\n"
+}
