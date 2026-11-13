@@ -104,6 +104,14 @@ Primary source-repo commands:
 | `npm run check:contributor` | Smoke-test manual contributor and packaged contributor flows. |
 | `npm run validate` | Canonical full local validation before release or PR. |
 
+`scripts/npm-pack-report.mjs` owns the single-package npm JSON compatibility
+boundary used by `scripts/smoke-contributor.mjs`; `test/npm-pack-report.test.mjs`
+covers accepted report shapes and rejected results. The contributor smoke
+inspects, installs and runs the exact local tarball. Automatic push/PR CI runs
+`npm run validate` on each documented Node/npm pair; manual full validation
+reuses that workflow. Toolchain policy and administrator-required check names
+live in `docs/reference/contributor-setup.md` and `CONTRIBUTING.md`.
+
 Generated harness validation is separate from Structor package validation. Generated harness checks are rendered into generated projects and protect generated governance, workspace routing, model overlay drift, hooks, compatibility, and readiness surfaces.
 
 ## npm Package Surface
