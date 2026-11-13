@@ -12,6 +12,27 @@ const contractFileSuffix = ".contract.json";
 const docFileSuffix = ".md";
 const requiredFields = ["id", "name", "version", "owners", "affectedRepos", "requiredFiles"];
 const semverPattern = /^\d+\.\d+\.\d+$/;
+const maturityLevels = {{CONTRACT_MATURITY_LEVELS_JSON}};
+
+function reportMaturityShape(maturity, label) {
+  if (typeof maturity !== "object" || maturity === null || Array.isArray(maturity)) {
+    return [`${label} must be an object with level, scope and limitations.`];
+  }
+  const findings = [];
+  if (!maturityLevels.includes(maturity.level)) {
+    findings.push(`${label}.level must be one of: ${maturityLevels.join(", ")}.`);
+  }
+  if (typeof maturity.scope !== "string" || !maturity.scope.trim()) {
+    findings.push(`${label}.scope must be a non-empty string describing the bounded claim.`);
+  }
+  if (!Array.isArray(maturity.limitations) || maturity.limitations.some((item) => typeof item !== "string" || !item.trim())) {
+    findings.push(`${label}.limitations must be an array of non-empty strings (use [] when none are recorded).`);
+  }
+  for (const key of Object.keys(maturity)) {
+    if (!["level", "scope", "limitations"].includes(key)) findings.push(`${label}.${key} is not allowed.`);
+  }
+  return findings;
+}
 
 function absolutePath(relativePath) {
   return path.join(repoRoot, relativePath);
@@ -44,6 +65,9 @@ function reportContractShape(manifest, label) {
     if (!Array.isArray(manifest[field]) || manifest[field].length === 0) {
       findings.push(`${label}.${field} must be a non-empty array.`);
     }
+  }
+  if (Object.hasOwn(manifest, "maturity")) {
+    findings.push(...reportMaturityShape(manifest.maturity, `${label}.maturity`));
   }
 
   return findings;
@@ -85,4 +109,4 @@ if (errors.length > 0) {
   process.exit(1);
 }
 
-console.log("Contract manifest check passed.");
+console.log("Contract manifest check passed (shape and required files only; maturity claims are not verified).");

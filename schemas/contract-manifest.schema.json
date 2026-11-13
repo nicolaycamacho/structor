@@ -12,6 +12,20 @@
     "affectedRepos": { "type": "array", "items": { "type": "string" }, "minItems": 1 },
     "requiredFiles": { "type": "array", "items": { "type": "string" } },
     "forbiddenTokens": { "type": "array", "items": { "type": "string" } },
-    "validation": { "type": "array", "items": { "type": "string" } }
+    "validation": { "type": "array", "items": { "type": "string" } },
+    "maturity": {
+      "description": "Optional scoped maturity claim, not a validation result. Missing metadata means unassessed, not C0. See the generated ai/contracts/README.md for the canonical model.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["level", "scope", "limitations"],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": ["C0 Inventory", "C1 Flow Mapped", "C2 Boundary Mapped", "C3 Contract Mapped", "C4 Validated", "C5 Governed"]
+        },
+        "scope": { "type": "string", "pattern": "\\S" },
+        "limitations": { "type": "array", "items": { "type": "string", "pattern": "\\S" } }
+      }
+    }
   }
 }

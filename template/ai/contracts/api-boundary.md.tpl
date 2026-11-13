@@ -1,5 +1,8 @@
 # API Boundary
 
+Maturity is declared in the sibling manifest. Read `ai/contracts/README.md`
+for the model and limits before relying on this starter as a project contract.
+
 Use this contract to document API ownership and compatibility expectations.
 
 ## Required Fields
