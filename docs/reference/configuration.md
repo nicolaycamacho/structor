@@ -63,11 +63,11 @@ and future-facing `auto_merge` semantics remain in effect.
 Configs created before profiles existed remain compatible: omitting `profile`
 selects `expanded`, preserving the prior generated tree. To adopt the smaller
 surface, add `"profile": "focused"` and review the generation preview before
-regenerating. Structor infers these defaults and does not add a wizard question.
+regenerating. Structor infers these defaults and does not require a separate setup decision.
 
 ## Path Rules
 
-Consumer repo paths and the durable init `output.path` remain
+Consumer repo paths and the durable setup `output.path` remain
 workspace-relative. The generator rejects absolute consumer paths, `..`
 traversal, symlinked consumer paths, and entrypoint writes to directories that
 do not look like repositories.

@@ -13,7 +13,7 @@ guidance_ready: false
 ```
 
 Keep claims grounded in current behavior. Interpretive repo understanding
-belongs in the reviewed post-init population workflow, not in deterministic
+belongs in the reviewed post-setup population workflow, not in deterministic
 setup.
 
 See [populating a harness](../guides/populating-a-harness.md).

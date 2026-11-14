@@ -18,10 +18,10 @@ const skippedDirectories = new Set([
   "temp",
 ]);
 
-// Hygiene scanning is deny-list based: every publishable file is scanned for
+// Hygiene scanning is deny-list based: every public source file is scanned for
 // secrets unless its extension is known-binary. An allow-list of extensions
-// silently skipped extensionless files (e.g. `prod-private-key`) that npm pack
-// would still publish, so we invert the check.
+// silently skipped extensionless files (e.g. `prod-private-key`), so we invert
+// the check for the declared public source directories.
 const binaryExtensions = new Set([
   ".png",
   ".jpg",
@@ -95,7 +95,7 @@ const forbiddenProjectTermPatterns = [...new Set(configuredForbiddenProjectTerms
 
 await checkCommittedGeneratedOutput();
 
-const activeFiles = await collectPublishableFiles();
+const activeFiles = await collectPublicSourceFiles();
 for (const relativePath of activeFiles) {
   const content = await readFile(path.join(repoRoot, relativePath), "utf8");
   checkContent(relativePath, content);
@@ -131,13 +131,13 @@ function shouldScanFile(relativePath) {
   return !binaryExtensions.has(path.extname(relativePath).toLowerCase());
 }
 
-// Scan exactly the set of files npm would publish (the package.json `files`
-// allow-list plus the always-included package.json), so extensionless secret
-// files inside published directories are caught while local-only files such as
-// `.git` or `*.local.json` are not falsely flagged.
-async function collectPublishableFiles() {
-  const pkg = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
-  const entries = new Set(["package.json", ...(Array.isArray(pkg.files) ? pkg.files : [])]);
+// Public source coverage is maintained independently of npm distribution metadata.
+async function collectPublicSourceFiles() {
+  const manifest = JSON.parse(await readFile(path.join(repoRoot, ".structor/manifest/repo-map.json"), "utf8"));
+  if (!Array.isArray(manifest.publicSourcePaths) || manifest.publicSourcePaths.length === 0) {
+    throw new Error("repo-map.json publicSourcePaths must be a non-empty array.");
+  }
+  const entries = new Set(["package.json", ...manifest.publicSourcePaths]);
   const files = new Set();
 
   async function walk(currentRelativePath) {
@@ -153,9 +153,12 @@ async function collectPublishableFiles() {
   }
 
   for (const entry of entries) {
+    if (typeof entry !== "string" || !entry.trim() || path.isAbsolute(entry) || entry.split(/[\\/]/).includes("..")) {
+      throw new Error("publicSourcePaths must contain relative paths without traversal.");
+    }
     const normalized = entry.replace(/\/+$/, "");
     const absolute = path.join(repoRoot, normalized);
-    if (!(await exists(absolute))) continue;
+    if (!(await exists(absolute))) throw new Error(`Public source path does not exist: ${entry}`);
     const stats = await stat(absolute);
     if (stats.isDirectory()) {
       await walk(normalized);

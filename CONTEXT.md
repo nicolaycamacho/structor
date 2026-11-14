@@ -6,11 +6,6 @@ the core concepts so setup, generation, and repo-inspection work stay distinct.
 
 ## Language
 
-**Setup Wizard**:
-An interactive onboarding flow that gathers project facts, prepares harness
-configuration, previews planned writes, and guides the user through generation.
-_Avoid_: Installer, runner, initializer
-
 **Agent-Native Setup**:
 A guided setup experience where the user works through an existing coding agent,
 while Structor remains responsible only for deterministic planning, filesystem
@@ -113,7 +108,7 @@ _Avoid_: Truth score, approval status, quality grade
 
 **Scan Review Flow**:
 The post-scan review path where users inspect and approve candidate harness
-content after setup, outside the time-sensitive **Setup Wizard** path.
+content after setup, after **Agent-Native Setup**.
 _Avoid_: Wizard review, automatic promotion, inline doc approval
 
 **Scan Promotion**:
@@ -128,20 +123,20 @@ facts, contracts, and conventions have been reviewed.
 _Avoid_: Complete project policy, discovered contracts
 
 **Doctor**:
-A diagnostic and repair flow that checks an existing Structor workspace for
+A read-only diagnostic flow that checks an existing Structor workspace for
 drift, stale pointers, unsafe output paths, and missing AI Harness Engineering Framework
 wiring.
 _Avoid_: Wizard, initializer, runner
 
 ## Example Dialogue
 
-Developer: "Should the wizard generate contracts from my app?"
+Developer: "Should agent setup generate contracts from my app?"
 
-Maintainer: "The setup wizard can offer a consumer repo scan that drafts
+Maintainer: "The coding agent can perform a consumer repo scan that drafts
 contract candidates, but the initializer should stay deterministic and render
 only reviewed configuration and templates."
 
 Developer: "Should I review all scan output during setup?"
 
-Maintainer: "No. Init should stay quick: apply safe setup facts, save a
-consumer scan draft, and leave deeper review for a post-init refinement flow."
+Maintainer: "No. Setup should apply reviewed setup facts, save a
+consumer scan draft, and leave deeper review for a post-setup refinement flow."

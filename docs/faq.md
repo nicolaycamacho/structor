@@ -6,9 +6,9 @@ No. Structor creates local files and validators. It does not run agents, open
 pull requests, shepherd CI, auto-repair code, or operate a control plane. See
 [harness vs runner](concepts/harness-vs-runner.md).
 
-## Does init call LLMs or external services?
+## Does deterministic setup call LLMs or external services?
 
-No. `structor init` is local-only and deterministic. It does not call LLMs,
+No. Structor’s deterministic setup implementation is local-only. It does not call LLMs,
 make API requests, install packages, create remotes, run agents, or mutate
 external services.
 

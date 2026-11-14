@@ -5,7 +5,8 @@ Structor behavior.
 
 ## Wrong Working Directory
 
-Run `structor init` from the parent workspace that contains your consumer repos.
+Open your coding agent in the parent workspace that contains your consumer repos
+and use the [installation prompt](install-with-an-agent.md).
 Structor expects a sibling layout:
 
 ```text
@@ -15,8 +16,8 @@ workspace/
   project-api/
 ```
 
-If detection finds the wrong folders, reject the detected list and enter the
-intended consumer paths manually.
+If discovery finds the wrong folders, correct the consumer paths with your agent
+before approving the setup plan.
 
 ## Existing Root Guidance
 

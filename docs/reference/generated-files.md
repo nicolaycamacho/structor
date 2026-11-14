@@ -1,6 +1,6 @@
 # Generated Files
 
-Running `structor init` creates a generated harness repo as a sibling of your
+Agent setup creates a generated harness repo as a sibling of your
 consumer repos:
 
 ```text

@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.2] - 2026-11-14
+
+### Changed
+
+- Finish the agent-first installation transition: deprecate every published npm
+  version, keep source package metadata private, and remove the interactive init
+  wizard. New users install from a verified release through the README prompt.
+- Replace npm tarball/install smoke with annotated pinned-checkout release and
+  CLI smoke; keep public source hygiene coverage independent of npm metadata.
+- Retain deterministic generation, agent plan/hash/apply, population, read-only
+  Doctor, and contributor commands, including both setup profiles and regeneration.
+
 ## [0.3.1] - 2026-11-14
 
 ### Fixed

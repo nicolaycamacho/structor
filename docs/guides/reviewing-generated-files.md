@@ -17,4 +17,4 @@ as proof that Structor has understood project architecture, ownership, or
 workflow expectations.
 
 For file anatomy, see [generated files](../reference/generated-files.md). For
-the post-init migration path, see [populating a harness](populating-a-harness.md).
+the post-setup migration path, see [populating a harness](populating-a-harness.md).

@@ -13,11 +13,11 @@ const requiredMapSections = [
   "## Package Identity",
   "## Repository Topology",
   "## CLI Entrypoints",
-  "## Init And Wizard Flow",
+  "## Agent Setup Flow",
   "## Generation Flow",
   "## Template And Generated Harness Contract",
   "## Validation Model",
-  "## npm Package Surface",
+  "## Public Source Surface",
   "## Contributor And Self-Harness Flow",
   "## Agent Routing Guide",
   "## Synchronization Groups",
@@ -79,7 +79,7 @@ async function checkManifest(repoMapManifest, pkg) {
   await checkPathEntries("entrypoints", repoMapManifest.entrypoints, { expectDirectory: false });
   await checkNamedPathObject("generation", repoMapManifest.generation);
   await checkNamedPathObject("validation", repoMapManifest.validation);
-  checkPublishedFiles(repoMapManifest.publishedFiles, pkg.files ?? []);
+  await checkPublicSourcePaths(repoMapManifest.publicSourcePaths);
   await checkSyncGroups(repoMapManifest.syncGroups);
 }
 
@@ -193,31 +193,21 @@ async function checkNamedPathObject(fieldName, entries) {
   }
 }
 
-function checkPublishedFiles(publishedFiles, packageFiles) {
-  if (!Array.isArray(publishedFiles)) {
-    errors.push(`${manifestRelativePath}.publishedFiles must be an array.`);
+async function checkPublicSourcePaths(entries) {
+  const label = `${manifestRelativePath}.publicSourcePaths`;
+  if (!Array.isArray(entries) || entries.length === 0) {
+    errors.push(`${label} must be a non-empty array.`);
     return;
   }
-
-  const manifestSet = new Set(publishedFiles);
-  const packageSet = new Set(packageFiles);
-  for (const entry of publishedFiles) {
+  const seen = new Set();
+  for (const entry of entries) {
     if (!hasNonEmptyString(entry)) {
-      errors.push(`${manifestRelativePath}.publishedFiles must contain only non-empty strings.`);
+      errors.push(`${label} must contain only non-empty strings.`);
       continue;
     }
-    assertPathSafe(entry, `${manifestRelativePath}.publishedFiles entry ${entry}`);
-  }
-
-  for (const entry of packageSet) {
-    if (!manifestSet.has(entry)) {
-      errors.push(`package.json.files entry ${entry} is missing from ${manifestRelativePath}.publishedFiles.`);
-    }
-  }
-  for (const entry of manifestSet) {
-    if (!packageSet.has(entry)) {
-      errors.push(`${manifestRelativePath}.publishedFiles entry ${entry} is not present in package.json.files.`);
-    }
+    if (seen.has(entry)) errors.push(`${label} contains duplicate path ${entry}.`);
+    seen.add(entry);
+    await checkPathExists(entry, `${label} entry ${entry}`, { expectDirectory: entry.endsWith("/") });
   }
 }
 

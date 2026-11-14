@@ -1,6 +1,6 @@
 {
   "name": "@structor-dev/cli",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "description": "Harness Engineering Framework that generates Repository-local AI Harness Engineering Frameworks for consumer repos.",
   "license": "MIT",
   "author": "Nicolay Camacho",
@@ -21,22 +21,6 @@
   "bin": {
     "structor": "bin/structor.mjs"
   },
-  "files": [
-    "bin/",
-    "contrib/",
-    "docs/",
-    "examples/",
-    "harness.config.example.json",
-    "schemas/",
-    "scripts/",
-    "template/",
-    "CHANGELOG.md",
-    "INSTALL_WITH_AGENT.md",
-    "ROADMAP.md",
-    "README.md",
-    "SECURITY.md",
-    "LICENSE"
-  ],
   "scripts": {
     "test": "node --test",
     "check:ci": "node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map && npm run check:release",
@@ -55,7 +39,6 @@
     "check:contributor": "node scripts/smoke-contributor.mjs",
     "validate": "npm run check:ci && npm run test && npm run check:smoke && npm run check:contributor",
     "validate:governance": "node scripts/validate-governance.mjs",
-    "init": "node bin/structor.mjs init",
     "generate": "node bin/structor.mjs generate",
     "init:harness": "node scripts/init-harness.mjs",
     "setup:contributor": "node scripts/setup-contributor.mjs",
