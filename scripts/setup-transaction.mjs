@@ -273,6 +273,7 @@ export async function applySetupTransaction(plan, {
     if (result.stderr) process.stderr.write(result.stderr);
   },
   onConfigWritten = () => {},
+  beforeApply = async () => {},
   beforeCompletionGates = async () => {},
   afterCompletionGates = async () => {},
   onCommandStatus = () => {},
@@ -329,6 +330,7 @@ export async function applySetupTransaction(plan, {
 
   try {
     await assertNoEntrypointConflicts({ config, resolvedConfig, force });
+    await beforeApply();
     const generated = await generateHarness(config, {
       configPath,
       configContent: plan.renderedConfig,

@@ -64,7 +64,14 @@ function withPopulateSection(existingContent, evidence) {
 async function consumerEvidence(resolvedConsumer, workspaceRoot) {
   const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
   const packagePath = path.join(consumerRoot, "package.json");
-  const packageContent = await readFile(packagePath, "utf8");
+  await assertSafeWriteTarget({ targetPath: packagePath, rootPath: workspaceRoot, label: "Consumer manifest evidence" });
+  let packageContent;
+  try {
+    packageContent = await readFile(packagePath, "utf8");
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    return { config: resolvedConsumer.config, packageName: null, sourcePath: null, sourceHash: null };
+  }
   const packageJson = JSON.parse(packageContent);
   return {
     config: resolvedConsumer.config,
@@ -78,13 +85,14 @@ function renderContextEvidence(consumers) {
   const lines = consumers.flatMap((consumer) => [
     `- ${markdownCodeSpan(consumer.config.name)} at ${markdownCodeSpan(consumer.config.path)}.`,
     ...(consumer.packageName ? [`  - Package: ${markdownCodeSpan(consumer.packageName)}.`] : []),
-    `  - Evidence: ${markdownCodeSpan(consumer.sourcePath)}.`,
+    ...(consumer.sourcePath ? [`  - Evidence: ${markdownCodeSpan(consumer.sourcePath)}.`] : []),
   ]);
   return `## Local Consumer Evidence\n\n${lines.join("\n")}\n\n## Review Required\n\n- Confirm product, architecture, contracts, and workflow claims before relying on them.\n- Keep model overlays and consumer entrypoints thin.\n`;
 }
 
 async function plannedWrite({ workspaceRoot, targetPath, content, backupRoot }) {
   const relativePath = repositoryRelative(workspaceRoot, targetPath);
+  await assertSafeWriteTarget({ targetPath, rootPath: workspaceRoot, label: "Agent-native planned write" });
   if (!(await exists(targetPath))) {
     return {
       write: {
@@ -108,6 +116,7 @@ async function plannedWrite({ workspaceRoot, targetPath, content, backupRoot }) 
       sourcePath: relativePath,
       backupPath: `${backupRoot}/${relativePath}`,
     },
+    previousContent,
   };
 }
 
@@ -267,7 +276,6 @@ async function buildPlanCandidate({
     backupRoot,
   })));
   const writesByPath = new Map(planned.map((item) => [item.write.path, item.write]));
-  const writes = [...writesByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   const preservedBackups = new Map(preservationOutputs.flatMap((preservation) =>
     preservation.outputs
       .filter((output) => output.sourcePath)
@@ -275,17 +283,38 @@ async function buildPlanCandidate({
         repositoryRelative(workspaceRoot, output.sourcePath),
         repositoryRelative(workspaceRoot, output.targetPath),
       ])));
-  const backups = planned.flatMap((item) => {
-    if (!item.backup) return [];
-    const backupPath = preservedBackups.get(item.backup.sourcePath);
-    if (!backupPath) {
-      throw new Error(
-        `Agent-native setup cannot replace ${item.backup.sourcePath} because it has no deterministic preservation path. Use the guided init flow for harness regeneration.`,
-      );
+  const backupTargets = [];
+  const backups = [];
+  for (const item of planned) {
+    if (!item.backup) continue;
+    const preservedPath = preservedBackups.get(item.backup.sourcePath);
+    const backupPath = preservedPath ?? item.backup.backupPath;
+    const targetPath = path.join(workspaceRoot, backupPath);
+    await assertSafeWriteTarget({ targetPath, rootPath: workspaceRoot, label: "Agent-native backup" });
+    if (await exists(targetPath)) {
+      throw new Error(`Backup ${backupPath} already exists; use a fresh plan ID.`);
     }
-    return [{ ...item.backup, backupPath }];
-  });
+    if (!preservedPath) {
+      if (writesByPath.has(backupPath)) {
+        throw new Error(`Backup path conflicts with a generated target: ${backupPath}`);
+      }
+      writesByPath.set(backupPath, {
+        path: backupPath,
+        action: "create",
+        precondition: { kind: "absent" },
+        contentHash: sha256(item.previousContent),
+      });
+      backupTargets.push({ targetPath, content: item.previousContent });
+    }
+    backups.push({ sourcePath: item.backup.sourcePath, backupPath });
+  }
+  const writes = [...writesByPath.values()].sort((left, right) => left.path.localeCompare(right.path));
   const evidenceRoot = `evidence/setup/${planId}`;
+  await assertSafeEvidenceBundleTargets(workspaceRoot, planId);
+  if (await exists(path.join(workspaceRoot, evidenceRoot))) {
+    throw new Error(`Evidence bundle ${evidenceRoot} already exists; use a fresh plan ID.`);
+  }
+  const provenance = consumers.filter((item) => item.sourcePath).map((item) => item.sourcePath);
   const consumerPaths = resolvedConfig.consumers.map((consumer) =>
     repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root));
   const existingGuidance = transaction.rootGuidanceConflicts.map((conflict) =>
@@ -300,15 +329,23 @@ async function buildPlanCandidate({
       structor: { packageVersion: await packageVersion(), sourceRevision },
       scope: { workspace: ".", consumers: consumerPaths },
       decisions: [
-        { id: "consumer-repositories", level: "recommended-confirmed", selection: consumerPaths.join(","), provenance: consumers.map((item) => item.sourcePath) },
-        { id: "project-identity", level: "recommended-confirmed", selection: config.project.slug, provenance: consumers.map((item) => item.sourcePath) },
-        { id: "topology", level: "recommended-confirmed", selection: "workspace", provenance: consumers.map((item) => item.sourcePath) },
+        { id: "consumer-repositories", level: "recommended-confirmed", selection: consumerPaths.join(","), provenance },
+        { id: "project-identity", level: "recommended-confirmed", selection: config.project.slug, provenance },
+        { id: "topology", level: "recommended-confirmed", selection: "workspace", provenance },
         { id: "enabled-clients", level: "explicit", selection: enabledClients(config), provenance: [] },
         { id: "generation-timestamp", level: "explicit", selection: plannedAt, provenance: [] },
         { id: "existing-guidance", level: "explicit", selection: existingGuidance.length > 0 ? "preserve" : "none", provenance: existingGuidance },
       ],
       reads: [
-        ...consumers.map((item) => ({
+        ...writes.filter((write) => write.action === "replace").map((write) => ({
+          path: write.path,
+          reason: "Hash and preserve the approved replacement",
+        })),
+        ...(transaction.dryRunGenerated.viewReads ?? []).map((relativePath) => ({
+          path: repositoryRelative(workspaceRoot, path.join(transaction.harnessRoot, relativePath)),
+          reason: "Render generated HTML views from existing harness content",
+        })),
+        ...consumers.filter((item) => item.sourcePath).map((item) => ({
           path: item.sourcePath,
           reason: "Extract manifest-declared population evidence",
         })),
@@ -357,6 +394,8 @@ async function buildPlanCandidate({
     transaction,
     consumers,
     workspaceRoot,
+    backupTargets,
+    backupRoot: path.join(workspaceRoot, backupRoot),
   };
 }
 
@@ -542,7 +581,17 @@ export async function applyAgentNativeSetup({
       preserveExistingGuidance,
       createRegenerationBackup: false,
       ...(executeGeneratedScript ? { executeGeneratedScript } : {}),
-      rollbackTrees: [{ rootPath: evidenceRoot, rollbackRoot: candidate.workspaceRoot }],
+      rollbackTrees: [
+        { rootPath: evidenceRoot, rollbackRoot: candidate.workspaceRoot },
+        { rootPath: candidate.backupRoot, rollbackRoot: candidate.workspaceRoot },
+      ],
+      beforeApply: async () => {
+        for (const backup of candidate.backupTargets) {
+          await assertSafeWriteTarget({ targetPath: backup.targetPath, rootPath: candidate.workspaceRoot, label: "Agent-native backup" });
+          await mkdir(path.dirname(backup.targetPath), { recursive: true });
+          await writeFile(backup.targetPath, backup.content, { flag: "wx" });
+        }
+      },
       onCommandStatus: ({ script, status }) => {
         if (status === "running") return;
         const index = plan.commands.findIndex((command) =>
