@@ -198,9 +198,6 @@ async function buildPlanCandidate({
   }
   await assertExecutingSourceRevision(sourceRevision);
 
-  if (config.profile !== "focused") {
-    throw new Error("Agent-native setup currently requires the focused harness profile.");
-  }
   const transaction = await planSetupTransaction({
     config,
     configPath,
