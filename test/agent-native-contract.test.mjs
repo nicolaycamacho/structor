@@ -210,8 +210,8 @@ test("agent installation contract documents the supported flow and reconciled fo
   assert.match(contract, /Status: supported and recommended/i);
   assert.match(contract, /#88[\s\S]*#100[\s\S]*#105[\s\S]*#107/);
   assert.match(contract, /does not run or orchestrate agents/i);
-  assert.match(contract, /structor agent plan/);
-  assert.match(contract, /structor agent apply/);
+  assert.match(contract, /node \/absolute\/path\/to\/structor\/bin\/structor\.mjs agent plan/);
+  assert.match(contract, /node \/absolute\/path\/to\/structor\/bin\/structor\.mjs agent apply/);
   for (const section of requiredSections) assert.ok(contract.includes(section), `Missing ${section}`);
 });
 
