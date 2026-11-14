@@ -1,6 +1,6 @@
 # Commands
 
-The current CLI supports `init`, `agent`, `generate`, `contribute structor`,
+The current CLI supports `agent`, `generate`, `populate`, `contribute structor`,
 and `doctor`. It does not include a runner command.
 
 For installation, start with [install with an agent](../guides/install-with-an-agent.md),
