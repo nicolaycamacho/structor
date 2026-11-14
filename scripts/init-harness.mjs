@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { copyFile, mkdir, readFile, readdir, rm, writeFile } from "node:fs/promises";
-import { execFileSync } from "node:child_process";
+import { spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -870,6 +870,10 @@ export async function generateHarness(config, {
   preservedGuidanceByConsumer = {},
   backupCommand = "init",
   createRegenerationBackup = true,
+  onCommandOutput = (result) => {
+    if (result.stdout) process.stdout.write(result.stdout);
+    if (result.stderr) process.stderr.write(result.stderr);
+  },
 } = {}) {
   const manifestConfigContent = configContent
     ?? (configPath ? await readFile(path.resolve(configPath), "utf8") : `${JSON.stringify(config, null, 2)}\n`);
@@ -976,10 +980,14 @@ export async function generateHarness(config, {
   } else if (renderedHtmlViewsScript) {
     let htmlViewFilesAfter;
     try {
-      execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
+      const result = spawnSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
         cwd: outputRoot,
-        stdio: "inherit",
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
       });
+      onCommandOutput(result);
+      if (result.error) throw result.error;
+      if (result.status !== 0) throw new Error("Generated HTML view generation failed.");
       htmlViewFilesAfter = await collectExistingFiles(htmlViewsRoot);
     } catch (error) {
       htmlViewFilesAfter = await collectExistingFiles(htmlViewsRoot);

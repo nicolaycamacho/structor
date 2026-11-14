@@ -10,7 +10,9 @@ qualifying version, never moving `main` HEAD. No npm package is needed.
 Legacy 0.2.x tags and registry versions predate this policy. They remain
 historical records, including the off-main lightweight `v0.2.5` tag. Do not
 retag them or treat them as current releases. Version 0.3.0 consolidates the
-previously unrecorded work in the changelog.
+previously unrecorded work in the changelog. Its tag CI exposed a checkout issue
+and fresh-install verification exposed mixed JSON/progress output; 0.3.0 is not
+release-ready. Version 0.3.1 corrects both without moving the 0.3.0 tag.
 
 ## Select And Verify A Release
 

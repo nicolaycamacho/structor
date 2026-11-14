@@ -557,6 +557,7 @@ export async function applyAgentNativeSetup({
   configPath,
   executedAt = new Date().toISOString(),
   executeGeneratedScript,
+  onCommandOutput,
 }) {
   assertApprovedInstallationPlan(plan, receipt);
   const candidate = await buildPlanCandidate({
@@ -585,6 +586,7 @@ export async function applyAgentNativeSetup({
     await applySetupTransaction(candidate.transaction, {
       preserveExistingGuidance,
       createRegenerationBackup: false,
+      ...(onCommandOutput ? { onCommandOutput } : {}),
       ...(executeGeneratedScript ? { executeGeneratedScript } : {}),
       rollbackTrees: [
         { rootPath: evidenceRoot, rollbackRoot: candidate.workspaceRoot },

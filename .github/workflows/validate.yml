@@ -54,6 +54,13 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          # An explicit tag ref preserves its annotated object instead of fetching SHA:tag.
+          ref: ${{ github.ref_type == 'tag' && github.ref || '' }}
+      - name: Verify tag checkout matches the event commit
+        if: github.ref_type == 'tag'
+        env:
+          EXPECTED_COMMIT: ${{ github.sha }}
+        run: test "$(git rev-parse HEAD)" = "$EXPECTED_COMMIT"
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}

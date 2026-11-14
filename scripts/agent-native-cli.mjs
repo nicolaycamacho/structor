@@ -108,12 +108,24 @@ async function run(argv) {
       readFile(path.resolve(required(options, "plan")), "utf8").then(JSON.parse),
       readFile(path.resolve(required(options, "approval")), "utf8").then(JSON.parse),
     ]);
-    const execution = await applyAgentNativeSetup({
-      ...input,
-      plan,
-      receipt,
-      ...(options["executed-at"] ? { executedAt: options["executed-at"] } : {}),
-    });
+    const originalLog = console.log;
+    let execution;
+    // Renderer progress belongs on stderr; stdout is one execution-result JSON object.
+    console.log = (...args) => console.error(...args);
+    try {
+      execution = await applyAgentNativeSetup({
+        ...input,
+        plan,
+        receipt,
+        onCommandOutput: (result) => {
+          if (result.stdout) process.stderr.write(result.stdout);
+          if (result.stderr) process.stderr.write(result.stderr);
+        },
+        ...(options["executed-at"] ? { executedAt: options["executed-at"] } : {}),
+      });
+    } finally {
+      console.log = originalLog;
+    }
     process.stdout.write(`${JSON.stringify(execution.result, null, 2)}\n`);
     if (execution.result.executionOutcome !== "applied") process.exitCode = 1;
     return;

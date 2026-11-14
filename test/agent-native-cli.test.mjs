@@ -90,6 +90,9 @@ test(`manual ${profile} agent CLI installs and regenerates with the same approva
       "--executed-at", "2026-07-26T15:02:00.000Z",
     ], { encoding: "utf8" });
     assert.equal(applied.status, 0, applied.stderr);
+    const result = JSON.parse(applied.stdout);
+    assert.equal(result.executionOutcome, "applied");
+    assert.equal(result.readiness, "ready_with_warnings");
     assert.equal(await exists(path.join(workspaceRoot, "cli-structor/ai/context.md")), true);
     assert.equal(
       await exists(path.join(workspaceRoot, `evidence/setup/setup-cli-${attempt}/manifest.json`)),
