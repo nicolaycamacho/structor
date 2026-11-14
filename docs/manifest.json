@@ -62,7 +62,7 @@
       "path": "docs/guides/populating-a-harness.md",
       "title": "Populating A Harness",
       "audience": ["users", "assistants"],
-      "purpose": "Explain the reviewed post-init guidance migration workflow.",
+      "purpose": "Explain the reviewed post-setup guidance migration workflow.",
       "status": "current"
     },
     {

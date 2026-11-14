@@ -1,43 +1,24 @@
 #!/usr/bin/env node
 
 import { spawnSync } from "node:child_process";
-import { access, mkdir, readdir, readFile, realpath, rm, rmdir, stat, writeFile } from "node:fs/promises";
+import { access, mkdir, readdir, readFile, realpath, stat, writeFile } from "node:fs/promises";
 import { constants as fsConstants } from "node:fs";
 import path from "node:path";
 import process from "node:process";
 import readline from "node:readline/promises";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import {
-  assertSafeConsumerPath,
   assertSafeWriteTarget,
   hasConsumerRepositorySignal,
   resolveHarnessConfig,
   validateConfigShape,
 } from "../scripts/lib.mjs";
-import {
-  collectConsumerRootGuidanceConflicts,
-  filesystemTimestamp,
-  generateHarness,
-  installConsumerEntrypoints,
-  render,
-} from "../scripts/init-harness.mjs";
-import {
-  applySetupTransaction,
-  planSetupTransaction,
-} from "../scripts/setup-transaction.mjs";
 import { validateHarnessReferences } from "../scripts/harness-routing.mjs";
 import { formatTargetProvenance, inspectTargetProvenance } from "../scripts/target-provenance.mjs";
-import { createTopologyPlan } from "../scripts/topology-plan.mjs";
-import {
-  consumerEntrypointValues,
-  harnessTemplateValues,
-  markdownCodeSpan,
-  markdownText,
-} from "../scripts/rendered-config.mjs";
+import { markdownCodeSpan, markdownText } from "../scripts/rendered-config.mjs";
 import {
   consumerEntrypointsForSettings,
   expandedHarnessProfile,
-  focusedHarnessProfile,
   requiredHarnessRepoFilesForWorkspaceCheck,
   requiredWorkspaceFilesForWorkspaceCheck,
   workspaceEntrypointsForSettings,
@@ -59,18 +40,6 @@ const styles = {
   yellow: "\x1b[33m",
   red: "\x1b[31m",
 };
-
-const repoSignals = [
-  ".git",
-  "package.json",
-  "pyproject.toml",
-  "go.mod",
-  "Cargo.toml",
-  "pom.xml",
-  "build.gradle",
-  "Gemfile",
-  "composer.json",
-];
 
 async function readPackageMetadata() {
   return await readJson(path.join(packageRoot, "package.json"));
@@ -126,20 +95,6 @@ async function maybeReadJson(filePath) {
   }
 }
 
-export function slugify(value) {
-  return value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    || "project";
-}
-
-export function relativeFrom(basePath, targetPath) {
-  const relative = path.relative(basePath, targetPath).replaceAll(path.sep, "/");
-  return relative === "" ? "." : relative.startsWith(".") ? relative : `./${relative}`;
-}
-
 export function parseArgs(argv) {
   const [command = "help", ...rest] = argv;
   const options = { _: [] };
@@ -151,8 +106,6 @@ export function parseArgs(argv) {
     }
     if (arg === "--yes" || arg === "-y") options.yes = true;
     else if (arg === "--help" || arg === "-h") options.help = true;
-    else if (arg === "--install-consumer-entrypoints") options.installConsumerEntrypoints = true;
-    else if (arg === "--preserve-existing-guidance") options.preserveExistingGuidance = true;
     else if (arg === "--force") options.force = true;
     else if (arg === "--dry-run" && (command === "contribute" || command === "populate")) options.dryRun = true;
     else if (arg === "--workspace") options.workspace = rest[++index];
@@ -189,21 +142,7 @@ function assertKnownOptionKeys(command, options, allowedKeys) {
 }
 
 function printHelp() {
-  console.log(`Structor\n\nUsage:\n  structor init [--workspace <path>] [--config <path>] [--yes] [--preserve-existing-guidance]\n  structor agent <plan|apply> [agent-native options]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>] [--target <path>] [--json] [--require-git-freshness]\n\nCommands:\n  init                 Guided local setup for a Structor workspace.\n  agent                Produce or apply the immutable Agent-Native Setup contract.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
-}
-
-function runGenerator(args, cwd = process.cwd()) {
-  const result = spawnSync(process.execPath, [generatorPath, ...args], {
-    cwd,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  return result;
-}
-
-function printCommandOutput(result) {
-  if (result.stdout) process.stdout.write(result.stdout);
-  if (result.stderr) process.stderr.write(result.stderr);
+  console.log(`Structor\n\nUsage:\n  structor agent <plan|hash|apply> [agent-native options]\n  structor generate --config <path> [generator options]\n  structor populate [--workspace <path>] [--config <path>] [--dry-run] [--yes]\n  structor contribute structor [--workspace <path>] [--repo-url <url-or-path>] [--yes] [--dry-run] [--force]\n  structor doctor [--workspace <path>] [--config <path>] [--target <path>] [--json] [--require-git-freshness]\n\nCommands:\n  agent                Produce or apply the immutable Agent-Native Setup contract.\n  generate             Render a generated harness from an existing config.\n  populate             Preview and apply deterministic local starter-guidance updates.\n  contribute structor  Create or refresh a local Structor contributor workspace.\n  doctor               Diagnose local Structor workspace drift without repairing files.\n`);
 }
 
 function passthroughGenerate(args) {
@@ -238,12 +177,6 @@ async function createPrompt() {
   };
 }
 
-async function askLine(rl, question, defaultValue = "") {
-  const suffix = defaultValue ? ` ${color("dim", `[${defaultValue}]`)}` : "";
-  const answer = (await rl.question(`${question}${suffix}: `)).trim();
-  return answer || defaultValue;
-}
-
 async function askYesNo(rl, question, defaultValue = true) {
   const suffix = defaultValue ? "Y/n" : "y/N";
   while (true) {
@@ -252,22 +185,6 @@ async function askYesNo(rl, question, defaultValue = true) {
     if (["y", "yes"].includes(answer)) return true;
     if (["n", "no"].includes(answer)) return false;
     warn("Please answer yes or no.");
-  }
-}
-
-async function askStaticChoice(rl, question, choices, defaultIndex = 0) {
-  console.log(question);
-  choices.forEach((choice, index) => {
-    const isDefault = index === defaultIndex;
-    const marker = isDefault ? color("green", "›") : " ";
-    const label = isDefault ? color("bold", choice.label) : choice.label;
-    console.log(`  ${marker} ${index + 1}. ${label}${choice.note ? color("dim", ` - ${choice.note}`) : ""}`);
-  });
-  while (true) {
-    const answer = (await rl.question(`Select ${color("dim", `[${defaultIndex + 1}]`)}: `)).trim();
-    const index = answer ? Number.parseInt(answer, 10) - 1 : defaultIndex;
-    if (Number.isInteger(index) && choices[index]) return choices[index].value;
-    warn("Please select a listed number.");
   }
 }
 
@@ -322,269 +239,6 @@ function runCommand(command, args, cwd, stdio = "inherit") {
 
 function commandText(command, args) {
   return [command, ...args].join(" ");
-}
-
-export function shouldExcludeCandidate(name) {
-  return (
-    name.startsWith(".") ||
-    name === "node_modules" ||
-    name === "structor" ||
-    name.endsWith("-structor") ||
-    name.endsWith("-harness") ||
-    name.endsWith("-engineering-harness")
-  );
-}
-
-async function collectSignals(candidateRoot) {
-  const signals = [];
-  for (const signal of repoSignals) {
-    if (await exists(path.join(candidateRoot, signal))) signals.push(signal);
-  }
-  return signals;
-}
-
-async function detectConsumerRepos(workspaceRoot) {
-  const entries = await readdir(workspaceRoot, { withFileTypes: true });
-  const candidates = [];
-  for (const entry of entries) {
-    if (!entry.isDirectory() || shouldExcludeCandidate(entry.name)) continue;
-    const absolutePath = path.join(workspaceRoot, entry.name);
-    const signals = await collectSignals(absolutePath);
-    if (signals.length === 0) continue;
-    candidates.push({
-      name: slugify(entry.name),
-      path: absolutePath,
-      folderName: entry.name,
-      signals,
-    });
-  }
-  return candidates.sort((a, b) => a.folderName.localeCompare(b.folderName));
-}
-
-async function detectPackageManager(repoRoot) {
-  if (await exists(path.join(repoRoot, "pnpm-lock.yaml"))) return "pnpm";
-  if (await exists(path.join(repoRoot, "yarn.lock"))) return "yarn";
-  if (await exists(path.join(repoRoot, "package-lock.json"))) return "npm";
-  if (await exists(path.join(repoRoot, "package.json"))) return "npm";
-  return null;
-}
-
-export function packageCommand(packageManager, scriptName) {
-  if (packageManager === "yarn") return `yarn ${scriptName}`;
-  if (scriptName === "test") return `${packageManager} test`;
-  return `${packageManager} run ${scriptName}`;
-}
-
-async function inferValidation(repoRoot) {
-  const validation = {};
-  const packageJson = await maybeReadJson(path.join(repoRoot, "package.json"));
-  if (packageJson) {
-    const packageManager = await detectPackageManager(repoRoot);
-    if (packageManager === "pnpm") validation.install = "pnpm install";
-    else if (packageManager === "yarn") validation.install = "yarn install";
-    else validation.install = "npm install";
-    const scripts = packageJson.scripts ?? {};
-    for (const scriptName of ["lint", "test", "build"]) {
-      if (scripts[scriptName]) validation[scriptName] = packageCommand(packageManager, scriptName);
-    }
-  }
-  if (await exists(path.join(repoRoot, "go.mod"))) {
-    validation.test ??= "go test ./...";
-  }
-  if (await exists(path.join(repoRoot, "Cargo.toml"))) {
-    validation.test ??= "cargo test";
-    validation.build ??= "cargo build";
-  }
-  if (await exists(path.join(repoRoot, "pyproject.toml"))) {
-    const hasPytest =
-      await exists(path.join(repoRoot, "pytest.ini")) ||
-      await exists(path.join(repoRoot, "tests")) ||
-      (await readFile(path.join(repoRoot, "pyproject.toml"), "utf8")).includes("pytest");
-    if (hasPytest) validation.test ??= "python -m pytest";
-  }
-  return validation;
-}
-
-export function compactValidation(validation) {
-  return Object.fromEntries(Object.entries(validation).filter(([, value]) => value.trim() !== ""));
-}
-
-function inferredPurpose(candidate) {
-  return candidate.manual ? "Application repository" : "Detected consumer repository";
-}
-
-async function consumerFromCandidate(workspaceRoot, candidate) {
-  return {
-    name: slugify(candidate.name),
-    path: relativeFrom(workspaceRoot, candidate.path),
-    purpose: inferredPurpose(candidate),
-    validation: compactValidation(await inferValidation(candidate.path)),
-  };
-}
-
-function printValidationSummary(validation) {
-  for (const key of ["install", "lint", "test", "build"]) {
-    if (validation[key]) check(`${key}: ${validation[key]}`);
-    else if (key === "test") console.log(`  ${key}: ${color("yellow", "not found")}`);
-    else console.log(`  ${key}: ${color("dim", "not found")}`);
-  }
-  console.log(`  health: ${color("dim", "not configured")}`);
-}
-
-function printConsumerDetectionSummary(candidates) {
-  for (const candidate of candidates) {
-    console.log(`  - ${color("bold", candidate.folderName)} ${color("dim", relativeFrom(path.dirname(candidate.path), candidate.path))}`);
-    if (candidate.signals?.length > 0) note(`    signals: ${candidate.signals.join(", ")}`);
-  }
-}
-
-async function collectInferredConsumers(workspaceRoot, selectedCandidates) {
-  const consumers = [];
-  for (const candidate of selectedCandidates) {
-    section(`Consumer: ${candidate.folderName}`);
-    const consumer = await consumerFromCandidate(workspaceRoot, candidate);
-    console.log(`Name: ${consumer.name}`);
-    console.log(`Path: ${color("dim", consumer.path)}`);
-    console.log(`Purpose: ${consumer.purpose}`);
-    printValidationSummary(consumer.validation);
-    consumers.push(consumer);
-  }
-  return consumers;
-}
-
-async function promptManualConsumers(rl, workspaceRoot, outputPath = "./project-structor") {
-  const consumers = [];
-  while (consumers.length === 0 || await askYesNo(rl, "Add another consumer repo?", false)) {
-    section(`Consumer ${consumers.length + 1}`);
-    const repoPath = await askLine(rl, "Path to consumer repo, relative to workspace", "./app");
-    const absolutePath = path.resolve(workspaceRoot, repoPath);
-    try {
-      assertSafeConsumerPath({
-        consumerName: slugify(path.basename(absolutePath)),
-        consumerPath: repoPath,
-        workspaceRoot,
-        outputRoot: path.resolve(workspaceRoot, outputPath),
-        repoRoot: packageRoot,
-      });
-    } catch (error) {
-      warn(error instanceof Error ? error.message : String(error));
-      continue;
-    }
-    if (!(await isDirectory(absolutePath))) {
-      warn(`Path does not exist yet: ${absolutePath}`);
-      if (!(await askYesNo(rl, "Use this path anyway?", false))) continue;
-    }
-    const folderName = path.basename(absolutePath);
-    const consumer = await consumerFromCandidate(workspaceRoot, {
-      name: slugify(folderName),
-      path: absolutePath,
-      folderName,
-      signals: await collectSignals(absolutePath),
-      manual: true,
-    });
-    section(`Consumer: ${folderName}`);
-    console.log(`Name: ${consumer.name}`);
-    console.log(`Path: ${color("dim", consumer.path)}`);
-    console.log(`Purpose: ${consumer.purpose}`);
-    printValidationSummary(consumer.validation);
-    consumers.push(consumer);
-  }
-  return consumers;
-}
-
-async function promptConsumerRepos(rl, workspaceRoot, startingConfig) {
-  if (startingConfig?.consumers?.length > 0 && await askYesNo(rl, "Use configured consumer repos?", true)) {
-    return startingConfig.consumers;
-  }
-
-  const candidates = await detectConsumerRepos(workspaceRoot);
-  if (candidates.length === 1) {
-    section("Detected consumer repo");
-    printConsumerDetectionSummary(candidates);
-    if (await askYesNo(rl, "Use this repo?", true)) {
-      return await collectInferredConsumers(workspaceRoot, candidates);
-    }
-    return await promptManualConsumers(rl, workspaceRoot);
-  }
-
-  if (candidates.length > 1) {
-    section("Detected consumer repos");
-    printConsumerDetectionSummary(candidates);
-    if (await askYesNo(rl, "Continue with these repositories?", true)) {
-      return await collectInferredConsumers(workspaceRoot, candidates);
-    }
-    return await promptManualConsumers(rl, workspaceRoot);
-  }
-
-  warn("No obvious sibling consumer repos found.");
-  return await promptManualConsumers(rl, workspaceRoot);
-}
-
-function titleizeSlug(slug) {
-  return slug
-    .split("-")
-    .filter(Boolean)
-    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(" ") || "Project";
-}
-
-function projectInferenceBase(workspaceRoot, consumers) {
-  if (consumers.length === 1) return consumers[0].name;
-  return slugify(path.basename(workspaceRoot));
-}
-
-function inferProjectConfig(workspaceRoot, consumers, startingConfig) {
-  if (startingConfig?.project?.name && startingConfig?.project?.slug) {
-    return {
-      name: startingConfig.project.name,
-      slug: startingConfig.project.slug,
-    };
-  }
-  const slug = slugify(projectInferenceBase(workspaceRoot, consumers));
-  return {
-    name: titleizeSlug(slug),
-    slug,
-  };
-}
-
-function projectSlugFromHarnessRepoName(harnessRepoName) {
-  return slugify(harnessRepoName.replace(/-structor$/, ""));
-}
-
-function normalizeWorkspaceRelativePath(rawPath) {
-  const normalized = rawPath.trim().replaceAll(path.sep, "/").replace(/\/+$/, "");
-  if (!normalized) return "./project-structor";
-  if (path.isAbsolute(normalized) || normalized.startsWith("./") || normalized.startsWith("../")) return normalized;
-  return `./${normalized}`;
-}
-
-function printConfigSummary(config, configPath) {
-  section("Config summary");
-  console.log(`Config: ${configPath}`);
-  console.log(`Project: ${config.project.name} (${config.project.slug})`);
-  console.log(`Generated repo: ${config.output.path}`);
-  console.log(`Profile: ${config.profile ?? expandedHarnessProfile}`);
-  console.log(`Models: ${config.models.openai ? "Codex" : ""}${config.models.openai && config.models.anthropic ? " + " : ""}${config.models.anthropic ? "Claude" : ""}`);
-  console.log("Consumer repos:");
-  for (const consumer of config.consumers) {
-    console.log(`  - ${consumer.name}: ${consumer.path} (${consumer.purpose})`);
-  }
-}
-
-function warnIfOutputIsNotWorkspaceChild(workspaceRoot, outputPath) {
-  const outputRoot = path.resolve(workspaceRoot, outputPath);
-  if (path.dirname(outputRoot) !== path.resolve(workspaceRoot)) {
-    warn("Generated Structor repo path is not a direct child of the workspace. The sibling layout is recommended.");
-  }
-}
-
-async function loadExistingConfig(configPath) {
-  if (!(await exists(configPath))) return null;
-  try {
-    return await readJson(configPath);
-  } catch (error) {
-    throw new Error(`Could not read existing config ${configPath}: ${error instanceof Error ? error.message : String(error)}`);
-  }
 }
 
 async function discoverWorkspaceConfigPath(workspaceRoot, explicitConfigPath = null) {
@@ -696,7 +350,7 @@ async function populate(options) {
   const workspaceRoot = path.resolve(options.workspace ?? process.cwd());
   const configPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
   if (!(await exists(configPath))) {
-    throw new Error(`Structor setup is incomplete: no harness config found at ${configPath}. Run structor init first or pass --config.`);
+    throw new Error(`Structor setup is incomplete: no harness config found at ${configPath}. Complete agent setup using the README prompt or pass --config.`);
   }
   const config = await readJson(configPath);
   const resolvedConfig = await resolveHarnessConfig(config, {
@@ -706,7 +360,7 @@ async function populate(options) {
     requireExistingConsumers: true,
   });
   if (!(await isDirectory(resolvedConfig.outputRoot))) {
-    throw new Error(`Structor setup is incomplete: generated harness directory is missing at ${resolvedConfig.outputRoot}. Run structor init first.`);
+    throw new Error(`Structor setup is incomplete: generated harness directory is missing at ${resolvedConfig.outputRoot}. Complete agent setup using the README prompt.`);
   }
 
   const consumers = await Promise.all(resolvedConfig.consumers.map(consumerPopulateEvidence));
@@ -720,7 +374,7 @@ async function populate(options) {
     file.targetPath = path.join(resolvedConfig.outputRoot, file.relativePath);
     file.previousContent = await readIfExists(file.targetPath);
     if (file.previousContent === null) {
-      throw new Error(`Structor setup is incomplete: required canonical file is missing: ${file.targetPath}. Run structor init first.`);
+      throw new Error(`Structor setup is incomplete: required canonical file is missing: ${file.targetPath}. Complete agent setup using the README prompt.`);
     }
     const update = withPopulateSection(file.previousContent, file.evidence);
     file.action = update.content === file.previousContent ? "unchanged" : update.action;
@@ -767,48 +421,6 @@ async function populate(options) {
     console.log(`wrote ${file.targetPath}`);
   }
   success("Structor populate completed. Review the generated guidance before treating it as ready.");
-}
-
-async function writeConfig(configPath, config) {
-  await mkdir(path.dirname(configPath), { recursive: true });
-  await writeFile(configPath, `${JSON.stringify(config, null, 2)}\n`);
-}
-
-function configContent(config) {
-  return `${JSON.stringify(config, null, 2)}\n`;
-}
-
-function durableConfigPathFor(workspaceRoot, outputPath) {
-  return path.join(path.resolve(workspaceRoot, outputPath), configFileName);
-}
-
-function initConfigWithWorkspaceRoot(config, workspaceRoot) {
-  const configPath = durableConfigPathFor(workspaceRoot, config.output.path);
-  return {
-    workspace: {
-      root: relativeFrom(path.dirname(configPath), workspaceRoot),
-    },
-    ...config,
-  };
-}
-
-function initCompletionCommands(harnessRoot) {
-  return [
-    commandText(process.execPath, ["scripts/validate-governance.mjs"]),
-    commandText(process.execPath, ["scripts/check-workspace.mjs"]),
-    `Config: ${path.join(harnessRoot, configFileName)}`,
-  ];
-}
-
-export function nextValidationCommands(config) {
-  const commands = [
-    `cd ${config.output.path}`,
-    "node scripts/validate-governance.mjs",
-    "node scripts/bootstrap-workspace.mjs --dry-run",
-    "node scripts/bootstrap-workspace.mjs",
-    "node scripts/check-workspace.mjs",
-  ];
-  return commands;
 }
 
 async function readIfExists(filePath) {
@@ -1058,269 +670,6 @@ async function doctor(options) {
   success(`Structor doctor passed with ${warnings} warning(s).`);
 }
 
-function printNextSteps(config) {
-  section("Next validation commands");
-  note("Run these from the workspace after generation to prove harness policy and workspace routing are healthy.");
-  for (const command of nextValidationCommands(config)) {
-    console.log(`  ${command}`);
-  }
-}
-
-function printSetupTransactionPreview(config, configPath) {
-  const settings = {
-    profile: config.profile,
-    models: config.models,
-    clientSupport: {
-      codexHooks: config.clientSupport?.codex?.hooks ?? config.models.openai,
-      claudeRules: config.clientSupport?.claude?.rules ?? false,
-      claudeHooks: false,
-      claudeSkills: false,
-    },
-  };
-
-  section("Setup transaction preview");
-  console.log(`Durable config: ${configPath}`);
-  console.log(`Generated harness: ${config.output.path}`);
-  console.log("Consumer entrypoints:");
-  for (const consumer of config.consumers) {
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
-      console.log(`  - ${consumer.path}/${entrypoint.path}`);
-    }
-  }
-  console.log("Workspace entrypoints:");
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
-    console.log(`  - ${entrypoint.path}`);
-  }
-  console.log("Completion gates:");
-  console.log("  - node scripts/validate-governance.mjs");
-  console.log("  - node scripts/check-workspace.mjs");
-}
-
-function groupedGuidanceConflicts(conflicts) {
-  const groups = new Map();
-  for (const conflict of conflicts) {
-    const current = groups.get(conflict.consumer) ?? {
-      consumer: conflict.consumer,
-      consumerPath: conflict.consumerPath,
-      consumerRoot: conflict.consumerRoot,
-      files: [],
-    };
-    current.files.push(conflict);
-    groups.set(conflict.consumer, current);
-  }
-  return [...groups.values()];
-}
-
-function preservedGuidancePlan(conflicts, timestamp) {
-  return Object.fromEntries(groupedGuidanceConflicts(conflicts).map((group) => [
-    group.consumer,
-    {
-      directory: `.structor/preserved-guidance/${timestamp}`,
-      files: group.files.map((file) => `.structor/preserved-guidance/${timestamp}/${file.path}`),
-    },
-  ]));
-}
-
-async function confirmPreserveExistingGuidance(rl, conflicts, timestamp, options) {
-  if (conflicts.length === 0) return true;
-  if (options.preserveExistingGuidance) return true;
-  if (options.yes) {
-    throw new Error(
-      `Existing root guidance files require explicit preservation consent:\n${conflicts.map((conflict) => `- ${conflict.targetPath}`).join("\n")}\nRe-run without --yes to choose interactively, or pass --yes --preserve-existing-guidance.`,
-    );
-  }
-
-  section("Existing root guidance files were found");
-  for (const conflict of conflicts) console.log(`  ${conflict.targetPath}`);
-  console.log("Structor needs to replace root guidance entrypoints so agents route through the generated harness.");
-  console.log("Structor will preserve your existing files as consumer-local source material before generating new root entrypoints.");
-  console.log("Preserved guidance will be stored at:");
-  for (const group of groupedGuidanceConflicts(conflicts)) {
-    console.log(`  ${path.join(group.consumerRoot, ".structor", "preserved-guidance", timestamp)}/`);
-  }
-  const choice = await askStaticChoice(rl, "Continue?", [
-    { label: "Preserve existing guidance and generate Structor entrypoints", value: "preserve" },
-    { label: "Abort", value: "abort" },
-  ], 0);
-  if (choice !== "preserve") {
-    warn("Stopped before generation.");
-    return false;
-  }
-  return true;
-}
-
-function printInitReadinessSummary({ generated, harnessRoot, preservedGuidanceByConsumer }) {
-  success("Structor setup complete.");
-  console.log("setup_complete: true");
-  console.log("guidance_ready: false");
-
-  section("Generated root entrypoints");
-  for (const entrypoint of generated.consumerEntrypoints.filter((item) => item.path === "AGENTS.md" || item.path === "CLAUDE.md")) {
-    console.log(`  ${path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)}`);
-  }
-
-  const preservedFiles = Object.entries(preservedGuidanceByConsumer)
-    .flatMap(([consumerName, preserved]) => {
-      const consumer = generated.resolvedConfig.consumers.find((item) => item.config.name === consumerName);
-      const consumerRoot = consumer?.confirmedRoot ?? consumer?.root;
-      return consumerRoot ? preserved.files.map((file) => path.join(consumerRoot, file)) : [];
-    });
-  if (preservedFiles.length > 0) {
-    section("Preserved existing guidance");
-    for (const filePath of preservedFiles) console.log(`  ${filePath}`);
-  }
-
-  section("Generated harness");
-  console.log(`  ${harnessRoot}/`);
-
-  section("Next step");
-  console.log(color("red", color("bold", "IMPORTANT")));
-  console.log("Populate the generated harness before using it for real project work.");
-  console.log(`  Open ${path.join(harnessRoot, "ai/tasks/populate-generated-harness.md")}`);
-  console.log(`  Use the prompt at ${path.join(harnessRoot, "ai/templates/populate-generated-harness-prompt.md")}`);
-  console.log("  Run it locally with Codex or Claude using a frontier model such as GPT-5.5 or Opus 4.8.");
-  console.log("  Manually verify generated content, navigation, references, and commands before treating the harness as guidance-ready.");
-}
-
-async function runGeneratedNodeScript({ harnessRoot, relativeScriptPath, args = [], failureLabel }) {
-  const result = spawnSync(process.execPath, [relativeScriptPath, ...args], {
-    cwd: harnessRoot,
-    encoding: "utf8",
-    stdio: ["ignore", "pipe", "pipe"],
-  });
-  printCommandOutput(result);
-  if (result.status !== 0) {
-    throw new Error(failureLabel);
-  }
-}
-
-function assertGeneratedScriptsReady(generatedFiles, scriptPaths) {
-  const filesByPath = new Map(generatedFiles.map((file) => [file.targetRelative, file]));
-  const notReady = [];
-  for (const scriptPath of scriptPaths) {
-    const file = filesByPath.get(scriptPath);
-    if (!file || file.action === "skipped" || !file.rendered) {
-      notReady.push(scriptPath);
-    }
-  }
-
-  if (notReady.length > 0) {
-    throw new Error(
-      `Generated setup scripts were not refreshed or verified:\n${notReady.map((item) => `- ${item}`).join("\n")}\nInspect the existing files and re-run with --force if they should be replaced.`,
-    );
-  }
-}
-
-async function assertNoEntrypointConflicts({ config, resolvedConfig, harnessRoot, force }) {
-  if (force) return;
-
-  const settings = { profile: config.profile, models: config.models, clientSupport: resolvedConfig.support };
-  const conflicts = [];
-  const templateWorkspaceRoot = config.workspace?.root
-    ? path.resolve(harnessRoot, config.workspace.root)
-    : path.dirname(harnessRoot);
-  const harnessValues = harnessTemplateValues(
-    config,
-    resolvedConfig.support,
-    resolvedConfig.consumers,
-    harnessRoot,
-    templateWorkspaceRoot,
-  );
-
-  for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
-    const targetPath = path.join(resolvedConfig.workspaceRoot, entrypoint.path);
-    if (!(await exists(targetPath))) continue;
-
-    const templatePath = path.join(packageRoot, "template", entrypoint.template);
-    const [actual, template] = await Promise.all([
-      readFile(targetPath, "utf8"),
-      readFile(templatePath, "utf8"),
-    ]);
-    const expected = render(template, harnessValues);
-    if (actual !== expected) {
-      conflicts.push(`workspace:${entrypoint.path}`);
-    }
-  }
-
-  for (const resolvedConsumer of resolvedConfig.consumers) {
-    const consumer = resolvedConsumer.config;
-    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
-    const harnessRelativePath = path.relative(consumerRoot, harnessRoot).replaceAll(path.sep, "/") || ".";
-    const values = consumerEntrypointValues(config, consumer, harnessRelativePath);
-
-    for (const entrypoint of consumerEntrypointsForSettings(settings)) {
-      if (entrypoint.path === "AGENTS.md" || entrypoint.path === "CLAUDE.md") continue;
-      const targetPath = path.join(consumerRoot, entrypoint.path);
-      if (!(await exists(targetPath))) continue;
-
-      const templatePath = path.join(packageRoot, "template", entrypoint.template);
-      const [actual, template] = await Promise.all([
-        readFile(targetPath, "utf8"),
-        readFile(templatePath, "utf8"),
-      ]);
-      const expected = render(template, values);
-      if (actual !== expected) {
-        conflicts.push(`consumer:${consumer.name}:${entrypoint.path}`);
-      }
-    }
-  }
-
-  if (conflicts.length > 0) {
-    throw new Error(
-      `Entrypoint conflicts detected before bootstrap:\n${conflicts.map((item) => `- ${item}`).join("\n")}\nRe-run with --force to overwrite known Structor pointer surfaces.`,
-    );
-  }
-}
-
-async function removeEmptyParents(startPath, stopPath) {
-  let current = path.dirname(startPath);
-  const resolvedStop = path.resolve(stopPath);
-  while (current.startsWith(resolvedStop) && current !== resolvedStop) {
-    try {
-      await rmdir(current);
-    } catch (error) {
-      if (error?.code === "ENOTEMPTY" || error?.code === "ENOENT") return;
-      throw error;
-    }
-    current = path.dirname(current);
-  }
-}
-
-async function cleanupFailedInit({
-  harnessRoot,
-  harnessRootExisted,
-  workspaceRoot,
-  workspaceCreatedPaths,
-  consumerCreatedPaths,
-  consumerRestores,
-  consumerPreservationDirs,
-  harnessCreatedPaths,
-}) {
-  for (const restore of consumerRestores) {
-    await writeFile(restore.targetPath, restore.content);
-  }
-
-  for (const preservePath of consumerPreservationDirs) {
-    await rm(preservePath, { recursive: true, force: true });
-    await removeEmptyParents(preservePath, workspaceRoot);
-  }
-
-  for (const targetPath of [...workspaceCreatedPaths, ...consumerCreatedPaths]) {
-    await rm(targetPath, { force: true });
-    await removeEmptyParents(targetPath, workspaceRoot);
-  }
-
-  if (!harnessRootExisted) {
-    await rm(harnessRoot, { recursive: true, force: true });
-    return;
-  }
-
-  for (const targetPath of harnessCreatedPaths) {
-    await rm(targetPath, { force: true });
-    await removeEmptyParents(targetPath, harnessRoot);
-  }
-}
-
 async function printContributorPlan(plan, options, sourceReady) {
   section(options.dryRun ? "Contributor workspace preview" : "Contributor workspace");
   console.log(`Workspace: ${plan.workspaceRoot}`);
@@ -1443,262 +792,6 @@ async function contributeStructor(options) {
   printContributorSummary(plan, setupArgs, true);
 }
 
-async function init(options) {
-  const rl = await createPrompt();
-  try {
-    console.log(color("bold", "Structor init"));
-    note("Local-only, deterministic setup. No network calls, no remote services, and no writes without confirmation.");
-
-    const workspaceDefault = options.workspace ? path.resolve(options.workspace) : process.cwd();
-    const workspaceRoot = path.resolve(await askLine(rl, "Workspace folder", workspaceDefault));
-    const legacyConfigPath = await discoverWorkspaceConfigPath(workspaceRoot, options.config);
-    const existingConfig = await loadExistingConfig(legacyConfigPath);
-    let startingConfig = null;
-    if (existingConfig) {
-      printConfigSummary(existingConfig, legacyConfigPath);
-      if (await askYesNo(rl, "Use this existing config as the starting point?", true)) {
-        startingConfig = existingConfig;
-      } else {
-        warn("Continuing will replace the config draft only after confirmation.");
-      }
-    }
-
-    section("Consumer repos");
-    note("For best results, run Structor from the workspace folder that contains your consumer repos as siblings.");
-    const consumers = await promptConsumerRepos(rl, workspaceRoot, startingConfig);
-
-    const inferredProject = inferProjectConfig(workspaceRoot, consumers, startingConfig);
-    section("Project");
-    console.log(`Project: ${inferredProject.name} (${inferredProject.slug})`);
-    const defaultHarnessDirectory = startingConfig?.output?.path ?? `./${startingConfig?.project?.harnessRepoName ?? `${inferredProject.slug}-structor`}`;
-    const outputPath = normalizeWorkspaceRelativePath(await askLine(rl, "Harness directory", defaultHarnessDirectory));
-    const harnessRepoName = path.basename(outputPath);
-    if (!harnessRepoName.endsWith("-structor")) {
-      warn("Harness directory basename does not end with -structor. This is allowed, but the suffix is recommended.");
-    }
-    const hasExistingProjectIdentity = startingConfig?.project?.name && startingConfig?.project?.slug;
-    const projectSlug = hasExistingProjectIdentity
-      ? startingConfig.project.slug
-      : projectSlugFromHarnessRepoName(harnessRepoName);
-    const projectName = hasExistingProjectIdentity
-      ? startingConfig.project.name
-      : titleizeSlug(projectSlug);
-
-    section("Agent clients");
-    const defaultModelIndex =
-      startingConfig?.models?.openai && !startingConfig?.models?.anthropic ? 1 :
-      !startingConfig?.models?.openai && startingConfig?.models?.anthropic ? 2 :
-      0;
-    const modelChoice = await askStaticChoice(rl, "Agent client support", [
-      { label: "Codex and Claude", value: "both" },
-      { label: "Codex only", value: "openai" },
-      { label: "Claude only", value: "anthropic" },
-    ], defaultModelIndex);
-
-    section("Customization");
-    note("Starter only creates generic harness content. It does not infer real contracts or coding conventions.");
-    note("Light Scan and Deep Scan are planned future opt-in Consumer Repo Scan modes.");
-
-    const config = {
-      profile: startingConfig ? (startingConfig.profile ?? expandedHarnessProfile) : focusedHarnessProfile,
-      project: {
-        name: projectName,
-        slug: projectSlug,
-        harnessRepoName,
-      },
-      output: {
-        path: outputPath,
-      },
-      models: {
-        openai: modelChoice === "both" || modelChoice === "openai",
-        anthropic: modelChoice === "both" || modelChoice === "anthropic",
-      },
-      clientSupport: {
-        codex: {
-          hooks: modelChoice === "both" || modelChoice === "openai",
-        },
-        claude: {
-          rules: false,
-          hooks: false,
-          skills: false,
-        },
-      },
-      consumers,
-    };
-
-    const initConfig = initConfigWithWorkspaceRoot(config, workspaceRoot);
-    const configPath = durableConfigPathFor(workspaceRoot, initConfig.output.path);
-    printConfigSummary(initConfig, configPath);
-    warnIfOutputIsNotWorkspaceChild(workspaceRoot, config.output.path);
-    note("harness.config.json will be persisted inside the generated harness so init can finish with a fully bootstrapped workspace.");
-    printSetupTransactionPreview(initConfig, configPath);
-    const canContinue = existingConfig
-      ? await askYesNo(rl, "Replace the generated harness config with this setup?", false)
-      : await askYesNo(rl, "Continue with this setup?", true);
-    if (!canContinue) {
-      warn("Stopped before generation.");
-      return;
-    }
-
-    section("Dry-run preview");
-    note("The initializer dry-run renders the generated harness plan before any files are written.");
-    const renderedConfig = configContent(initConfig);
-    const dryRunGenerated = await generateHarness(initConfig, {
-      configPath,
-      configContent: renderedConfig,
-      requireExistingConsumers: true,
-      dryRun: true,
-    });
-    const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
-    const preservationTimestamp = filesystemTimestamp();
-    const preservedGuidanceByConsumer = preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp);
-
-    const apply = options.yes || await askYesNo(rl, "Generate harness now?", true);
-    if (!apply) {
-      warn("Stopped after dry-run preview.");
-      return;
-    }
-    if (!(await confirmPreserveExistingGuidance(rl, rootGuidanceConflicts, preservationTimestamp, options))) {
-      return;
-    }
-
-    section("Generate");
-    const harnessRoot = path.dirname(configPath);
-    const harnessRootExisted = await exists(harnessRoot);
-    const workspaceCreatedPaths = [];
-    const consumerCreatedPaths = [];
-    const consumerRestores = [];
-    const consumerPreservationDirs = [];
-    const harnessCreatedPaths = [];
-
-    try {
-      await assertNoEntrypointConflicts({
-        config: initConfig,
-        resolvedConfig: dryRunGenerated.resolvedConfig,
-        harnessRoot,
-        force: options.force,
-      });
-
-      const generated = await generateHarness(initConfig, {
-        configPath,
-        configContent: renderedConfig,
-        requireExistingConsumers: true,
-        force: options.force,
-        dryRun: false,
-        preservedGuidanceByConsumer,
-      });
-      harnessCreatedPaths.push(
-        ...generated.generatedFiles
-          .filter((file) => file.action === "created")
-          .map((file) => file.targetPath),
-      );
-      if (generated.manifestFile?.action === "created") {
-        harnessCreatedPaths.push(generated.manifestFile.targetPath);
-      }
-      assertGeneratedScriptsReady(generated.generatedFiles, [
-        "scripts/bootstrap-workspace.mjs",
-        "scripts/validate-governance.mjs",
-        "scripts/check-workspace.mjs",
-      ]);
-
-      const durableConfigExisted = await exists(configPath);
-      await writeConfig(configPath, initConfig);
-      success(`${durableConfigExisted ? "Updated" : "Wrote"} ${configPath}`);
-      if (!durableConfigExisted) harnessCreatedPaths.push(configPath);
-
-      const consumerEntrypoints = await installConsumerEntrypoints(generated.resolvedConfig, {
-        dryRun: false,
-        force: options.force,
-        preserveExistingGuidance: rootGuidanceConflicts.length > 0,
-        preservationTimestamp,
-        preservedGuidanceByConsumer,
-      });
-      generated.consumerEntrypoints = consumerEntrypoints;
-      consumerCreatedPaths.push(
-        ...consumerEntrypoints
-          .filter((entrypoint) => entrypoint.action === "created")
-          .map((entrypoint) => path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path)),
-      );
-      consumerRestores.push(
-        ...consumerEntrypoints
-          .filter((entrypoint) => entrypoint.action === "wrote" && typeof entrypoint.previousContent === "string")
-          .map((entrypoint) => ({
-            targetPath: entrypoint.targetPath ?? path.join(generated.resolvedConfig.workspaceRoot, entrypoint.consumerPath, entrypoint.path),
-            content: entrypoint.previousContent,
-          })),
-      );
-      consumerPreservationDirs.push(
-        ...new Set(consumerEntrypoints
-          .filter((entrypoint) => entrypoint.preservedGuidanceDirectory)
-          .map((entrypoint) => path.join(
-            generated.resolvedConfig.workspaceRoot,
-            entrypoint.consumerPath,
-            entrypoint.preservedGuidanceDirectory,
-          ))),
-      );
-
-      const settings = { profile: initConfig.profile, models: initConfig.models, clientSupport: generated.resolvedConfig.support };
-      for (const entrypoint of workspaceEntrypointsForSettings(settings)) {
-        const targetPath = path.join(generated.resolvedConfig.workspaceRoot, entrypoint.path);
-        if (!(await exists(targetPath))) workspaceCreatedPaths.push(targetPath);
-      }
-
-      section("Workspace bootstrap");
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/bootstrap-workspace.mjs",
-        args: options.force ? ["--force"] : [],
-        failureLabel: "Workspace bootstrap failed.",
-      });
-
-      section("Completion gates");
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/validate-governance.mjs",
-        failureLabel: "Generated governance validation failed.",
-      });
-      await runGeneratedNodeScript({
-        harnessRoot,
-        relativeScriptPath: "scripts/check-workspace.mjs",
-        failureLabel: "Workspace completion check failed.",
-      });
-    } catch (error) {
-      await cleanupFailedInit({
-        harnessRoot,
-        harnessRootExisted,
-        workspaceRoot,
-        workspaceCreatedPaths,
-        consumerCreatedPaths,
-        consumerRestores,
-        consumerPreservationDirs,
-        harnessCreatedPaths,
-      });
-      throw error;
-    }
-
-    const finalGenerated = {
-      resolvedConfig: dryRunGenerated.resolvedConfig,
-      consumerEntrypoints: consumerEntrypointsForSettings({
-        profile: initConfig.profile,
-        models: initConfig.models,
-        clientSupport: dryRunGenerated.resolvedConfig.support,
-      }).flatMap((entrypoint) => initConfig.consumers.map((consumer) => ({
-        consumer: consumer.name,
-        consumerPath: consumer.path,
-        path: entrypoint.path,
-      }))),
-    };
-    printInitReadinessSummary({ generated: finalGenerated, harnessRoot, preservedGuidanceByConsumer });
-    section("Setup ready");
-    note("No post-success bootstrap steps are required.");
-    for (const command of initCompletionCommands(harnessRoot)) {
-      console.log(`  ${command}`);
-    }
-  } finally {
-    rl.close();
-  }
-}
-
 async function main() {
   const { command, options, rawArgs } = parseArgs(process.argv.slice(2));
   if (command === "--version" || command === "-v" || options.version) {
@@ -1715,9 +808,7 @@ async function main() {
     return;
   }
   if (command === "init") {
-    assertNoUnknownCommandFlags(command, options);
-    await init(options);
-    return;
+    throw new Error("structor init has been removed. Use the recommended agent prompt in README.md: https://github.com/nicolaycamacho/structor#install");
   }
   if (command === "generate") {
     passthroughGenerate(rawArgs);

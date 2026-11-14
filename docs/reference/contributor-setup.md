@@ -47,8 +47,8 @@ source-repo pointer files.
 ## Toolchains And CI
 
 The package declares Node.js `>=20` and npm `>=10`. Use a pairing supported by
-npm's own Node engine requirements. Git and `tar` are needed for contributor
-and packaged-artifact smoke checks. There are no runtime package dependencies.
+npm's own Node engine requirements. Git is needed for contributor
+and pinned-checkout smoke checks. There are no runtime package dependencies.
 The automatic `validate` workflow runs on pushes and pull requests with these
 Linux reference toolchains:
 
@@ -66,14 +66,14 @@ covered; newer tooling does not replace that baseline.
 
 For a clean checkout, run `npm ci` and `npm run validate`. The full gate includes
 static checks, every Node behavioral test, profile/client template smoke, manual
-contributor setup and clone/reuse smoke, and packaged CLI smoke. The package
-smoke packs the actual source, validates a single-package npm array (npm 10/11)
-or package-name-keyed object (npm 12) report, checks required paths in both the
-report and tarball, installs that exact local tarball offline, and runs the
-installed CLI's version, contributor preview, and harness generation with
-resulting generated checks. It uses isolated temporary caches and synthetic
-local repositories. It never publishes. Invalid or ambiguous reports fail
-without guessing a tarball. Failure workspaces are retained for diagnosis.
+contributor setup and clone/reuse smoke, and pinned-checkout CLI smoke. The
+checkout smoke creates a synthetic local source repository and annotated version
+tag, clones a fresh checkout, detaches at that tag, checks the exact commit and
+release integrity, then runs the CLI version, contributor preview, generation,
+and generated checks from it. Git configuration is isolated. It requires no
+registry access, npm tarball, package installation, or publication. Failure
+workspaces are retained for diagnosis. Agent-native behavioral tests separately
+cover approved public plan/hash/apply installation and regeneration in both profiles.
 
 `full-validation` manual dispatch reuses the same workflow and matrix. Ordinary
 push/PR validation needs no manual dispatch. Matrix failures propagate; other

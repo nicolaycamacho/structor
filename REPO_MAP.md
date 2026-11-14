@@ -16,7 +16,7 @@ npm run check:repo-map
 
 Read this file before changing source-repo behavior. Use the agent routing guide to identify the smallest useful context set, then run the validation commands listed for the touched area.
 
-Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, removing, renaming, or reclassifying important source files, directories, package scripts, package-published paths, or synchronization groups.
+Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, removing, renaming, or reclassifying important source files, directories, package scripts, public source paths, or synchronization groups.
 
 ## Package Identity
 
@@ -24,14 +24,15 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 - Version source: `package.json`
 - CLI binary: `bin/structor.mjs`
 - Package type: ESM (`"type": "module"`)
-- Public package surface: controlled by `package.json.files`
+- Source package metadata is private; distribution uses annotated release checkouts.
+- Public hygiene coverage: `.structor/manifest/repo-map.json.publicSourcePaths`
 - Canonical full validation: `npm run validate`
 
 ## Repository Topology
 
-| Path | Responsibility | Source/generated | Published | Notes |
+| Path | Responsibility | Source/generated | Hygiene scan | Notes |
 | --- | --- | --- | --- | --- |
-| `bin/` | User-facing CLI entrypoint and command routing. | Source | Yes | Owns `structor init`, `generate`, `contribute structor`, and `doctor` routing. |
+| `bin/` | User-facing CLI entrypoint and command routing. | Source | Yes | Owns `agent`, `generate`, `populate`, `contribute structor`, and `doctor` routing. |
 | `scripts/` | Generator implementation, validators, smoke checks, and helper libraries. | Source | Yes | Most deterministic behavior lives here. |
 | `template/` | Canonical generated harness templates. | Source templates | Yes | `template/ai/*` owns generated policy. Keep model overlays and entrypoints thin. |
 | `schemas/` | JSON schema contracts for harness configuration. | Source | Yes | Schema changes must match examples and validation. |
@@ -39,37 +40,39 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 | `examples/` | Example generated-tree and configuration evidence. | Source examples | Yes | Checked by `scripts/check-examples.mjs`. |
 | `contrib/` | Contributor/self-harness preset material and setup support. | Source preset | Yes | Generates or refreshes the sibling `structor-self` harness. |
 | `test/` | Node test suite for CLI, rendering, setup, validation, and regressions. | Source tests | No | Run through `npm test` and `npm run validate`. |
-| `.github/` | GitHub workflow and repository automation configuration. | Source config | No | Not part of the npm package. |
+| `.github/` | GitHub workflow and repository automation configuration. | Source config | No | Maintainer CI configuration. |
 | `.structor/manifest/` | Structor source-repo machine-readable maintenance metadata. | Source metadata | No | `repo-map.json` supports this file. |
 
 ## CLI Entrypoints
 
 | File | Responsibility | Reads | Writes |
 | --- | --- | --- | --- |
-| `bin/structor.mjs` | Public CLI router and setup wizard shell. | `package.json`, harness config, workspace files, generator modules. | Generated harness files, workspace entrypoints, consumer entrypoints, contributor workspace files after preview/consent. |
+| `bin/structor.mjs` | Public CLI router, population, Doctor, and contributor commands. | `package.json`, harness config, workspace files, generator modules. | Generated harness files, workspace entrypoints, consumer entrypoints, contributor workspace files after preview/consent. |
 | `scripts/agent-native-cli.mjs` | Deterministic agent-native plan, hash, and apply command adapter. | Config draft, plan, approval receipt, setup modules. | Approved planned setup writes and canonical evidence bundle during apply only. |
 | `scripts/agent-native-setup.mjs` | Shared agent-native plan/apply implementation. | Config, consumer package manifests, current planned target state. | Exact approved setup writes, deterministic replacement backups, rollback restoration, and evidence bundle. |
-| `scripts/setup-transaction.mjs` | In-process setup transaction planner and applier. | Resolved init config, initializer results, generated completion scripts. | Generated harness, durable config, consumer/workspace entrypoints, rollback restoration on failure. |
+| `scripts/setup-transaction.mjs` | In-process setup transaction planner and applier. | Resolved setup config, initializer results, generated completion scripts. | Generated harness, durable config, consumer/workspace entrypoints, rollback restoration on failure. |
 | `scripts/init-harness.mjs` | Deterministic initializer and template renderer. | `harness.config.json`, `template/**`, schema/helper modules. | Generated harness repository files and optional consumer entrypoints. |
 | `scripts/setup-contributor.mjs` | Manual Structor contributor setup helper. | `contrib/self-harness/**`, source checkout state. | Sibling `structor-self` harness and optional source-repo pointer files. |
 
 `bin/structor.mjs` should stay a CLI surface, not a service runtime. Deterministic generation belongs in `scripts/init-harness.mjs`; transaction ordering, completion gates, and rollback belong in `scripts/setup-transaction.mjs`.
 
-## Init And Wizard Flow
+## Agent Setup Flow
 
-The agent prompt in `README.md` is the recommended setup path. `structor init`
-is the legacy local wizard fallback.
+The agent prompt in `README.md` is the recommended setup path. The interactive
+`structor init` wizard has been removed. The coding agent gathers decisions;
+Structor's public `agent plan|hash|apply` commands enforce deterministic setup:
 
-High-level flow:
+1. Inspect the workspace and prepare a reviewed configuration for either profile.
+2. Plan exact writes through `scripts/agent-native-setup.mjs` without mutations.
+3. Bind explicit approval to the canonical plan hash before applying writes.
+4. Use `scripts/setup-transaction.mjs` and `scripts/init-harness.mjs` for generation,
+   approved preservation, completion gates, and rollback on failure.
+5. Report execution, readiness, and evidence separately for installation and regeneration.
 
-1. Parse CLI options in `bin/structor.mjs`.
-2. Gather workspace, project, model, and consumer repo facts through confirmation-oriented prompts.
-3. Build and preview the setup transaction through `scripts/setup-transaction.mjs` before applying writes.
-4. Use the deterministic initializer in `scripts/init-harness.mjs` to render the generated harness.
-5. Optionally preserve existing root guidance and install thin consumer entrypoints.
-6. Let the setup transaction run completion gates and roll back its own writes on failure, so success means generated governance validation and workspace checks completed.
-
-The wizard must remain local-only. It must not run agents, call LLM APIs, mutate external services, open pull requests, or become an orchestrator.
+`generate` remains the direct deterministic renderer. `populate` retains its
+preview and write consent; `doctor` remains read-only. Contributor tooling retains
+its own workspace preview and consent. These commands do not run coding agents,
+call LLM APIs, or become orchestrators.
 
 ## Generation Flow
 
@@ -108,41 +111,30 @@ Primary source-repo commands:
 | `npm run check:release` | Version/lockfile/changelog integrity; tag builds also verify annotated main ancestry and a clean checkout. |
 | `npm test` | Node test suite. |
 | `npm run check:smoke` | Smoke-render generated harness variants and validate generated outputs. |
-| `npm run check:contributor` | Smoke-test manual contributor and packaged contributor flows. |
+| `npm run check:contributor` | Smoke-test manual contributor and pinned-checkout contributor flows. |
 | `npm run validate` | Canonical full local validation before release or PR. |
 
-`scripts/npm-pack-report.mjs` owns the single-package npm JSON compatibility
-boundary used by `scripts/smoke-contributor.mjs`; `test/npm-pack-report.test.mjs`
-covers accepted report shapes and rejected results. The contributor smoke
-inspects, installs and runs the exact local tarball. Automatic push/PR CI runs
+The contributor smoke creates a synthetic local source repository and annotated
+version tag, clones and detaches a fresh checkout, verifies its commit and release
+integrity, then runs version, contributor preview, and generation checks from
+that checkout. No npm tarball or install is involved. Automatic push/PR CI runs
 `npm run validate` on each documented Node/npm pair; manual full validation
 reuses that workflow. Toolchain policy and administrator-required check names
 live in `docs/reference/contributor-setup.md` and `CONTRIBUTING.md`.
 
 Generated harness validation is separate from Structor package validation. Generated harness checks are rendered into generated projects and protect generated governance, workspace routing, model overlay drift, hooks, compatibility, and readiness surfaces.
 
-## npm Package Surface
+## Public Source Surface
 
-The npm package is deprecated and `package.json` is private. The retained
-`package.json.files` list defines the legacy package smoke and public-hygiene
-scan surface until checkout-based smoke replaces it. It includes:
+The npm package is deprecated and `package.json` is private. Release installation
+uses a verified annotated tag checkout, without npm packaging metadata or a
+publishing lifecycle. Development still uses npm scripts and the lockfile.
 
-- `bin/`
-- `contrib/`
-- `docs/`
-- `examples/`
-- `harness.config.example.json`
-- `schemas/`
-- `scripts/`
-- `template/`
-- `CHANGELOG.md`
-- `INSTALL_WITH_AGENT.md`
-- `ROADMAP.md`
-- `README.md`
-- `SECURITY.md`
-- `LICENSE`
-
-The package should include everything needed to run the CLI, generate harnesses, validate generated surfaces, read user docs, and run contributor setup. It should not include local generated output, private workspace state, or maintainer-only metadata unless intentionally added to `package.json.files`.
+`.structor/manifest/repo-map.json.publicSourcePaths` declares the public source
+paths checked by `scripts/check-public-hygiene.mjs`. It retains the former source
+coverage, including extensionless files under public directories. Missing or
+unsafe paths fail validation. `scripts/check-repo-map.mjs` checks the list for
+valid paths and duplicates; keep it current when changing source surfaces.
 
 ## Contributor And Self-Harness Flow
 
@@ -163,7 +155,7 @@ Do not put Structor-specific product content into active generic templates under
 
 | Change area | Read first | Validate |
 | --- | --- | --- |
-| CLI command routing or setup wizard behavior | `AGENTS.md`, `CONTEXT.md`, `bin/structor.mjs`, `scripts/setup-transaction.mjs`, `scripts/init-harness.mjs`, `test/cli.test.mjs`, `test/setup-transaction.test.mjs` | `npm run check:ci`, `npm test`, `npm run validate` |
+| CLI command routing or setup behavior | `AGENTS.md`, `CONTEXT.md`, `bin/structor.mjs`, `scripts/setup-transaction.mjs`, `scripts/init-harness.mjs`, `test/cli.test.mjs`, `test/setup-transaction.test.mjs` | `npm run check:ci`, `npm test`, `npm run validate` |
 | Agent-native plan/apply behavior | `INSTALL_WITH_AGENT.md`, `scripts/agent-native-cli.mjs`, `scripts/agent-native-setup.mjs`, `scripts/agent-native-contract.mjs`, `test/agent-native-*.test.mjs` | Focused agent-native tests, `npm run check:ci`, `npm run validate` |
 | Deterministic generation | `scripts/init-harness.mjs`, `scripts/rendered-config.mjs`, `scripts/generated-harness-contract.mjs`, `template/**` | `npm run check:templates`, `npm run check:contracts`, `npm run check:smoke`, `npm run validate` |
 | Template or generated policy content | `template/ai/HARNESS.md.tpl`, `template/ai/HUB.md.tpl`, relevant template file, `scripts/generated-harness-contract.mjs` | `npm run check:templates`, `npm run check:placeholders`, `npm run check:smoke` |
@@ -175,7 +167,7 @@ Do not put Structor-specific product content into active generic templates under
 
 ## Synchronization Groups
 
-### CLI and init behavior
+### CLI and agent setup behavior
 
 - `bin/structor.mjs`
 - `scripts/setup-transaction.mjs`
@@ -249,7 +241,7 @@ See `docs/reference/releases.md` for selection, publication, and recovery.
 ## Drift Risks
 
 - `package.json.scripts` can drift from contributor docs, validation docs, and repo-map metadata.
-- `package.json.files` can omit files needed by packaged CLI or contributor setup.
+- `publicSourcePaths` can omit public source paths from hygiene scanning if it is not maintained.
 - Template files can be added without updating `scripts/generated-harness-contract.mjs`.
 - Generated contract entries can be updated without smoke coverage or generated tree examples.
 - Root/model/consumer entrypoints can accidentally grow into duplicated policy instead of thin routing files.

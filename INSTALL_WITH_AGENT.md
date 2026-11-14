@@ -268,6 +268,9 @@ writes, commits, delegated mutations, or other changes before plan approval.
 
 ## Manual-Flow Parity
 
+Manual flow means direct invocation of the public agent CLI from the verified
+release checkout. It does not refer to the removed interactive init wizard.
+
 The public `structor agent plan|hash|apply` CLI and conversational hosts call
 the same deterministic planning and application seams. They may gather
 decisions differently, but both produce the same plan, approval, result,

@@ -15,5 +15,5 @@ and local validators. It does not infer complete project conventions,
 architecture, contracts, or validation expectations from consumer repo code
 during deterministic setup.
 
-Repo-specific details belong in the post-init harness population and review
+Repo-specific details belong in the post-setup harness population and review
 step. See [populating a harness](../guides/populating-a-harness.md).

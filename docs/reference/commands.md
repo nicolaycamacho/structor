@@ -1,6 +1,6 @@
 # Commands
 
-The current CLI supports `init`, `agent`, `generate`, `contribute structor`,
+The current CLI supports `agent`, `generate`, `populate`, `contribute structor`,
 and `doctor`. It does not include a runner command.
 
 For installation, start with [install with an agent](../guides/install-with-an-agent.md),
@@ -27,24 +27,8 @@ agent drive them. See [Install Structor With An Agent](../../INSTALL_WITH_AGENT.
 for the complete model-neutral protocol.
 
 
-## Legacy: `structor init` (being removed)
-
-The legacy wizard is being removed. New installations use the approved
-agent plan/apply path above. Existing checkout users can still invoke it:
-
-```sh
-node /absolute/path/to/structor/bin/structor.mjs init
-```
-
-Useful options include:
-
-- `--workspace <path>`
-- `--config <path>`
-- `--yes`
-- `--preserve-existing-guidance`
-
-`--yes` is not permission to replace existing non-matching root guidance. Use
-`--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
+The former interactive `structor init` wizard has been removed. Use the README
+agent prompt for new installations and regeneration.
 
 ## `structor generate`
 
@@ -57,6 +41,19 @@ node /absolute/path/to/structor/bin/structor.mjs generate --config harness.confi
 
 Use it when you already have a reviewed `harness.config.json` or need to
 preview the rendered file plan.
+
+## `structor populate`
+
+Preview deterministic starter guidance from an existing configured harness:
+
+```sh
+node /absolute/path/to/structor/bin/structor.mjs populate --workspace . --dry-run
+node /absolute/path/to/structor/bin/structor.mjs populate --workspace . --yes
+```
+
+`--config <path>` selects an explicit configuration. Without `--yes`, an
+interactive write confirmation is required. Population does not call LLMs or
+approve project guidance; review its output before treating guidance as ready.
 
 ## `structor doctor`
 

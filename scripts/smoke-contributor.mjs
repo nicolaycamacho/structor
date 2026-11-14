@@ -6,7 +6,6 @@ import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { parsePackReport } from "./npm-pack-report.mjs";
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const nodeCommand = process.execPath;
@@ -18,9 +17,6 @@ const fixtureEnv = {
   GIT_CONFIG_GLOBAL: "/dev/null",
   GIT_ATTR_NOSYSTEM: "1",
   GIT_TERMINAL_PROMPT: "0",
-  npm_config_cache: path.join(tempRoot, "npm-cache"),
-  npm_config_userconfig: path.join(tempRoot, "npmrc"),
-  npm_config_globalconfig: path.join(tempRoot, "global-npmrc"),
 };
 const fixtureGitConfig = {
   "core.hooksPath": "/dev/null",
@@ -178,73 +174,37 @@ async function smokeContributeCommand() {
   assertExists(path.join(cloneWorkspace, "structor-self/scripts/check-workspace.mjs"), "local fixture generated self-harness");
 }
 
-async function smokePackagedCli() {
-  const fixtureRoot = path.join(tempRoot, "packaged-fixture-structor");
-  const packRoot = path.join(tempRoot, "pack");
-  const npmCache = path.join(tempRoot, "npm-cache");
+async function smokePinnedCheckoutCli() {
+  const fixtureRoot = path.join(tempRoot, "checkout-fixture-structor");
+  const checkoutRoot = path.join(tempRoot, "pinned-checkout");
   await copySourceFixture(fixtureRoot);
   initGitFixture(fixtureRoot);
-  await mkdir(packRoot, { recursive: true });
+  const expectedPackage = JSON.parse(await readFile(path.join(fixtureRoot, "package.json"), "utf8"));
+  const tag = `v${expectedPackage.version}`;
+  run("git", ["-c", "user.email=fixture", "-c", "user.name=Fixture", "tag", "-a", tag, "-m", `Structor ${tag}`], fixtureRoot);
+  const expectedCommit = run("git", ["rev-parse", `${tag}^{commit}`], fixtureRoot).stdout.trim();
+  run("git", ["clone", "--no-checkout", fixtureRoot, checkoutRoot], tempRoot);
+  run("git", ["checkout", "--detach", tag], checkoutRoot);
+  const actualCommit = run("git", ["rev-parse", "HEAD"], checkoutRoot).stdout.trim();
+  if (actualCommit !== expectedCommit) throw new Error("pinned checkout resolved to the wrong commit.");
+  run(nodeCommand, ["scripts/check-release.mjs", "--tag", tag], checkoutRoot);
 
-  const expectedPackage = JSON.parse(await readFile(path.join(repoRoot, "package.json"), "utf8"));
-  const pack = run("npm", ["pack", "--offline", "--pack-destination", packRoot, "--cache", npmCache, "--json"], repoRoot);
-  const packed = parsePackReport(pack.stdout, expectedPackage);
-  const tarballPath = path.join(packRoot, packed.filename);
-  assertExists(tarballPath, "reported package tarball");
-  const packedFiles = new Set(packed.files.map((file) => file.path));
-  const archiveFiles = new Set(run("tar", ["-tzf", tarballPath], packRoot).stdout.trim().split("\n"));
-  for (const requiredPath of [
-    "package.json",
-    "README.md",
-    "LICENSE",
-    "bin/structor.mjs",
-    "contrib/self-harness/harness.config.json",
-    "contrib/self-harness/files/ai/AGENTS.md",
-    "scripts/init-harness.mjs",
-    "scripts/generated-harness-contract.mjs",
-    "scripts/setup-contributor.mjs",
-    "scripts/smoke-contributor.mjs",
-    "scripts/npm-pack-report.mjs",
-    "schemas/harness-config.schema.json",
-    "template/AGENTS.md.tpl",
-    "template/ai/AGENTS.md.tpl",
-    "template/scripts/validate-governance.mjs.tpl",
-  ]) {
-    if (!packedFiles.has(requiredPath) || !archiveFiles.has(`package/${requiredPath}`)) {
-      throw new Error(`packed artifact is missing ${requiredPath}`);
-    }
-  }
-
-  const installRoot = path.join(tempRoot, "packaged-install");
-  const packagedDryRunWorkspace = path.join(tempRoot, "packaged-dry-run");
-  run("npm", [
-    "install",
-    "--offline",
-    "--no-audit",
-    "--no-fund",
-    "--prefix", installRoot,
-    "--cache", npmCache,
-    "--yes",
-    tarballPath,
-  ], repoRoot);
-  const installedCli = path.join(installRoot, "node_modules/.bin/structor");
-  const version = run(installedCli, ["--version"], installRoot);
+  const checkoutCli = path.join(checkoutRoot, "bin/structor.mjs");
+  const version = run(nodeCommand, [checkoutCli, "--version"], checkoutRoot);
   if (version.stdout.trim() !== expectedPackage.version) {
-    throw new Error(`installed CLI version did not match ${expectedPackage.version}.`);
+    throw new Error(`checkout CLI version did not match ${expectedPackage.version}.`);
   }
-  const packagedDryRun = run(installedCli, [
-    "contribute",
-    "structor",
-    "--repo-url", fixtureRoot,
-    "--dry-run",
-    "--workspace", packagedDryRunWorkspace,
-  ], installRoot);
-  if (!packagedDryRun.stdout.includes("Contributor workspace preview")) {
-    throw new Error("packaged CLI dry-run did not render the contributor preview.");
+  const dryRunWorkspace = path.join(tempRoot, "checkout-dry-run");
+  const dryRun = run(nodeCommand, [checkoutCli,
+    "contribute", "structor", "--repo-url", fixtureRoot,
+    "--dry-run", "--workspace", dryRunWorkspace,
+  ], checkoutRoot);
+  if (!dryRun.stdout.includes("Contributor workspace preview")) {
+    throw new Error("checkout CLI dry-run did not render the contributor preview.");
   }
-  assertMissing(packagedDryRunWorkspace, "packaged CLI dry-run workspace");
+  assertMissing(dryRunWorkspace, "checkout CLI dry-run workspace");
 
-  const generatedWorkspace = path.join(tempRoot, "packaged-generation");
+  const generatedWorkspace = path.join(tempRoot, "checkout-generation");
   await mkdir(path.join(generatedWorkspace, "example-app"), { recursive: true });
   await writeFile(path.join(generatedWorkspace, "example-app/package.json"), '{"name":"example-app"}\n');
   const configPath = path.join(generatedWorkspace, "harness.config.json");
@@ -255,7 +215,7 @@ async function smokePackagedCli() {
     models: { openai: true, anthropic: true },
     consumers: [{ name: "example-app", path: "./example-app", purpose: "Synthetic application", validation: {} }],
   })}\n`);
-  run(installedCli, ["generate", "--config", configPath, "--install-consumer-entrypoints"], generatedWorkspace);
+  run(nodeCommand, [checkoutCli, "generate", "--config", configPath, "--install-consumer-entrypoints"], generatedWorkspace);
   const generatedRoot = path.join(generatedWorkspace, "example-structor");
   run(nodeCommand, ["scripts/bootstrap-workspace.mjs"], generatedRoot);
   run(nodeCommand, ["scripts/validate-governance.mjs"], generatedRoot);
@@ -264,11 +224,9 @@ async function smokePackagedCli() {
 
 let shouldCleanup = false;
 try {
-  await writeFile(fixtureEnv.npm_config_userconfig, "");
-  await writeFile(fixtureEnv.npm_config_globalconfig, "");
   await phase("manual self-harness generation", smokeManualContributorSetup);
   await phase("contribute command clone/reuse behavior", smokeContributeCommand);
-  await phase("package contents and packaged CLI dry-run", smokePackagedCli);
+  await phase("pinned checkout version, release integrity, CLI dry-run and generation", smokePinnedCheckoutCli);
   shouldCleanup = true;
   console.log("[contributor-smoke] passed");
 } catch (error) {

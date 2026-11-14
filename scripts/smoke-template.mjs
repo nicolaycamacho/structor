@@ -65,16 +65,6 @@ function assertFails(command, args, cwd, label, expectedMessage) {
   }
 }
 
-function assertResultFails(result, label, expectedMessage) {
-  if (result.status === 0) {
-    throw new Error(`${label} should have failed.`);
-  }
-  const output = `${result.stdout}\n${result.stderr}`;
-  if (expectedMessage && !output.includes(expectedMessage)) {
-    throw new Error(`${label} failed without expected message ${JSON.stringify(expectedMessage)}. Output: ${output}`);
-  }
-}
-
 function assertExists(filePath, label) {
   if (!existsSync(filePath)) {
     throw new Error(`${label} was not generated: ${filePath}`);
@@ -89,16 +79,6 @@ async function preservedGuidanceRun(consumerRoot) {
     throw new Error(`expected one preserved-guidance timestamp, found ${timestamps.length}`);
   }
   return path.join(preserveRoot, timestamps[0]);
-}
-
-function initInput({ workspaceRoot, outputPath, modelChoice = "1" }) {
-  return [
-    workspaceRoot,
-    "",
-    outputPath,
-    modelChoice,
-    "",
-  ].join("\n");
 }
 
 function assertMissing(filePath, label) {
@@ -602,69 +582,6 @@ await validatePreserveRootGuidanceCase({
   existingFiles: { "CLAUDE.md": "OLD CLAUDE" },
   expectedGeneratedFiles: ["CLAUDE.md"],
 });
-
-{
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}yes-abort-guidance-`));
-  const consumerRoot = path.join(workspaceRoot, "product-app");
-  await mkdir(consumerRoot, { recursive: true });
-  await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
-  await writeFile(path.join(consumerRoot, "AGENTS.md"), "OLD AGENTS");
-
-  const result = spawnSync(
-    process.execPath,
-    [cliPath, "init", "--workspace", workspaceRoot, "--yes"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      input: initInput({
-        workspaceRoot,
-        projectName: "Example Project",
-        projectSlug: "example-project",
-        harnessRepoName: "example-project-structor",
-        outputPath: "./example-project-structor",
-        modelChoice: "2",
-      }),
-    },
-  );
-  assertResultFails(result, "--yes existing guidance", "pass --yes --preserve-existing-guidance");
-  if (await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8") !== "OLD AGENTS") {
-    throw new Error("--yes without preservation should leave AGENTS.md unchanged.");
-  }
-}
-
-{
-  const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}yes-preserve-guidance-`));
-  const consumerRoot = path.join(workspaceRoot, "product-app");
-  const harnessRoot = path.join(workspaceRoot, "example-project-structor");
-  await mkdir(consumerRoot, { recursive: true });
-  await writeFile(path.join(consumerRoot, "package.json"), `${JSON.stringify({ name: "product-app" })}\n`);
-  await writeFile(path.join(consumerRoot, "AGENTS.md"), "OLD AGENTS");
-
-  const result = spawnSync(
-    process.execPath,
-    [cliPath, "init", "--workspace", workspaceRoot, "--yes", "--preserve-existing-guidance"],
-    {
-      cwd: repoRoot,
-      encoding: "utf8",
-      input: initInput({
-        workspaceRoot,
-        projectName: "Example Project",
-        projectSlug: "example-project",
-        harnessRepoName: "example-project-structor",
-        outputPath: "./example-project-structor",
-        modelChoice: "2",
-      }),
-    },
-  );
-  if (result.status !== 0) {
-    throw new Error(`--yes --preserve-existing-guidance should succeed.\nstdout:\n${result.stdout}\nstderr:\n${result.stderr}`);
-  }
-  const preserveRoot = await preservedGuidanceRun(consumerRoot);
-  if (await readFile(path.join(preserveRoot, "AGENTS.md"), "utf8") !== "OLD AGENTS") {
-    throw new Error("--yes --preserve-existing-guidance should preserve AGENTS.md.");
-  }
-  run(nodeCommand, ["scripts/check-workspace.mjs"], harnessRoot);
-}
 
 {
   const workspaceRoot = await mkdtemp(path.join(os.tmpdir(), `${tempRootPrefix}no-existing-guidance-task-`));

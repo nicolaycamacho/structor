@@ -19,7 +19,7 @@ routing, contracts, task shape, review, and validation.
 - Structor scaffolds the harness; it does not run agents, poll sessions,
   automate pull requests, auto-merge changes, or touch external services.
 - The open-source generator is local-only: no telemetry, no LLM calls, and no
-  network calls during `init` or `generate`.
+  network calls during deterministic setup or `generate`.
 - Structor is MIT-licensed so teams can generate, modify, and use harness
   artifacts inside private or commercial repositories.
 - Reliable agentic engineering needs more than prompts. It needs context
@@ -80,7 +80,7 @@ should remain understandable and valuable on its own.
    - The harness owns agent guidance, contracts, review templates, validation,
      and model-specific entrypoints.
 4. Local Safety Model
-   - `init` and `generate` are deterministic and local-only.
+   - The setup implementation and `generate` are deterministic and local-only.
    - No telemetry, no LLM calls, no network calls, and no external service
      mutation during generation.
 5. Harness, Not Runner

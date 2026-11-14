@@ -40,8 +40,8 @@ npm run setup:contributor
 
 ## Local Development
 
-Requirements: Node.js 20 or newer, npm 10 or newer, Git, and `tar` for
-package smoke checks. No runtime package dependencies. Use a Node/npm pair
+Requirements: Node.js 20 or newer, npm 10 or newer, and Git for pinned-checkout
+smoke checks. No runtime package dependencies. Use a Node/npm pair
 supported by npm itself. The Linux CI reference pairs are Node 20/npm 10,
 Node 22/npm 10, Node 24/npm 11, and Node 24/npm 12; each runs the complete
 `npm run validate` gate. Node 24.22.1/npm 12.2.2 is also a local validation

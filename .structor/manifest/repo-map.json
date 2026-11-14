@@ -39,7 +39,7 @@
     {
       "name": "check:public-hygiene",
       "command": "node scripts/check-public-hygiene.mjs",
-      "purpose": "Scan publishable files for public-release hygiene issues."
+      "purpose": "Scan public source files for public-release hygiene issues."
     },
     {
       "name": "check:docs",
@@ -79,7 +79,7 @@
     {
       "name": "check:contributor",
       "command": "node scripts/smoke-contributor.mjs",
-      "purpose": "Smoke-test manual contributor and packaged contributor flows."
+      "purpose": "Smoke-test manual contributor and pinned-checkout contributor flows."
     },
     {
       "name": "validate",
@@ -90,11 +90,6 @@
       "name": "validate:governance",
       "command": "node scripts/validate-governance.mjs",
       "purpose": "Run governance validation where available."
-    },
-    {
-      "name": "init",
-      "command": "node bin/structor.mjs init",
-      "purpose": "Run the local setup wizard."
     },
     {
       "name": "generate",
@@ -217,29 +212,11 @@
     "docsManifest": "scripts/check-docs-manifest.mjs",
     "publicHygiene": "scripts/check-public-hygiene.mjs",
     "smokeTemplate": "scripts/smoke-template.mjs",
-    "smokeContributor": "scripts/smoke-contributor.mjs",
-    "packReport": "scripts/npm-pack-report.mjs"
+    "smokeContributor": "scripts/smoke-contributor.mjs"
   },
-  "publishedFiles": [
-    "bin/",
-    "contrib/",
-    "docs/",
-    "examples/",
-    "harness.config.example.json",
-    "schemas/",
-    "scripts/",
-    "template/",
-    "INSTALL_WITH_AGENT.md",
-    "CHANGELOG.md",
-    "INSTALL_WITH_AGENT.md",
-    "ROADMAP.md",
-    "README.md",
-    "SECURITY.md",
-    "LICENSE"
-  ],
   "syncGroups": [
     {
-      "name": "CLI and init behavior",
+      "name": "CLI and agent setup behavior",
       "paths": [
         "bin/structor.mjs",
         "scripts/setup-transaction.mjs",
@@ -278,8 +255,6 @@
       "name": "Validation surface",
       "paths": [
         "package.json",
-        "scripts/npm-pack-report.mjs",
-        "test/npm-pack-report.test.mjs",
         ".github/workflows/validate.yml",
         ".github/workflows/full-validation.yml",
         "docs/reference/contributor-setup.md",
@@ -287,6 +262,7 @@
         "package-lock.json",
         "scripts/check-docs-manifest.mjs",
         "scripts/check-public-hygiene.mjs",
+        "test/public-hygiene.test.mjs",
         "scripts/check-repo-map.mjs",
         "scripts/smoke-template.mjs",
         "scripts/smoke-contributor.mjs",
@@ -326,5 +302,22 @@
         "docs/reference/releases.md"
       ]
     }
+  ],
+  "publicSourcePaths": [
+    "package.json",
+    "bin/",
+    "contrib/",
+    "docs/",
+    "examples/",
+    "harness.config.example.json",
+    "schemas/",
+    "scripts/",
+    "template/",
+    "CHANGELOG.md",
+    "INSTALL_WITH_AGENT.md",
+    "ROADMAP.md",
+    "README.md",
+    "SECURITY.md",
+    "LICENSE"
   ]
 }

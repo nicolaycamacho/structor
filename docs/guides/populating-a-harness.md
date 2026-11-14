@@ -28,7 +28,7 @@ files.
 
 ## Population Workflow
 
-1. Run `structor init`.
+1. Complete [agent setup](install-with-an-agent.md).
 2. Verify the generated harness bootstrap.
 3. Open the generated task at `ai/tasks/populate-generated-harness.md`.
 4. Use it with `ai/templates/populate-generated-harness-prompt.md`.

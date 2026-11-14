@@ -12,7 +12,7 @@ confidential architecture, secrets, and client- or employer-specific artifacts.
 
 ## What It Creates
 
-`structor init` creates a sibling generated harness repo beside your consumer
+Agent setup creates a sibling generated harness repo beside your consumer
 repos. That generated harness owns canonical `ai/*` policy, thin model
 entrypoints, contracts, task templates, review guidance, and local validation
 scripts.

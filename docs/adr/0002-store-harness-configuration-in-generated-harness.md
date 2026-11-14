@@ -2,7 +2,9 @@
 
 ## Status
 
-Accepted
+Accepted. The interactive wizard was removed in #158; agent-native setup now
+uses the same durable configuration and transaction guarantees. References to
+`structor init` below describe the historical decision.
 
 ## Context
 
