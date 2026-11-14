@@ -18,6 +18,7 @@ Clone into a new temporary directory outside the selected workspace. Do not
 execute source from the default branch before selecting the tag. In the clone:
 
 ```sh
+set -eu
 git fetch origin main --tags
 release_tag=
 for candidate in $(git for-each-ref --sort=-version:refname --format='%(refname:strip=2)' refs/tags); do
@@ -57,6 +58,7 @@ required; there are no runtime dependencies to install.
 3. Create the annotated tag locally, then run the strict check before pushing:
 
    ```sh
+   set -eu
    release_tag="v$(node -p "require('./package.json').version")"
    git tag -a "$release_tag" -m "Structor $release_tag"
    npm run check:release -- --tag "$release_tag"
