@@ -5,6 +5,18 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2026-11-14
+
+### Fixed
+
+- Preserve annotated tag objects during CI checkout and verify the selected tag's
+  commit against the triggering event before running the full validation matrix.
+- Keep agent apply stdout as a single execution-result JSON object, with renderer
+  progress on stderr, for reliable conversational and manual CLI integrations.
+
+Version 0.3.0 failed its tag CI and fresh-install JSON check. Use 0.3.1 or newer;
+its existing tag remains unchanged as a historical record.
+
 ## [0.3.0] - 2026-11-14
 
 ### Added
