@@ -58,16 +58,21 @@ workspace using its agent-native setup protocol.
 6. You approve that hash. If anything changes after that, it needs a new plan
    and a new approval.
 7. It applies the plan, runs the validation gates, and writes an evidence
-   bundle under `evidence/setup/<run-id>/` in the generated harness.
+   bundle under `evidence/setup/<run-id>/` in the workspace.
 8. It reports two results: whether the setup was applied, and whether the
    harness is ready.
 
 ## Current Limits
 
-- The agent path supports the `focused` harness profile. For other profiles,
-  use the [npm CLI fallback](quickstart.md#fallback-npm-cli).
-- It creates a new harness. To regenerate a harness you already have, use
-  `structor init`.
+- Both `focused` and `expanded` profiles support new harnesses and regeneration.
+  Regeneration lists every replacement, its current-byte hash, and its backup
+  path before you approve. Existing consumer-root guidance is preserved too.
+- Use a fresh plan ID for each attempt. If files change after planning, create
+  and approve a new plan. A failed structural check restores the previous files
+  and removes new backup files; the failure report remains in the workspace's
+  `evidence/setup/<run-id>/` directory.
+- Consumer commands whose side effects cannot be constrained are skipped and
+  reported as warnings. Review populated guidance before relying on it.
 - The hash shows that the approval matches the plan. It cannot prove whether a
   person or an agent wrote the approval, so approve the hash yourself.
 

@@ -48,7 +48,7 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 | --- | --- | --- | --- |
 | `bin/structor.mjs` | Public CLI router and setup wizard shell. | `package.json`, harness config, workspace files, generator modules. | Generated harness files, workspace entrypoints, consumer entrypoints, contributor workspace files after preview/consent. |
 | `scripts/agent-native-cli.mjs` | Deterministic agent-native plan, hash, and apply command adapter. | Config draft, plan, approval receipt, setup modules. | Approved planned setup writes and canonical evidence bundle during apply only. |
-| `scripts/agent-native-setup.mjs` | Shared agent-native plan/apply implementation. | Config, consumer package manifests, current planned target state. | Exact approved setup writes, rollback restoration, and evidence bundle. |
+| `scripts/agent-native-setup.mjs` | Shared agent-native plan/apply implementation. | Config, consumer package manifests, current planned target state. | Exact approved setup writes, deterministic replacement backups, rollback restoration, and evidence bundle. |
 | `scripts/setup-transaction.mjs` | In-process setup transaction planner and applier. | Resolved init config, initializer results, generated completion scripts. | Generated harness, durable config, consumer/workspace entrypoints, rollback restoration on failure. |
 | `scripts/init-harness.mjs` | Deterministic initializer and template renderer. | `harness.config.json`, `template/**`, schema/helper modules. | Generated harness repository files and optional consumer entrypoints. |
 | `scripts/setup-contributor.mjs` | Manual Structor contributor setup helper. | `contrib/self-harness/**`, source checkout state. | Sibling `structor-self` harness and optional source-repo pointer files. |
@@ -71,6 +71,11 @@ High-level flow:
 The wizard must remain local-only. It must not run agents, call LLM APIs, mutate external services, open pull requests, or become an orchestrator.
 
 ## Generation Flow
+
+Expanded dry runs render the trusted HTML view template in memory, combining
+planned template content with existing custom view sources. The agent plan
+includes all six view outputs and records existing source reads. Apply uses the
+same renderer and verifies resulting bytes against approval.
 
 Generation starts from harness configuration and templates:
 

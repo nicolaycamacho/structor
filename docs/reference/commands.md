@@ -28,9 +28,8 @@ for the complete model-neutral protocol.
 
 ## Fallback: `structor init` (being deprecated)
 
-The npm package is being deprecated. Use this guided fallback only for the
-`expanded` profile or regenerating an existing harness until the agent path
-covers those cases:
+The npm package is being deprecated. This guided wizard remains available as
+a manual fallback:
 
 ```sh
 npx @structor-dev/cli init

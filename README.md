@@ -44,9 +44,8 @@ expect.
 
 ### Fallback: npm CLI (being deprecated)
 
-The npm package is being deprecated. Use it only for what the agent path does
-not cover yet: the `expanded` profile, or regenerating a harness you already
-have. Run it from the same folder:
+The npm package is being deprecated. If you prefer the manual wizard, run it
+from the same folder:
 
 ```sh
 npx @structor-dev/cli init

@@ -10,10 +10,9 @@ nothing until you approve that plan's exact hash.
 
 ## Fallback: npm CLI
 
-The npm package is being deprecated in favor of the agent install. Use it
-only for what the agent path does not cover yet: the `expanded` harness
-profile, or regenerating a harness you already have. Run it from the
-workspace folder that holds your repositories:
+The npm package is being deprecated in favor of the agent install. If you
+prefer the manual wizard, run it from the workspace folder that holds your
+repositories:
 
 ```sh
 npx @structor-dev/cli init
