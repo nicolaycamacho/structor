@@ -456,6 +456,7 @@ for (const profile of ["focused", "expanded"]) {
       const editedPath = path.join(harnessRoot, "ai/context.md");
       await writeFile(editedPath, "# User context that must survive in the backup\n");
       if (profile === "expanded") {
+        await mkdir(path.join(harnessRoot, "ai/plans/active"), { recursive: true });
         await writeFile(path.join(harnessRoot, "ai/plans/active/custom.md"), "# Consumer plan\n\nStatus: active\n");
       }
       const pathsBefore = await filesUnder(workspaceRoot);
@@ -488,7 +489,7 @@ for (const profile of ["focused", "expanded"]) {
       assert.deepEqual(remaining, pathsBefore, "failed attempt must remove new backup files");
       const retry = await planAgentNativeSetup({ ...options, planId: `setup-${profile}-retry` });
       const applied = await applyAgentNativeSetup({ plan: retry, receipt: approvalFor(retry), config, configPath });
-      assert.equal(applied.result.executionOutcome, "applied");
+      assert.equal(applied.result.executionOutcome, "applied", JSON.stringify(applied.result));
       assert.equal(applied.result.readiness, "ready_with_warnings");
       for (const backup of retry.preservation.backups) {
         assert.deepEqual(await readFile(path.join(workspaceRoot, backup.backupPath)), bytesBefore.get(backup.sourcePath), backup.sourcePath);

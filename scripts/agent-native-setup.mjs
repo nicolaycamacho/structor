@@ -607,7 +607,9 @@ export async function applyAgentNativeSetup({
           const content = await readFile(path.join(candidate.workspaceRoot, write.path));
           const contentHash = sha256(content);
           if (contentHash !== write.contentHash) {
-            throw new Error(`Applied content does not match installation plan for ${write.path}.`);
+            throw Object.assign(new Error(`Applied content does not match installation plan for ${write.path}.`), {
+              code: "PLANNED_CONTENT_MISMATCH", plannedPath: write.path,
+            });
           }
           actualWrites.push({ path: write.path, contentHash });
         }
@@ -641,6 +643,8 @@ export async function applyAgentNativeSetup({
       },
       evidenceBundle: `evidence/setup/${plan.planId}`,
       unresolvedRisks: [
+        ...(error.code === "PLANNED_CONTENT_MISMATCH" && plan.writes.some((write) => write.path === error.plannedPath)
+          ? [`Applied bytes differed from the approved plan: ${error.plannedPath}`] : []),
         rollbackCompleted
           ? "The structural setup failed and filesystem changes were rolled back."
           : "The structural setup and automatic rollback both failed; inspect the selected workspace.",
