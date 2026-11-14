@@ -487,7 +487,7 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
 }
 
 function preservedGuidancePathsFromEntrypoint(content) {
-  return [...new Set(content.match(/\.structor\/preserved-guidance\/[0-9T-]+\/?/g) ?? [])]
+  return [...new Set(content.match(/\.structor\/preserved-guidance\/[A-Za-z0-9][A-Za-z0-9-]*\/?/g) ?? [])]
     .map((entry) => entry.replace(/\/$/, ""));
 }
 
@@ -512,6 +512,45 @@ function rootGuidanceConflictError(conflicts) {
   return new Error(
     `Existing root guidance files require preservation consent before Structor can replace them:\n${conflicts.map((item) => `- ${item.targetPath}`).join("\n")}\nRe-run interactively and choose preservation, or pass --preserve-existing-guidance with explicit intent.`,
   );
+}
+
+// Carry source-guidance routing forward only when the existing pointer exactly
+// matches a Structor template, rather than trusting arbitrary Markdown links.
+export async function collectConsumerPreservedGuidance(resolvedConfig) {
+  const retained = {};
+  const { config, plan } = resolvedConfig;
+  const entrypoints = plan.entrypoints.consumer.filter((item) => rootGuidanceEntrypoints.has(item.path));
+  for (const resolvedConsumer of plan.consumers) {
+    const consumer = resolvedConsumer.config;
+    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
+    const directories = new Set();
+    for (const entrypoint of entrypoints) {
+      const targetPath = path.join(consumerRoot, entrypoint.path);
+      await assertSafeWriteTarget({ targetPath, rootPath: consumerRoot, label: "Existing consumer guidance" });
+      if (!(await exists(targetPath))) continue;
+      const actual = await readFile(targetPath, "utf8");
+      const template = await readFile(path.join(repoRoot, "template", entrypoint.template), "utf8");
+      for (const directory of preservedGuidancePathsFromEntrypoint(actual)) {
+        if (renderedConsumerEntrypointMatches({ actual, template, config, consumer,
+          harnessRelativePath: resolvedConsumer.harnessRelativePath, preservedGuidancePaths: [directory] })) {
+          directories.add(directory);
+        }
+      }
+    }
+    if (directories.size > 1) {
+      throw new Error(`Conflicting preserved guidance directories for ${consumer.name}; review existing pointers before regeneration.`);
+    }
+    for (const directory of directories) {
+      const files = [];
+      for (const name of rootGuidanceEntrypoints) {
+        const targetPath = path.join(consumerRoot, directory, name);
+        await assertSafeWriteTarget({ targetPath, rootPath: consumerRoot, label: "Retained preserved guidance" });
+        if (await exists(targetPath)) files.push(`${directory}/${name}`);
+      }
+      retained[consumer.name] = { directory, files };
+    }
+  }
+  return retained;
 }
 
 export async function collectConsumerRootGuidanceConflicts(resolvedConfig, options = {}) {

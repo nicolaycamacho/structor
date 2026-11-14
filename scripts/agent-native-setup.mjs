@@ -317,8 +317,12 @@ async function buildPlanCandidate({
   const provenance = consumers.filter((item) => item.sourcePath).map((item) => item.sourcePath);
   const consumerPaths = resolvedConfig.consumers.map((consumer) =>
     repositoryRelative(workspaceRoot, consumer.confirmedRoot ?? consumer.root));
-  const existingGuidance = transaction.rootGuidanceConflicts.map((conflict) =>
-    repositoryRelative(workspaceRoot, conflict.targetPath));
+  const existingGuidance = [
+    ...transaction.rootGuidanceConflicts.map((conflict) => repositoryRelative(workspaceRoot, conflict.targetPath)),
+    ...resolvedConfig.consumers.flatMap((consumer) =>
+      (transaction.retainedGuidanceByConsumer[consumer.config.name]?.files ?? []).map((relativePath) =>
+        repositoryRelative(workspaceRoot, path.join(consumer.confirmedRoot ?? consumer.root, relativePath)))),
+  ];
   const consumerCommands = plannedConsumerValidationCommands(resolvedConfig, workspaceRoot);
 
   return {
