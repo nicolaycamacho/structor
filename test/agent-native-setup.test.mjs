@@ -6,6 +6,8 @@ import { access, mkdtemp, readFile, readdir, rm, symlink, writeFile, mkdir } fro
 import os from "node:os";
 import path from "node:path";
 
+import { applySetupTransaction, planSetupTransaction } from "../scripts/setup-transaction.mjs";
+
 import {
   applyAgentNativeSetup,
   planAgentNativeSetup,
@@ -537,3 +539,26 @@ test("agent setup rejects occupied or symlinked backup destinations before mutat
     assert.equal(await readFile(path.join(workspaceRoot, "AGENTS.md"), "utf8"), "# Existing\n");
   });
 });
+
+for (const timestamp of ["2026-11-14T10-00-00", "setup-original"]) {
+  test(`regeneration retains previously preserved root guidance from ${timestamp}`, async () => {
+    await withWorkspace(async ({ workspaceRoot, consumerRoot, harnessRoot, configPath, config }) => {
+      const original = "# Original consumer instructions\n";
+      await writeFile(path.join(consumerRoot, "AGENTS.md"), original);
+      const manualPlan = await planSetupTransaction({ config, configPath, force: true,
+        preservationTimestamp: timestamp, generationTimestamp: "2026-11-14T10:00:00.000Z" });
+      await applySetupTransaction(manualPlan, { preserveExistingGuidance: true });
+      const preserved = `.structor/preserved-guidance/${timestamp}`;
+      const plan = await planAgentNativeSetup({ config, configPath, sourceRevision,
+        planId: "setup-retain-001", plannedAt: "2026-11-14T11:00:00.000Z" });
+      assert.equal(plan.decisions.find((decision) => decision.id === "existing-guidance").selection, "preserve");
+      assert.ok(plan.preservation.existingGuidance.includes(`app/${preserved}/AGENTS.md`));
+      const applied = await applyAgentNativeSetup({ config, configPath, plan, receipt: approvalFor(plan) });
+      assert.equal(applied.result.executionOutcome, "applied", JSON.stringify(applied.result));
+      assert.ok((await readFile(path.join(consumerRoot, "AGENTS.md"), "utf8")).includes(preserved));
+      assert.ok((await readFile(path.join(harnessRoot, "ai/tasks/populate-generated-harness.md"), "utf8")).includes(preserved));
+      assert.equal(await readFile(path.join(consumerRoot, preserved, "AGENTS.md"), "utf8"), original);
+      assert.ok(!plan.writes.some((write) => write.path.startsWith(`app/${preserved}/`)), "previous preserved sources stay untouched");
+    });
+  });
+}
