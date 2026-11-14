@@ -3,23 +3,8 @@
 The current CLI supports `init`, `agent`, `generate`, `contribute structor`,
 and `doctor`. It does not include a runner command.
 
-## `structor init`
-
-Guided local setup for a Structor workspace:
-
-```sh
-npx @structor-dev/cli init
-```
-
-Useful options include:
-
-- `--workspace <path>`
-- `--config <path>`
-- `--yes`
-- `--preserve-existing-guidance`
-
-`--yes` is not permission to replace existing non-matching root guidance. Use
-`--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
+For installation, start with [install with an agent](../guides/install-with-an-agent.md),
+the recommended path. The npm CLI below is a fallback that is being deprecated.
 
 ## `structor agent`
 
@@ -40,6 +25,26 @@ should not call these directly: paste the prompt from
 agent drive them. See [Install Structor With An Agent](../../INSTALL_WITH_AGENT.md)
 for the complete model-neutral protocol.
 
+
+## Fallback: `structor init` (being deprecated)
+
+The npm package is being deprecated. Use this guided fallback only for the
+`expanded` profile or regenerating an existing harness until the agent path
+covers those cases:
+
+```sh
+npx @structor-dev/cli init
+```
+
+Useful options include:
+
+- `--workspace <path>`
+- `--config <path>`
+- `--yes`
+- `--preserve-existing-guidance`
+
+`--yes` is not permission to replace existing non-matching root guidance. Use
+`--preserve-existing-guidance` only when preserve-then-replace is explicitly intended.
 
 ## `structor generate`
 
