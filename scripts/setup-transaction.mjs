@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 
 import {
   collectConsumerRootGuidanceConflicts,
+  collectConsumerPreservedGuidance,
   filesystemTimestamp,
   generateHarness,
   installConsumerEntrypoints,
@@ -234,11 +235,12 @@ export async function planSetupTransaction({
     generatedAt: generationTimestamp,
   });
   const rootGuidanceConflicts = await collectConsumerRootGuidanceConflicts(dryRunGenerated.resolvedConfig);
-  const preservedGuidanceByConsumer = preservedGuidancePlan(
-    rootGuidanceConflicts,
-    preservationTimestamp,
-  );
-  if (rootGuidanceConflicts.length > 0) {
+  const retainedGuidanceByConsumer = await collectConsumerPreservedGuidance(dryRunGenerated.resolvedConfig);
+  const preservedGuidanceByConsumer = {
+    ...retainedGuidanceByConsumer,
+    ...preservedGuidancePlan(rootGuidanceConflicts, preservationTimestamp),
+  };
+  if (Object.keys(preservedGuidanceByConsumer).length > 0) {
     dryRunGenerated = await generateHarness(config, {
       configPath,
       configContent: renderedConfig,
@@ -257,6 +259,7 @@ export async function planSetupTransaction({
     renderedConfig,
     dryRunGenerated,
     rootGuidanceConflicts,
+    retainedGuidanceByConsumer,
     rootGuidanceConflictGroups: groupedGuidanceConflicts(rootGuidanceConflicts),
     preservationTimestamp,
     generationTimestamp,
@@ -273,6 +276,7 @@ export async function applySetupTransaction(plan, {
     if (result.stderr) process.stderr.write(result.stderr);
   },
   onConfigWritten = () => {},
+  beforeApply = async () => {},
   beforeCompletionGates = async () => {},
   afterCompletionGates = async () => {},
   onCommandStatus = () => {},
@@ -329,6 +333,7 @@ export async function applySetupTransaction(plan, {
 
   try {
     await assertNoEntrypointConflicts({ config, resolvedConfig, force });
+    await beforeApply();
     const generated = await generateHarness(config, {
       configPath,
       configContent: plan.renderedConfig,

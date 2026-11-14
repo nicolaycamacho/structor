@@ -487,7 +487,7 @@ export async function writeRenderedFile(sourceRelative, targetRoot, values, opti
 }
 
 function preservedGuidancePathsFromEntrypoint(content) {
-  return [...new Set(content.match(/\.structor\/preserved-guidance\/[0-9T-]+\/?/g) ?? [])]
+  return [...new Set(content.match(/\.structor\/preserved-guidance\/[A-Za-z0-9][A-Za-z0-9-]*\/?/g) ?? [])]
     .map((entry) => entry.replace(/\/$/, ""));
 }
 
@@ -512,6 +512,45 @@ function rootGuidanceConflictError(conflicts) {
   return new Error(
     `Existing root guidance files require preservation consent before Structor can replace them:\n${conflicts.map((item) => `- ${item.targetPath}`).join("\n")}\nRe-run interactively and choose preservation, or pass --preserve-existing-guidance with explicit intent.`,
   );
+}
+
+// Carry source-guidance routing forward only when the existing pointer exactly
+// matches a Structor template, rather than trusting arbitrary Markdown links.
+export async function collectConsumerPreservedGuidance(resolvedConfig) {
+  const retained = {};
+  const { config, plan } = resolvedConfig;
+  const entrypoints = plan.entrypoints.consumer.filter((item) => rootGuidanceEntrypoints.has(item.path));
+  for (const resolvedConsumer of plan.consumers) {
+    const consumer = resolvedConsumer.config;
+    const consumerRoot = resolvedConsumer.confirmedRoot ?? resolvedConsumer.root;
+    const directories = new Set();
+    for (const entrypoint of entrypoints) {
+      const targetPath = path.join(consumerRoot, entrypoint.path);
+      await assertSafeWriteTarget({ targetPath, rootPath: consumerRoot, label: "Existing consumer guidance" });
+      if (!(await exists(targetPath))) continue;
+      const actual = await readFile(targetPath, "utf8");
+      const template = await readFile(path.join(repoRoot, "template", entrypoint.template), "utf8");
+      for (const directory of preservedGuidancePathsFromEntrypoint(actual)) {
+        if (renderedConsumerEntrypointMatches({ actual, template, config, consumer,
+          harnessRelativePath: resolvedConsumer.harnessRelativePath, preservedGuidancePaths: [directory] })) {
+          directories.add(directory);
+        }
+      }
+    }
+    if (directories.size > 1) {
+      throw new Error(`Conflicting preserved guidance directories for ${consumer.name}; review existing pointers before regeneration.`);
+    }
+    for (const directory of directories) {
+      const files = [];
+      for (const name of rootGuidanceEntrypoints) {
+        const targetPath = path.join(consumerRoot, directory, name);
+        await assertSafeWriteTarget({ targetPath, rootPath: consumerRoot, label: "Retained preserved guidance" });
+        if (await exists(targetPath)) files.push(`${directory}/${name}`);
+      }
+      retained[consumer.name] = { directory, files };
+    }
+  }
+  return retained;
 }
 
 export async function collectConsumerRootGuidanceConflicts(resolvedConfig, options = {}) {
@@ -702,6 +741,45 @@ export async function installConsumerEntrypoints(resolvedConfig, options) {
   return records;
 }
 
+// Render the trusted template in memory so dry runs can approve HTML bytes without
+// creating a staging harness or executing an existing workspace script.
+async function previewHtmlViews(generatedFiles, outputRoot) {
+  const renderer = generatedFiles.find((file) => file.targetRelative === "scripts/generate-html-views.mjs");
+  const { renderHtmlViews } = await import(`data:text/javascript;base64,${Buffer.from(renderer.content).toString("base64")}`);
+  const rendered = new Map(generatedFiles.filter((file) => file.rendered).map((file) => [file.targetRelative, file.content]));
+  const reads = new Set();
+  const outputs = await renderHtmlViews({
+    read: async (relativePath) => {
+      if (rendered.has(relativePath)) return rendered.get(relativePath);
+      const targetPath = path.join(outputRoot, relativePath);
+      await assertSafeWriteTarget({ targetPath, rootPath: outputRoot, label: "HTML view source" });
+      try {
+        const content = await readFile(targetPath, "utf8");
+        reads.add(relativePath);
+        return content;
+      } catch (error) {
+        if (error.code === "ENOENT") return "";
+        throw error;
+      }
+    },
+    files: async (relativeDir, suffix) => {
+      const directory = path.join(outputRoot, relativeDir);
+      await assertSafeWriteTarget({ targetPath: path.join(directory, ".preview"), rootPath: outputRoot, label: "HTML view source directory" });
+      let entries = [];
+      try {
+        entries = (await readdir(directory, { withFileTypes: true }))
+          .filter((entry) => entry.isFile() && entry.name.endsWith(suffix))
+          .map((entry) => `${relativeDir}/${entry.name}`);
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      return [...new Set([...entries, ...rendered.keys()])]
+        .filter((file) => path.posix.dirname(file) === relativeDir && file.endsWith(suffix)).sort();
+    },
+  });
+  return { outputs, reads: [...reads].sort() };
+}
+
 async function writeGenerationManifest({
   config,
   configContent,
@@ -881,7 +959,21 @@ export async function generateHarness(config, {
   const htmlViewFilesBefore = renderedHtmlViewsScript
     ? await collectExistingFiles(htmlViewsRoot)
     : new Set();
-  if (!dryRun && renderedHtmlViewsScript) {
+  let viewReads = [];
+  if (renderedHtmlViewsScript && dryRun) {
+    const preview = await previewHtmlViews(generatedFiles, outputRoot);
+    viewReads = preview.reads;
+    for (const [name, content] of Object.entries(preview.outputs)) {
+      const targetPath = path.join(htmlViewsRoot, name);
+      generatedFiles.push({
+        action: htmlViewFilesBefore.has(targetPath) ? "wrote" : "created",
+        rendered: true,
+        targetPath,
+        targetRelative: `ai/views/${name}`,
+        content,
+      });
+    }
+  } else if (renderedHtmlViewsScript) {
     let htmlViewFilesAfter;
     try {
       execFileSync(process.execPath, [path.join(outputRoot, "scripts/generate-html-views.mjs")], {
@@ -892,19 +984,18 @@ export async function generateHarness(config, {
     } catch (error) {
       htmlViewFilesAfter = await collectExistingFiles(htmlViewsRoot);
       for (const targetPath of htmlViewFilesAfter) {
-        if (!htmlViewFilesBefore.has(targetPath)) {
-          await rm(targetPath, { force: true });
-        }
+        if (!htmlViewFilesBefore.has(targetPath)) await rm(targetPath, { force: true });
       }
       throw error;
     }
-    for (const targetPath of htmlViewFilesAfter) {
-      if (htmlViewFilesBefore.has(targetPath)) continue;
+    // The renderer owns these six outputs, not arbitrary user files in views/.
+    for (const name of ["index", "plans", "contracts", "readiness", "quality", "workspace"]) {
+      const targetPath = path.join(htmlViewsRoot, `${name}.html`);
       generatedFiles.push({
-        action: "created",
+        action: htmlViewFilesBefore.has(targetPath) ? "wrote" : "created",
         rendered: true,
         targetPath,
-        targetRelative: path.relative(outputRoot, targetPath).replaceAll(path.sep, "/"),
+        targetRelative: `ai/views/${name}.html`,
       });
     }
   } else if (!dryRun) {
@@ -937,6 +1028,7 @@ export async function generateHarness(config, {
   });
 
   return {
+    viewReads,
     resolvedConfig,
     generatedFiles,
     consumerEntrypoints,

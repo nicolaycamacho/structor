@@ -1,6 +1,7 @@
 # Install Structor With An Agent
 
-Status: supported and recommended for deterministic focused-profile setup.
+Status: supported and recommended for deterministic focused and expanded setup,
+including harness regeneration.
 
 This file is the model-neutral Agent-Native Setup protocol. The host coding
 agent owns the conversation and calls deterministic Structor interfaces.
@@ -14,12 +15,12 @@ the supported plan/apply path. End-to-end conformance covers immutable planning,
 exact hash approval, preservation, population, validation, rollback, evidence,
 and manual CLI parity.
 
-The supported adapter currently accepts the `focused` harness profile. Other
-profiles must use the guided `structor init` flow until their agent-native
-conformance fixtures are added.
-The supported adapter creates fresh harness and workspace entrypoints. Existing
-consumer-root guidance is preserved at deterministic planned paths; regenerate
-an existing Structor harness through the guided `structor init` flow.
+Both `focused` and `expanded` profiles support fresh setup and regeneration.
+Every replacement has an expected-before hash and a deterministic backup path
+in the approved plan. Existing consumer-root guidance is preserved separately.
+Expanded plans also include the exact generated HTML view bytes. Planning does
+not create outputs or backups; failed structural application restores prior
+files and removes new outputs and backups.
 
 ## Bootstrap Prompt
 
@@ -239,8 +240,8 @@ introduced from pre-existing when determinable, keep the evidence bundle, and
 report `ready_with_warnings` or `blocked` accurately. Required Structor invariant
 failures block readiness. Skipped optional checks produce warnings.
 
-Retry requires a fresh state check. If the intended plan changes, obtain a new
-hash and approval. Recovery instructions must identify backups and preserved
+Retry requires a fresh state check and a fresh plan ID. Existing backup or
+evidence paths are never reused. Obtain a new hash and approval for the new plan. Recovery instructions must identify backups and preserved
 guidance at the stable paths recorded in the approved plan and evidence bundle.
 
 ## Delegation And Active Skills

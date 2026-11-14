@@ -81,6 +81,23 @@
         "readiness": "ready_with_warnings",
         "rollback": false
       }
+    },
+    {
+      "id": "profile-regeneration",
+      "input": {
+        "profiles": [
+          "focused",
+          "expanded"
+        ],
+        "existingHarness": true,
+        "structuralFailure": true
+      },
+      "expected": {
+        "mutation": "none-before-hash-approval",
+        "backups": "every-replacement-with-before-hash",
+        "structuralFailure": "rolled_back",
+        "retry": "fresh-plan-id"
+      }
     }
   ]
 }

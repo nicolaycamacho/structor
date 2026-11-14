@@ -24,7 +24,8 @@ async function exists(targetPath) {
   }
 }
 
-test("manual agent CLI uses the same no-write plan/apply contract", async () => {
+for (const profile of ["focused", "expanded"]) {
+test(`manual ${profile} agent CLI installs and regenerates with the same approval contract`, async () => {
   const fixtureRoot = await mkdtemp(path.join(os.tmpdir(), "structor-agent-cli-"));
   const workspaceRoot = path.join(fixtureRoot, "workspace");
   const consumerRoot = path.join(workspaceRoot, "app");
@@ -34,7 +35,7 @@ test("manual agent CLI uses the same no-write plan/apply contract", async () => 
   await mkdir(consumerRoot, { recursive: true });
   await writeFile(path.join(consumerRoot, "package.json"), '{"name":"cli-app"}\n');
   await writeFile(draftPath, `${JSON.stringify({
-    profile: "focused",
+    profile,
     project: { name: "CLI", slug: "cli", harnessRepoName: "cli-structor" },
     output: { path: "./cli-structor" },
     models: { openai: true, anthropic: false },
@@ -51,19 +52,24 @@ test("manual agent CLI uses the same no-write plan/apply contract", async () => 
   }, null, 2)}\n`);
 
   try {
+    for (const attempt of ["initial", "regenerate"]) {
     const planned = spawnSync(process.execPath, [
       cliPath,
       "agent",
       "plan",
       "--workspace", workspaceRoot,
       "--config-draft", draftPath,
-      "--plan-id", "setup-cli-001",
+      "--plan-id", `setup-cli-${attempt}`,
       "--source-revision", sourceRevision,
       "--planned-at", "2026-07-26T15:00:00.000Z",
     ], { encoding: "utf8" });
     assert.equal(planned.status, 0, planned.stderr);
     const plan = JSON.parse(planned.stdout);
-    assert.equal(await exists(path.join(workspaceRoot, "cli-structor")), false);
+    assert.equal(await exists(path.join(workspaceRoot, "cli-structor")), attempt !== "initial");
+    if (attempt === "regenerate") {
+      assert.ok(plan.preservation.backups.length > 10);
+      assert.ok(plan.writes.some((write) => write.path.startsWith(".structor/backups/") && write.action === "create"));
+    }
     await writeFile(planPath, `${JSON.stringify(plan, null, 2)}\n`);
     await writeFile(approvalPath, `${JSON.stringify({
       contractVersion: plan.contractVersion,
@@ -86,10 +92,12 @@ test("manual agent CLI uses the same no-write plan/apply contract", async () => 
     assert.equal(applied.status, 0, applied.stderr);
     assert.equal(await exists(path.join(workspaceRoot, "cli-structor/ai/context.md")), true);
     assert.equal(
-      await exists(path.join(workspaceRoot, "evidence/setup/setup-cli-001/manifest.json")),
+      await exists(path.join(workspaceRoot, `evidence/setup/setup-cli-${attempt}/manifest.json`)),
       true,
     );
+    }
   } finally {
     await rm(fixtureRoot, { recursive: true, force: true });
   }
 });
+}

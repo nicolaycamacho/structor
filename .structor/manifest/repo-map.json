@@ -166,7 +166,7 @@
     },
     {
       "path": "scripts/agent-native-setup.mjs",
-      "purpose": "Shared agent-native setup planning, application, rollback, and evidence."
+      "purpose": "Shared agent-native setup planning, approved deterministic backups, application, rollback, and evidence."
     },
     {
       "path": "scripts/setup-transaction.mjs",

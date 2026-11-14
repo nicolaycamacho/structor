@@ -2,14 +2,8 @@
 
 import { mkdir, readFile, readdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
-import { assertSafeWriteTarget } from "./lib/path-safety.mjs";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
-const args = process.argv.slice(2);
-const outputArgIndex = args.indexOf("--output");
-const outputRoot = outputArgIndex === -1 ? repoRoot : path.resolve(args[outputArgIndex + 1]);
-const viewsDir = path.join(outputRoot, "ai/views");
 const projectName = {{PROJECT_NAME_JSON}};
 const harnessRepoName = "{{HARNESS_REPO_NAME}}";
 const consumers = {{CONSUMER_CONFIG_JSON}};
@@ -24,26 +18,7 @@ const clientSupport = {
   claudeSkills: {{CLIENT_CLAUDE_SKILLS_ENABLED}},
 };
 
-async function read(relativePath) {
-  try {
-    return await readFile(path.join(repoRoot, relativePath), "utf8");
-  } catch {
-    return "";
-  }
-}
-
-async function files(relativeDir, suffix) {
-  try {
-    const entries = await readdir(path.join(repoRoot, relativeDir), { withFileTypes: true });
-    return entries
-      .filter((entry) => entry.isFile() && entry.name.endsWith(suffix))
-      .map((entry) => `${relativeDir}/${entry.name}`)
-      .sort();
-  } catch {
-    return [];
-  }
-}
-
+export async function renderHtmlViews({ read, files }) {
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -488,6 +463,38 @@ const outputs = {
   "workspace.html": await workspaceView(),
 };
 
+return outputs;
+}
+
+if (import.meta.url === pathToFileURL(path.resolve(process.argv[1] ?? "")).href) {
+const { assertSafeWriteTarget } = await import("./lib/path-safety.mjs");
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
+const args = process.argv.slice(2);
+const outputArgIndex = args.indexOf("--output");
+const outputRoot = outputArgIndex === -1 ? repoRoot : path.resolve(args[outputArgIndex + 1]);
+const viewsDir = path.join(outputRoot, "ai/views");
+async function read(relativePath) {
+  try {
+    return await readFile(path.join(repoRoot, relativePath), "utf8");
+  } catch {
+    return "";
+  }
+}
+
+async function files(relativeDir, suffix) {
+  try {
+    const entries = await readdir(path.join(repoRoot, relativeDir), { withFileTypes: true });
+    return entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith(suffix))
+      .map((entry) => `${relativeDir}/${entry.name}`)
+      .sort();
+  } catch {
+    return [];
+  }
+}
+
+const outputs = await renderHtmlViews({ read, files });
+
 for (const [name] of Object.entries(outputs)) {
   await assertSafeWriteTarget({
     targetPath: path.join(viewsDir, name),
@@ -502,3 +509,4 @@ for (const [name, content] of Object.entries(outputs)) {
 }
 
 console.log(`Generated ${Object.keys(outputs).length} HTML view(s).`);
+}
