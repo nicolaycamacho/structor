@@ -249,6 +249,7 @@
         "test/cli.test.mjs",
         "test/setup-transaction.test.mjs",
         "docs/reference/commands.md",
+        "docs/guides/install-with-an-agent.md",
         "docs/guides/setting-up-a-harness.md",
         "REPO_MAP.md",
         ".structor/manifest/repo-map.json"

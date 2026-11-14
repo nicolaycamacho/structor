@@ -38,10 +38,17 @@
       "status": "current"
     },
     {
+      "path": "docs/guides/install-with-an-agent.md",
+      "title": "Install With An Agent",
+      "audience": ["first-time users", "assistants"],
+      "purpose": "Give the recommended agent setup prompt and explain what the agent-native install does.",
+      "status": "current"
+    },
+    {
       "path": "docs/guides/quickstart.md",
       "title": "Quickstart",
       "audience": ["first-time users", "assistants"],
-      "purpose": "Give the recommended first command and first successful setup path.",
+      "purpose": "Route first-time users to the recommended agent install and give the npm CLI fallback path.",
       "status": "current"
     },
     {

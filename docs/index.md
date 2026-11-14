@@ -14,7 +14,8 @@ It is not the Structor product guide corpus.
 
 ## Start Here
 
-- [Quickstart](guides/quickstart.md)
+- [Install with an agent](guides/install-with-an-agent.md) (recommended)
+- [Quickstart](guides/quickstart.md) (includes the npm CLI fallback)
 - [Setting up a harness](guides/setting-up-a-harness.md)
 - [Troubleshooting](guides/troubleshooting.md)
 - [FAQ](faq.md)
@@ -28,6 +29,7 @@ It is not the Structor product guide corpus.
 
 ## Guides
 
+- [Install with an agent](guides/install-with-an-agent.md)
 - [Quickstart](guides/quickstart.md)
 - [Setting up a harness](guides/setting-up-a-harness.md)
 - [Populating a harness](guides/populating-a-harness.md)

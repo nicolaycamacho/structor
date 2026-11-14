@@ -21,19 +21,13 @@ The supported adapter creates fresh harness and workspace entrypoints. Existing
 consumer-root guidance is preserved at deterministic planned paths; regenerate
 an existing Structor harness through the guided `structor init` flow.
 
+## Bootstrap Prompt
 
-## Pasteable Bootstrap Prompt
-
-```text
-Install Structor using the model-neutral protocol in INSTALL_WITH_AGENT.md from
-the exact Structor revision <40-character-sha>. Inspect only the workspace
-<absolute-workspace-path> and the consumer repositories I explicitly approve.
-Prepare the focused-profile config draft outside the workspace, run
-`structor agent plan`, show me the complete immutable plan and its canonical
-hash, and wait for my explicit approval of that exact hash before running
-`structor agent apply`. Preserve existing root guidance, make no application
-source changes, and report execution outcome and readiness separately.
-```
+The user-facing prompt lives in
+[docs/guides/install-with-an-agent.md](docs/guides/install-with-an-agent.md)
+and is mirrored in `README.md`. A coordinator that receives it pins one clean
+Structor checkout, records its 40-character commit, and passes that commit as
+`--source-revision` to every `structor agent` command below.
 
 ## Supported Invocation
 
