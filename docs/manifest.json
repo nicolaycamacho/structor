@@ -48,7 +48,7 @@
       "path": "docs/guides/quickstart.md",
       "title": "Quickstart",
       "audience": ["first-time users", "assistants"],
-      "purpose": "Route first-time users to the recommended agent install and give the npm CLI fallback path.",
+      "purpose": "Route first-time users to the recommended agent install and reviewed guidance population.",
       "status": "current"
     },
     {

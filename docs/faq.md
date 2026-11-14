@@ -16,12 +16,8 @@ external services.
 
 Ask your coding agent. Open it in the workspace folder that contains your
 consumer repos and paste the prompt from
-[install with an agent](guides/install-with-an-agent.md). The npm CLI is
-being deprecated; use it only for cases the agent path does not cover yet:
-
-```sh
-npx @structor-dev/cli init
-```
+[install with an agent](guides/install-with-an-agent.md). It uses a verified
+release checkout; no npm package or global installation is needed.
 
 See [quickstart](guides/quickstart.md).
 
