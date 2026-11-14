@@ -571,7 +571,8 @@ export async function applyAgentNativeSetup({
   const actualWrites = [];
   const statuses = plan.commands.map(() => "skipped");
   let successfulExecution = null;
-  const contextWrite = plan.writes.find((write) => write.path.endsWith("/ai/context.md"));
+  const contextPath = repositoryRelative(candidate.workspaceRoot, path.join(candidate.transaction.harnessRoot, "ai/context.md"));
+  const contextWrite = plan.writes.find((write) => write.path === contextPath);
   const contextContent = candidate.transaction.dryRunGenerated.generatedFiles.find(
     (file) => file.targetRelative === "ai/context.md",
   ).content;
