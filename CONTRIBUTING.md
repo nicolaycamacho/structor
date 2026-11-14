@@ -89,3 +89,5 @@ ran, and the full output. If it involves generation, include a minimal
 
 Do not file public issues for anything that could expose secrets or enable
 unsafe file operations. Contact the maintainer privately first.
+
+Release maintainers: follow the [tagged release process](docs/reference/releases.md).

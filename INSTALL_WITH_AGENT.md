@@ -27,8 +27,14 @@ files and removes new outputs and backups.
 The user-facing prompt lives in
 [docs/guides/install-with-an-agent.md](docs/guides/install-with-an-agent.md)
 and is mirrored in `README.md`. A coordinator that receives it pins one clean
-Structor checkout, records its 40-character commit, and passes that commit as
+Structor release checkout, verifies its annotated tag using
+`node scripts/check-release.mjs --tag <selected-tag>`, records the tag and its
+40-character commit, and passes that commit as
 `--source-revision` to every `structor agent` command below.
+
+The highest stable annotated tag reachable from `origin/main` is the latest
+release. See [releases](docs/reference/releases.md) for selection and verification.
+Do not fall back to `main` or an npm version if release verification fails.
 
 ## Supported Invocation
 
@@ -40,14 +46,14 @@ config draft outside the selected workspace using the normal config shape from
 final harness config path from `--workspace` and `output.path`.
 
 ```bash
-structor agent plan \
+node /absolute/path/to/structor/bin/structor.mjs agent plan \
   --workspace /absolute/path/to/workspace \
   --config-draft /tmp/harness-config-draft.json \
   --plan-id setup-20260726-001 \
   --source-revision 0123456789abcdef0123456789abcdef01234567 \
   > /tmp/installation-plan.json
 
-structor agent hash --plan /tmp/installation-plan.json
+node /absolute/path/to/structor/bin/structor.mjs agent hash --plan /tmp/installation-plan.json
 ```
 
 The plan command writes JSON only to stdout. Structor does not mutate the
@@ -69,7 +75,7 @@ Review the complete plan and create an approval receipt for the printed hash:
 Then apply the exact pair:
 
 ```bash
-structor agent apply \
+node /absolute/path/to/structor/bin/structor.mjs agent apply \
   --workspace /absolute/path/to/workspace \
   --config-draft /tmp/harness-config-draft.json \
   --plan /tmp/installation-plan.json \

@@ -51,6 +51,7 @@ It is not the Structor product guide corpus.
 - [Configuration](reference/configuration.md)
 - [Generated files](reference/generated-files.md)
 - [Contributor setup](reference/contributor-setup.md)
+- [Releases](reference/releases.md)
 
 ## Anti-Patterns
 

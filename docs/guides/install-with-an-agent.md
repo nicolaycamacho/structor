@@ -30,24 +30,27 @@ Open your agent in that workspace folder.
 Install Structor (https://github.com/nicolaycamacho/structor) in this
 workspace using its agent-native setup protocol.
 
-1. Clone Structor into a temporary directory outside this workspace and
-   record the full 40-character commit from `git rev-parse HEAD`. Use only
-   that clean, pinned checkout from here on.
-2. Read INSTALL_WITH_AGENT.md in that checkout and follow it exactly.
+1. Clone Structor with all tags into a temporary directory outside this
+   workspace. Select the highest stable vX.Y.Z annotated tag reachable from
+   origin/main; stop if none exists. Check out that tag in detached mode.
+2. Run `node scripts/check-release.mjs --tag <selected-tag>` in that checkout.
+   Stop if it fails. Record the tag and full 40-character commit from
+   `git rev-parse HEAD`, then read INSTALL_WITH_AGENT.md and follow it exactly.
 3. Treat the current directory as the workspace. Show me the candidate
    repositories you find and wait for me to approve which ones you may inspect.
 4. Ask me any unresolved decisions one at a time, each with your recommendation.
-5. Run `structor agent plan` from the pinned checkout, show me the complete
-   plan and its hash, and do not run `structor agent apply` until I approve
-   that exact hash.
+5. Invoke every command with `node /path/to/pinned/structor/bin/structor.mjs`.
+   Run `agent plan` with the recorded commit as --source-revision, show me the
+   complete plan and hash, and wait for my approval of that hash before apply.
 6. Preserve existing AGENTS.md and CLAUDE.md files, make no application source
    changes, and report the execution outcome and readiness separately.
 ```
 
 ## What Happens
 
-1. The agent pins one Structor commit, so every command it runs comes from
-   source you can look up.
+1. The agent selects the latest qualifying [release tag](../reference/releases.md),
+   verifies its metadata, and pins its commit. Every command comes from that
+   checkout; no global CLI installation or npm download is needed.
 2. It lists candidate repositories in the workspace using metadata only. It
    does not read source files, ignored files, or credentials.
 3. You choose which repositories it may inspect.

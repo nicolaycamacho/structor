@@ -18,7 +18,7 @@
     },
     {
       "name": "check:ci",
-      "command": "node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map",
+      "command": "node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map && npm run check:release",
       "purpose": "Run fast structural checks for local iteration and CI hygiene."
     },
     {
@@ -115,6 +115,11 @@
       "name": "setup:contributor",
       "command": "node scripts/setup-contributor.mjs",
       "purpose": "Create or refresh a local Structor contributor self-harness."
+    },
+    {
+      "name": "check:release",
+      "command": "node scripts/check-release.mjs",
+      "purpose": "Check release metadata and, in tag mode, annotated tag provenance and a clean checkout."
     }
   ],
   "directories": [
@@ -195,6 +200,10 @@
     {
       "path": "scripts/smoke-contributor.mjs",
       "purpose": "Contributor workflow smoke validation."
+    },
+    {
+      "path": "scripts/check-release.mjs",
+      "purpose": "Read-only version, lockfile, changelog, and annotated main-tag integrity check."
     }
   ],
   "generation": {
@@ -288,7 +297,10 @@
         "scripts/smoke-contributor.mjs",
         "docs/capabilities/validation.md",
         "REPO_MAP.md",
-        ".structor/manifest/repo-map.json"
+        ".structor/manifest/repo-map.json",
+        "scripts/check-release.mjs",
+        "test/release.test.mjs",
+        "docs/reference/releases.md"
       ]
     },
     {
@@ -313,7 +325,10 @@
         "SECURITY.md",
         "scripts/check-public-hygiene.mjs",
         "REPO_MAP.md",
-        ".structor/manifest/repo-map.json"
+        ".structor/manifest/repo-map.json",
+        "scripts/check-release.mjs",
+        "test/release.test.mjs",
+        "docs/reference/releases.md"
       ]
     }
   ]

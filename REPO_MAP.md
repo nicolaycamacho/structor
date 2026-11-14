@@ -57,7 +57,8 @@ Keep this file and `.structor/manifest/repo-map.json` synchronized when adding, 
 
 ## Init And Wizard Flow
 
-`structor init` is the recommended local setup path for users creating a repository-local AI Harness Engineering Framework for consumer repos.
+The agent prompt in `README.md` is the recommended setup path. `structor init`
+is the legacy local wizard fallback.
 
 High-level flow:
 
@@ -104,6 +105,7 @@ Primary source-repo commands:
 | Command | Purpose |
 | --- | --- |
 | `npm run check:ci` | Fast structural checks for config, schemas, templates, contracts, examples, hygiene, docs, and repo-map drift. |
+| `npm run check:release` | Version/lockfile/changelog integrity; tag builds also verify annotated main ancestry and a clean checkout. |
 | `npm test` | Node test suite. |
 | `npm run check:smoke` | Smoke-render generated harness variants and validate generated outputs. |
 | `npm run check:contributor` | Smoke-test manual contributor and packaged contributor flows. |
@@ -223,6 +225,15 @@ Do not put Structor-specific product content into active generic templates under
 - `.structor/manifest/repo-map.json`
 
 ### Package and release behavior
+
+Releases use annotated main tags; `scripts/check-release.mjs` is read-only and
+checks metadata on branches, plus tag provenance in tag builds or with `--tag`.
+See `docs/reference/releases.md` for selection, publication, and recovery.
+
+- `scripts/check-release.mjs`
+- `test/release.test.mjs`
+- `docs/reference/releases.md`
+- `.github/workflows/validate.yml`
 
 - `package.json`
 - `package-lock.json`
