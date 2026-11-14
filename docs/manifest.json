@@ -183,6 +183,13 @@
       "audience": ["first-time users", "assistants"],
       "purpose": "Answer first-run and troubleshooting questions concisely with canonical links.",
       "status": "current"
+    },
+    {
+      "path": "docs/reference/releases.md",
+      "title": "Releases",
+      "audience": ["users", "contributors", "assistants"],
+      "purpose": "Define tagged distribution, latest release selection, integrity checks, and release recovery.",
+      "status": "current"
     }
   ]
 }

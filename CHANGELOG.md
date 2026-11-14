@@ -5,6 +5,35 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-11-14
+
+### Added
+
+- Agent-native approved plan/hash/apply setup, deterministic evidence, and
+  separate execution/readiness reports. Both focused and expanded profiles
+  support fresh installation and regeneration with approved replacement backups.
+- Focused harness generation, evidence-backed population, task ownership and
+  repo-fit guidance, task guidance graph checks, and canonical target provenance.
+- Full behavioral CI on the supported Node/npm matrix, isolated fixture Git
+  environments, and contributor/setup regression coverage.
+- Annotated Git release distribution, version/lockfile/changelog integrity checks,
+  and strict tag provenance validation in tag CI and the installation protocol.
+
+### Changed
+
+- README now routes detail to `docs/` and recommends the agent installation
+  prompt, which selects a validated release tag and records its source commit.
+- Generated context routing, issue contracts, quality rules, and validation
+  surfaces reflect the framework improvements merged since 0.2.0.
+
+### Release history
+
+- This is the first release under the annotated main-tag policy. The prior
+  0.2.3–0.2.5 tags and npm versions predate that policy and are left untouched.
+  In particular, the legacy 0.2.5 tag was outside main; it is not a qualifying
+  release. This entry consolidates the intervening work previously missing
+  from this changelog rather than claiming those versions were coherent releases.
+
 ## [0.2.0] - 2026-06-03
 
 ### Added

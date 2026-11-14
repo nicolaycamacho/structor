@@ -101,5 +101,6 @@ is denied, report that access gap instead. A green workflow alone does not
 establish that merges are protected.
 
 This gate closes the behavioral/package slice of #121 through #146 and the
-coordination spec #148. Version/tag/changelog integrity, publication provenance
-and partial-release recovery remain in #121.
+coordination spec #148. Version/tag/changelog integrity and
+release recovery now follow the [tagged release process](releases.md) introduced
+by #156. The broader release-integrity tracking issue is #121.
