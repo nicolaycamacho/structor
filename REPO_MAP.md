@@ -123,7 +123,9 @@ Generated harness validation is separate from Structor package validation. Gener
 
 ## npm Package Surface
 
-`package.json.files` controls what is published to npm. The current published source surface includes:
+The npm package is deprecated and `package.json` is private. The retained
+`package.json.files` list defines the legacy package smoke and public-hygiene
+scan surface until checkout-based smoke replaces it. It includes:
 
 - `bin/`
 - `contrib/`

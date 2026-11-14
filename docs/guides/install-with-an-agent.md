@@ -7,12 +7,9 @@ model-neutral protocol in
 deterministic `structor agent plan|hash|apply` commands. Nothing in your
 workspace is written until you approve one exact plan hash.
 
-If you would rather answer the prompts yourself, use the
-[npm CLI fallback](quickstart.md#fallback-npm-cli).
-
 ## Before You Start
 
-- Node.js 20 or newer, npm 10 or newer, and Git.
+- Node.js 20 or newer and Git. No npm installation is needed.
 - A coding agent that can run shell commands in your workspace.
 - A workspace folder that holds the repositories you want Structor to cover:
 

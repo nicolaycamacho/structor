@@ -16,13 +16,14 @@ before writing code.
 
 ## Contributor Paths
 
-The recommended path for contributing to Structor should become:
+Clone Structor first, then invoke the contributor bootstrap from that checkout:
 
 ```sh
-npx @structor-dev/cli contribute structor
+git clone https://github.com/nicolaycamacho/structor.git
+node ./structor/bin/structor.mjs contribute structor --workspace ./contributor-workspace
 ```
 
-That future contributor bootstrap creates or refreshes a contributor workspace:
+The contributor bootstrap creates or refreshes a contributor workspace:
 the Structor source repository plus a sibling Structor self-harness. It may
 clone local repositories for the workspace, but it must not fork repositories,
 push branches, open pull requests, mutate GitHub or other external services, run

@@ -38,8 +38,8 @@ Do not fall back to `main` or an npm version if release verification fails.
 
 ## Supported Invocation
 
-Run the adapter from an immutable package that records `gitHead`, or from a
-clean Git checkout at the exact 40-character commit supplied to
+Run the adapter from a clean, verified release checkout at the exact
+40-character commit supplied to
 `--source-revision`. Prepare a
 config draft outside the selected workspace using the normal config shape from
 `harness.config.example.json`; the adapter derives `workspace.root` and the
@@ -85,7 +85,7 @@ node /absolute/path/to/structor/bin/structor.mjs agent apply \
 Apply recomputes the plan from current state and rejects config, source,
 rendered-byte, or approval-hash drift before workspace mutation. Never execute
 a mutable `main`-branch copy without first pinning the exact revision read.
-The executing package or clean checkout must match the requested revision.
+The executing clean checkout must match the requested revision.
 
 ## Version Pinning
 

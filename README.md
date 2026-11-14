@@ -44,20 +44,9 @@ Nothing is written until you approve the exact plan hash. See
 [install with an agent](docs/guides/install-with-an-agent.md) for what to
 expect.
 
-### Fallback: npm CLI (being deprecated)
-
-The npm package is being deprecated. If you prefer the manual wizard, run it
-from the same folder:
-
-```sh
-npx @structor-dev/cli init
-```
-
-See the [quickstart](docs/guides/quickstart.md).
-
 ## Docs
 
-- [Docs index](docs/index.md): start here
+- [Docs index](docs/index.md) · [Quickstart](docs/guides/quickstart.md)
 - [Setting up a harness](docs/guides/setting-up-a-harness.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
 - [Commands](docs/reference/commands.md)

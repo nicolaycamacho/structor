@@ -8,45 +8,9 @@ and paste the setup prompt from
 commit, asks you a few decisions, and shows you the full plan. It writes
 nothing until you approve that plan's exact hash.
 
-## Fallback: npm CLI
-
-The npm package is being deprecated in favor of the agent install. If you
-prefer the manual wizard, run it from the workspace folder that holds your
-repositories:
-
-```sh
-npx @structor-dev/cli init
-```
-
-`structor init` is local-only and deterministic. It does not call an LLM, make
-API requests, install packages, create remotes, run agents, or modify external
-services.
-
-1. Confirm the detected repositories, or enter the paths you want.
-2. Review the inferred project identity, generated harness directory, `focused`
-   profile, selected agent clients, and validation command summary.
-3. Review the dry-run preview of the generated harness plan.
-4. Confirm generation only if the preview is correct.
-5. If root guidance exists, choose preserve-and-replace or abort.
-6. Let Structor install or verify entrypoints and run its completion gates.
-
-### From A Local Clone
-
-When developing Structor, run from the parent workspace:
-
-```sh
-node ./structor/bin/structor.mjs init
-```
-
-or, from inside this repository:
-
-```sh
-npm run init -- --workspace ..
-```
-
 ## Next Step
 
-Either path produces a harness with starter guidance. Setup finishing and the
-guidance being ready are separate states. Populate the generated harness with
-reviewed project-specific guidance before relying on it for real work; see
+Setup finishing and guidance being ready are separate states. Review the
+preserved guidance and populate the generated harness with project-specific
+facts before relying on it for real work; see
 [populating a harness](populating-a-harness.md).

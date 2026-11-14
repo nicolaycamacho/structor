@@ -12,11 +12,6 @@
       "purpose": "Run the Node test suite."
     },
     {
-      "name": "prepublishOnly",
-      "command": "npm run validate",
-      "purpose": "Run full validation before publishing."
-    },
-    {
       "name": "check:ci",
       "command": "node scripts/check-config.mjs && node scripts/check-schemas.mjs && node scripts/check-template-files.mjs && node scripts/check-task-template.mjs && node scripts/check-contract-manifests.mjs && node scripts/check-model-overlays.mjs && node scripts/check-placeholders.mjs && node scripts/check-examples.mjs && node scripts/check-public-hygiene.mjs && npm run check:docs && npm run check:repo-map && npm run check:release",
       "purpose": "Run fast structural checks for local iteration and CI hygiene."

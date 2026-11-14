@@ -58,10 +58,10 @@ repository and its sibling **Structor Self-Harness**.
 _Avoid_: Generated AI Harness Engineering Framework, consumer project, remote fork
 
 **Contributor Bootstrap**:
-The future onboarding flow for Structor contributors. It should become
-`npx @structor-dev/cli contribute structor`, may clone local repositories into
-the contributor workspace, and must not fork, push, open pull requests, mutate
-external services, or become a runner.
+The onboarding flow for Structor contributors, invoked from a source checkout
+with `node ./structor/bin/structor.mjs contribute structor`. It may clone local
+repositories into the contributor workspace and must not fork, push, open pull
+requests, mutate external services, or become a runner.
 _Avoid_: Initializer, setup wizard, runner
 
 **Manual Contributor Setup**:

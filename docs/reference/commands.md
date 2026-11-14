@@ -4,17 +4,18 @@ The current CLI supports `init`, `agent`, `generate`, `contribute structor`,
 and `doctor`. It does not include a runner command.
 
 For installation, start with [install with an agent](../guides/install-with-an-agent.md),
-the recommended path. The npm CLI below is a fallback that is being deprecated.
+the recommended path. Run commands from the verified, pinned
+[release checkout](releases.md); no npm package is needed.
 
 ## `structor agent`
 
 Produce, hash, and apply the immutable Agent-Native Setup contract:
 
 ```sh
-structor agent plan --workspace <path> --config-draft <path> \
+node /absolute/path/to/structor/bin/structor.mjs agent plan --workspace <path> --config-draft <path> \
   --plan-id <id> --source-revision <40-character-sha>
-structor agent hash --plan <installation-plan.json>
-structor agent apply --workspace <path> --config-draft <path> \
+node /absolute/path/to/structor/bin/structor.mjs agent hash --plan <installation-plan.json>
+node /absolute/path/to/structor/bin/structor.mjs agent apply --workspace <path> --config-draft <path> \
   --plan <installation-plan.json> --approval <approval-receipt.json>
 ```
 
@@ -26,13 +27,13 @@ agent drive them. See [Install Structor With An Agent](../../INSTALL_WITH_AGENT.
 for the complete model-neutral protocol.
 
 
-## Fallback: `structor init` (being deprecated)
+## Legacy: `structor init` (being removed)
 
-The npm package is being deprecated. This guided wizard remains available as
-a manual fallback:
+The legacy wizard is being removed. New installations use the approved
+agent plan/apply path above. Existing checkout users can still invoke it:
 
 ```sh
-npx @structor-dev/cli init
+node /absolute/path/to/structor/bin/structor.mjs init
 ```
 
 Useful options include:
@@ -50,8 +51,8 @@ Useful options include:
 Render a generated harness from an existing config:
 
 ```sh
-npx @structor-dev/cli generate --config harness.config.json --dry-run
-npx @structor-dev/cli generate --config harness.config.json --install-consumer-entrypoints
+node /absolute/path/to/structor/bin/structor.mjs generate --config harness.config.json --dry-run
+node /absolute/path/to/structor/bin/structor.mjs generate --config harness.config.json --install-consumer-entrypoints
 ```
 
 Use it when you already have a reviewed `harness.config.json` or need to
@@ -62,7 +63,7 @@ preview the rendered file plan.
 Inspect local Structor workspace drift:
 
 ```sh
-npx @structor-dev/cli doctor --workspace .
+node /absolute/path/to/structor/bin/structor.mjs doctor --workspace .
 ```
 
 `doctor` reports local setup and guidance-readiness signals. It is not a repair
@@ -72,9 +73,9 @@ Inspect one checkout without checking unrelated consumers, workspace pointers,
 or auxiliary worktrees:
 
 ```sh
-structor doctor --workspace . --target ./app
-structor doctor --config ./project-structor/harness.config.json --target ./app --json
-structor doctor --workspace . --target ./app --require-git-freshness
+node /absolute/path/to/structor/bin/structor.mjs doctor --workspace . --target ./app
+node /absolute/path/to/structor/bin/structor.mjs doctor --config ./project-structor/harness.config.json --target ./app --json
+node /absolute/path/to/structor/bin/structor.mjs doctor --workspace . --target ./app --require-git-freshness
 ```
 
 `--target` paths resolve from the command's current directory. Configuration
@@ -124,7 +125,7 @@ gain these scripts only through explicit regeneration.
 Create or refresh a local Structor contributor workspace:
 
 ```sh
-npx @structor-dev/cli contribute structor
+node /absolute/path/to/structor/bin/structor.mjs contribute structor
 ```
 
 See [contributor setup](contributor-setup.md) for the manual fallback.

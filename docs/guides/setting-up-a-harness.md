@@ -1,6 +1,7 @@
 # Setting Up A Harness
 
-Structor works best when run from a parent workspace folder:
+Start with the recommended [agent install prompt](install-with-an-agent.md).
+Structor works from a parent workspace folder that holds your consumer repos:
 
 ```text
 workspace/
@@ -8,62 +9,50 @@ workspace/
   project-api/
 ```
 
-It suggests sibling folders as consumer repos when it finds strong local
-signals such as `.git`, `package.json`, `pyproject.toml`, `go.mod`,
-`Cargo.toml`, `pom.xml`, `build.gradle`, `Gemfile`, or `composer.json`.
+The agent pins a verified release checkout outside that workspace. It lists
+candidate repositories using metadata, then waits for your approval before
+inspecting selected repositories. It asks unresolved decisions one at a time.
 
-The detected list is only a suggestion. The user confirms selected repos before
-any config is written. If the detected repos are rejected, the wizard falls
-back to manual consumer repo path entry.
+## What Setup Reads
 
-## What Init Reads
+The exact installation plan lists the selected workspace, approved consumers,
+config draft, relevant repository metadata, existing root guidance, and any
+reviewed population drafts. Ignored files, credentials, and unrelated source
+are outside the inspection scope. See the
+[setup protocol](../../INSTALL_WITH_AGENT.md) for the complete boundary.
 
-- the current workspace folder, or the folder passed with `--workspace`
-- sibling folder names and local repo signals
-- existing `harness.config.json`, if present
-- local package metadata needed to suggest validation commands
-- existing root `AGENTS.md` and `CLAUDE.md` files in selected consumer repos
-- broader local guidance candidates that may need later human review
+## What Setup Writes
 
-## What Init Writes
+Only after you approve the exact plan hash, Structor can write the listed:
 
-Only after confirmation, Structor can write:
+- generated harness and its durable `harness.config.json`
+- thin consumer and workspace entrypoints
+- consumer-local backups of existing root guidance
+- generated population task, readiness record, and execution evidence
 
-- `harness.config.json` inside the generated harness
-- a generated Structor harness repo at the configured `output.path`
-- required consumer entrypoint pointer files
-- required workspace entrypoint pointer files
-- preserved root guidance under `.structor/preserved-guidance/<timestamp>/`
-  inside the consumer repo after explicit consent
-- a local populate-generated-harness task describing guidance review still
-  required after deterministic setup
-
-Consumer entrypoints are thin pointer files. They route Codex and Claude Code
-back to the generated harness; they are not copies of canonical harness policy.
+Application source is not changed. Entrypoints route agents back to canonical
+policy in the generated harness. A changed source, config, or workspace state
+requires a new plan and approval before applying it.
 
 ## Existing Root Guidance
 
-Root guidance means top-level `AGENTS.md` and `CLAUDE.md` files in a consumer
-repo. Structor treats them as user-owned unless the user consents to
-replacement.
+Existing top-level `AGENTS.md` and `CLAUDE.md` files are user-owned. The plan
+shows how their original bytes will be preserved under
+`.structor/preserved-guidance/<run-id>/` before replacement with thin pointers.
+Review and approve that plan, or stop setup. Regeneration also lists each
+replacement's current-byte hash and backup path before approval.
 
-If existing root guidance is found, Structor offers only two outcomes:
+## Deterministic Generation
 
-- preserve existing guidance as consumer-local source material and generate
-  Structor entrypoints
-- abort setup
-
-There is no silent skip path for required root guidance takeover.
-
-## Manual Path
-
-If you prefer the conservative manual path, create `harness.config.json` and
-run:
+For a reviewed config, the Initializer remains available from the same pinned
+checkout:
 
 ```sh
-npx @structor-dev/cli generate --config harness.config.json --dry-run
-npx @structor-dev/cli generate --config harness.config.json --install-consumer-entrypoints
+node /absolute/path/to/structor/bin/structor.mjs generate --config harness.config.json --dry-run
+node /absolute/path/to/structor/bin/structor.mjs generate --config harness.config.json --install-consumer-entrypoints
 ```
 
-See [configuration](../reference/configuration.md) and
-[commands](../reference/commands.md) for details.
+This is a rendering interface. The agent plan/apply path owns the complete
+approved setup transaction, preservation, validation, and evidence. See
+[configuration](../reference/configuration.md) and
+[commands](../reference/commands.md).

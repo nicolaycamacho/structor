@@ -17,9 +17,9 @@ body:
   - type: input
     id: structor-version
     attributes:
-      label: Structor version
-      description: From package.json or `npx @structor-dev/cli --version` if available.
-      placeholder: 0.1.0
+      label: Structor release and commit
+      description: The selected release tag and full 40-character commit from `git rev-parse HEAD` in the pinned checkout.
+      placeholder: v0.3.1, <40-character commit>
     validations:
       required: true
   - type: textarea
