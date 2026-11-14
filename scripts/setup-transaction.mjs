@@ -343,6 +343,7 @@ export async function applySetupTransaction(plan, {
       preservedGuidanceByConsumer: plan.preservedGuidanceByConsumer,
       generatedAt: plan.generationTimestamp,
       createRegenerationBackup,
+      onCommandOutput,
     });
     assertGeneratedScriptsReady(generated.generatedFiles, topologyPlan);
 

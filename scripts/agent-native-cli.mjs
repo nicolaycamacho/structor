@@ -117,6 +117,10 @@ async function run(argv) {
         ...input,
         plan,
         receipt,
+        onCommandOutput: (result) => {
+          if (result.stdout) process.stderr.write(result.stdout);
+          if (result.stderr) process.stderr.write(result.stderr);
+        },
         ...(options["executed-at"] ? { executedAt: options["executed-at"] } : {}),
       });
     } finally {
