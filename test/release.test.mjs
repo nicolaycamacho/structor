@@ -6,6 +6,31 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
+// Match CLI fixture isolation for construction and nested checker Git commands.
+const fixtureGitEnv = {
+  ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith("GIT_"))),
+  GIT_CONFIG_NOSYSTEM: "1",
+  GIT_CONFIG_SYSTEM: "/dev/null",
+  GIT_CONFIG_GLOBAL: "/dev/null",
+  GIT_ATTR_NOSYSTEM: "1",
+  GIT_TERMINAL_PROMPT: "0",
+  GIT_OPTIONAL_LOCKS: "0",
+};
+const fixtureGitConfig = {
+  "core.hooksPath": "/dev/null",
+  "core.attributesFile": "/dev/null",
+  "core.autocrlf": "false",
+  "commit.gpgSign": "false",
+  "tag.gpgSign": "false",
+  "init.templateDir": "",
+  "init.defaultBranch": "main",
+};
+fixtureGitEnv.GIT_CONFIG_COUNT = String(Object.keys(fixtureGitConfig).length);
+Object.entries(fixtureGitConfig).forEach(([key, value], index) => {
+  fixtureGitEnv[`GIT_CONFIG_KEY_${index}`] = key;
+  fixtureGitEnv[`GIT_CONFIG_VALUE_${index}`] = value;
+});
+
 const source = fileURLToPath(new URL("../scripts/check-release.mjs", import.meta.url));
 async function fixture(t, { git = true } = {}) {
   const root = await mkdtemp(path.join(os.tmpdir(), "structor-release-"));
@@ -16,7 +41,7 @@ async function fixture(t, { git = true } = {}) {
   await write("package.json", JSON.stringify({ version: "0.3.0" }));
   await write("package-lock.json", JSON.stringify({ version: "0.3.0", packages: { "": { version: "0.3.0" } } }));
   await write("CHANGELOG.md", "# Changelog\n\n## [0.3.0] - 2026-11-14\n\n- Tagged distribution.\n");
-  const runGit = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe", encoding: "utf8" }).trim();
+  const runGit = (...args) => execFileSync("git", args, { cwd: root, stdio: "pipe", encoding: "utf8", env: fixtureGitEnv }).trim();
   if (git) {
     runGit("init", "-b", "main");
     runGit("config", "user.name", "Release Fixture");
@@ -27,7 +52,7 @@ async function fixture(t, { git = true } = {}) {
     runGit("update-ref", "refs/remotes/origin/main", "HEAD");
   }
   const check = (args = [], overrides = {}) => {
-    const env = { ...process.env, ...overrides };
+    const env = { ...fixtureGitEnv };
     delete env.GITHUB_REF_TYPE; delete env.GITHUB_REF_NAME;
     Object.assign(env, overrides);
     const result = spawnSync(process.execPath, [path.join(root, "scripts/check-release.mjs"), ...args], { cwd: root, env, encoding: "utf8" });
