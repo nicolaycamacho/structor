@@ -12,9 +12,12 @@ No. `structor init` is local-only and deterministic. It does not call LLMs,
 make API requests, install packages, create remotes, run agents, or mutate
 external services.
 
-## What command should I run first?
+## How should I install Structor?
 
-Run from the workspace folder that contains your consumer repos:
+Ask your coding agent. Open it in the workspace folder that contains your
+consumer repos and paste the prompt from
+[install with an agent](guides/install-with-an-agent.md). The npm CLI is
+being deprecated; use it only for cases the agent path does not cover yet:
 
 ```sh
 npx @structor-dev/cli init

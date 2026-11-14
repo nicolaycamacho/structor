@@ -34,9 +34,11 @@ structor agent apply --workspace <path> --config-draft <path> \
 ```
 
 The plan command emits JSON without mutating the selected workspace. Apply
-requires an approval receipt bound to the exact canonical plan hash. See
-[Install Structor With An Agent](../../INSTALL_WITH_AGENT.md) for the complete
-model-neutral protocol.
+requires an approval receipt bound to the exact canonical plan hash. Most users
+should not call these directly: paste the prompt from
+[install with an agent](../guides/install-with-an-agent.md) and let a coding
+agent drive them. See [Install Structor With An Agent](../../INSTALL_WITH_AGENT.md)
+for the complete model-neutral protocol.
 
 
 ## `structor generate`

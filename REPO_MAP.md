@@ -179,6 +179,7 @@ Do not put Structor-specific product content into active generic templates under
 - `scripts/rendered-config.mjs`
 - `test/cli.test.mjs`
 - `docs/reference/commands.md`
+- `docs/guides/install-with-an-agent.md`
 - `docs/guides/setting-up-a-harness.md`
 - `REPO_MAP.md`
 - `.structor/manifest/repo-map.json`

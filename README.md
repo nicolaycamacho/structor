@@ -1,89 +1,66 @@
 # Structor
 
-> Experimental. Early infrastructure for Harness Engineering. The API,
-> generated layout, and config shape may change.
+Structor is a Harness Engineering Framework. It does more than drop a rules
+file into your repo: it generates a Repository-local AI Harness Engineering
+Framework, a versioned repository that gives Codex, Claude Code, and similar
+agents shared context routing, contracts, task shape, review expectations, and
+validation.
 
-Structor is a local Harness Engineering Framework. It generates a
-Repository-local AI Harness Engineering Framework: a versioned policy layer
-where Codex, Claude Code, and similar agents can share context routing,
-contracts, task shape, review expectations, and validation guidance.
+It works with a single repository, but it shines in multi-repo workspaces. One
+generated harness sits beside all your repositories and coordinates how agents
+read, plan, and validate work that spans them, such as a frontend, an API, and
+shared libraries.
 
-Structor is a generator, not a runner. It creates plain local files and
-validators; it does not run agents, coordinate sessions, open pull requests,
-host services, call LLM APIs, install packages, collect telemetry, or mutate
-external systems.
+Structor is a generator, not a runner: it never runs agents, calls LLM APIs,
+or collects telemetry.
 
-## Quick Start
+## Install
 
-Run Structor from the workspace folder that contains your consumer repos:
+### Recommended: ask your coding agent
+
+Open your coding agent in the folder that holds your repositories, and paste:
+
+```text
+Install Structor (https://github.com/nicolaycamacho/structor) in this
+workspace using its agent-native setup protocol.
+
+1. Clone Structor into a temporary directory outside this workspace and
+   record the full 40-character commit from `git rev-parse HEAD`. Use only
+   that clean, pinned checkout from here on.
+2. Read INSTALL_WITH_AGENT.md in that checkout and follow it exactly.
+3. Treat the current directory as the workspace. Show me the candidate
+   repositories you find and wait for me to approve which ones you may inspect.
+4. Ask me any unresolved decisions one at a time, each with your recommendation.
+5. Run `structor agent plan` from the pinned checkout, show me the complete
+   plan and its hash, and do not run `structor agent apply` until I approve
+   that exact hash.
+6. Preserve existing AGENTS.md and CLAUDE.md files, make no application source
+   changes, and report the execution outcome and readiness separately.
+```
+
+Nothing is written until you approve the exact plan hash. See
+[install with an agent](docs/guides/install-with-an-agent.md) for what to
+expect.
+
+### Fallback: npm CLI (being deprecated)
+
+The npm package is being deprecated. Use it only for what the agent path does
+not cover yet: the `expanded` profile, or regenerating a harness you already
+have. Run it from the same folder:
 
 ```sh
 npx @structor-dev/cli init
 ```
 
-`structor init` detects sibling repos, asks confirmation-oriented questions,
-previews the planned setup transaction, writes a generated harness only after
-approval, installs or verifies thin agent entrypoints, and reports setup
-completion after deterministic local gates pass.
-For the plan-hash-approval flow used by coding agents and manual automation,
-see [Install Structor With An Agent](INSTALL_WITH_AGENT.md).
+See the [quickstart](docs/guides/quickstart.md).
 
+## Docs
 
-It creates a sibling generated harness repo:
-
-```text
-workspace/
-  my-app-structor/        # generated harness: policy, contracts, validation
-  my-app-frontend/        # consumer repo
-  my-app-backend/         # optional consumer repo
-```
-
-Inside the generated harness:
-
-```text
-ai/                 canonical policy and guidance
-AGENTS.md           thin Codex entrypoint -> routes into ai/
-CLAUDE.md           thin Claude Code entrypoint -> routes into ai/
-scripts/            generated validation and workspace checks
-```
-
-## Guides
-
-- [Docs index](docs/index.md)
-- [Quickstart](docs/guides/quickstart.md)
+- [Docs index](docs/index.md): start here
 - [Setting up a harness](docs/guides/setting-up-a-harness.md)
-- [Install with an agent](INSTALL_WITH_AGENT.md)
-- [Populating a harness](docs/guides/populating-a-harness.md)
 - [Troubleshooting](docs/guides/troubleshooting.md)
-- [What Structor is](docs/concepts/what-structor-is.md)
-- [Harness vs runner](docs/concepts/harness-vs-runner.md)
 - [Commands](docs/reference/commands.md)
-- [Configuration](docs/reference/configuration.md)
-- [Generated files](docs/reference/generated-files.md)
+- [What Structor is](docs/concepts/what-structor-is.md)
 - [Contributor setup](docs/reference/contributor-setup.md)
-- [FAQ](docs/faq.md)
 
-## Boundaries
-
-- Structor setup is local-only and deterministic.
-- Existing root `AGENTS.md` and `CLAUDE.md` guidance is not silently deleted,
-  uploaded, interpreted, or merged.
-- Preserved guidance remains consumer-local source material until a later
-  reviewed migration.
-- Generated harness `ai/*` is the canonical policy layer inside generated
-  projects.
-- `docs/*` is the canonical Structor user guide corpus.
-
-See [harness vs runner](docs/concepts/harness-vs-runner.md) and
-[using Structor as an orchestrator](docs/anti-patterns/using-structor-as-orchestrator.md)
-for the product boundary.
-
-## Contributors
-
-See [contributor setup](docs/reference/contributor-setup.md) for the local
-Structor contributor path.
-
-Useful project references:
-
-- [Security policy](SECURITY.md)
-- [Roadmap](ROADMAP.md)
+[MIT License](LICENSE) · [Security](SECURITY.md) · [Roadmap](ROADMAP.md)
